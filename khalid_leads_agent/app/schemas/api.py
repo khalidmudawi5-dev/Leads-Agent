@@ -1,0 +1,76 @@
+"""Request bodies for the JSON API."""
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+class ResultIn(BaseModel):
+    """A call result coming from the result panel.
+
+    ``input_channel`` is "form" in V1. V2 TODO: a "voice" channel will fill the
+    same model (see ``call_result_service`` module docstring).
+    """
+
+    idempotency_key: str = Field(min_length=8, max_length=80)
+    fingerprint: str | None = None
+    odoo_lead_id: int | None = None
+    result_code: str
+    note: str = ""
+    source_value: str = ""
+    save_source_mapping: bool = False
+    source_odoo_value: str = ""
+    not_subscribed_reason: str = ""
+    subscription_expiry: str = ""
+    followup_date: str = ""
+    followup_time: str = ""
+    followup_note: str = ""
+    update_sheet: bool = True
+    add_odoo_note: bool = True
+    call_started_at: datetime | None = None
+    call_ended_at: datetime | None = None
+    input_channel: Literal["form", "voice"] = "form"
+    preview_only: bool = False
+    manual_company: str = ""
+    manual_phone: str = ""
+
+
+class SkipIn(BaseModel):
+    mode: Literal["10m", "30m", "today", "session"] = "session"
+    reason: str = ""
+
+
+class SessionStartIn(BaseModel):
+    resume: bool = True
+
+
+class SearchIn(BaseModel):
+    query: str = ""
+
+
+class SelectCandidateIn(BaseModel):
+    odoo_id: int | None = None
+    ui_index: int | None = None
+    ui_query: str = ""
+
+
+class ManualOpenIn(BaseModel):
+    odoo_id: int
+
+
+class SourceMappingIn(BaseModel):
+    odoo_value: str
+    sheet_value: str
+
+
+class StatusMappingItem(BaseModel):
+    code: str
+    label: str = ""
+    sheet_value: str = ""
+    sort_order: int = 0
+
+
+class StatusMappingIn(BaseModel):
+    items: list[StatusMappingItem]

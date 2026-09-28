@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stats" id="stats">
+  <div class="stat"><div class="label">عملاء {{ owner }} اليوم</div><div class="value" data-k="owner_total">–</div></div>
+  <div class="stat s-indigo"><div class="label">بانتظار التواصل</div><div class="value" data-k="pending">–</div></div>
+  <div class="stat s-slate"><div class="label">تم التواصل</div><div class="value" data-k="contacted">–</div></div>
+  <div class="stat s-amber"><div class="label">لم يتم الرد</div><div class="value" data-k="no_answer">–</div></div>
+  <div class="stat s-green"><div class="label">مهتم</div><div class="value" data-k="interested">–</div></div>
+  <div class="stat s-red"><div class="label">غير مهتم</div><div class="value" data-k="not_interested">–</div></div>
+  <div class="stat s-amber"><div class="label">متابعة لاحقة</div><div class="value" data-k="follow_up">–</div></div>
+  <div class="stat s-rose"><div class="label">أخطاء المطابقة</div><div class="value" data-k="match_errors">–</div></div>
+</div>
+
+<form class="search-bar" id="manual-form" autocomplete="off">
+  <input type="search" id="manual-q" placeholder="بحث يدوي في Odoo: اكتب اسم عميل أو رقم جوال (حتى لو لم يكن ضمن القائمة)">
+  <button class="btn primary" type="submit">بحث في Odoo</button>
+  <button class="btn" type="button" id="btn-refresh-queue">تحديث القائمة من Google Sheet</button>
+</form>
+
+<div id="dry-ribbon" class="dryrun-ribbon hidden">وضع Dry Run مفعّل: لن يتم تعديل Odoo أو Google Sheet — الحفظ يعرض معاينة فقط</div>
+<div id="global-msg"></div>
+<div id="call-banner" class="call-banner hidden">
+  <span class="pulse"></span>
+  <div><div style="font-weight:800;font-size:1.1rem">المكالمة قيد التنفيذ / في انتظار تسجيل النتيجة</div>
+    <div class="small" style="opacity:.8">المؤقت محلي فقط ولا يقرأ حالة المكالمة الفعلية من الجوال.</div></div>
+  <span class="timer" id="call-timer">00:00</span>
+  <span class="spacer"></span>
+  <button class="btn" id="btn-end-call">إنهاء تسجيل المكالمة</button>
+  <button class="btn success" id="btn-result-from-call">تسجيل النتيجة</button>
+</div>
+
+<div class="grid-2">
+  <section>
+    <div class="card" id="lead-card"><div class="empty"><span class="spinner"></span> جاري تحميل العميل…</div></div>
+    <div class="card hidden" id="result-card"></div>
+    <div class="card hidden" id="next-card"></div>
+  </section>
+  <aside>
+    <div class="card" id="odoo-card"><h2>بيانات Odoo</h2><div class="muted">—</div></div>
+    <div class="card" id="session-card"><h2>الجلسة الحالية</h2><div class="muted">—</div></div>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/dashboard.js?v={{ version }}"></script>{% endblock %}

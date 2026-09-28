@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row between" style="margin-bottom:12px">
+    <p class="muted" style="margin:0">رسائل واضحة للمستخدم. التفاصيل التقنية الكاملة (Stack Trace) محفوظة في <span class="ltr">logs/agent.log</span>.</p>
+    <div class="row"><label class="check"><input type="checkbox" id="show-all"> عرض المعالجة أيضًا</label>
+      <button class="btn" id="btn-resolve">تعليم الكل كمُعالج</button></div>
+  </div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>الوقت</th><th>الرسالة</th><th>الرمز</th><th>المسار</th><th>Screenshot</th></tr></thead>
+    <tbody id="rows"></tbody></table></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+async function loadErrors() {
+  const r = await api("GET", "/api/errors?all=" + ($("#show-all").checked ? "true" : "false"));
+  $("#rows").innerHTML = r.items.length ? r.items.map((i) => `<tr><td class="nowrap">${esc(i.time)}</td><td><b>${esc(i.message)}</b></td>
+    <td class="ltr small">${esc(i.code)}</td><td class="ltr small">${esc((i.context || {}).path || "")}</td>
+    <td class="ltr small">${orDash(i.screenshot)}</td></tr>`).join("") : '<tr><td colspan="5" class="empty">لا توجد أخطاء.</td></tr>';
+}
+document.addEventListener("DOMContentLoaded", () => {
+  $("#show-all").onchange = loadErrors;
+  $("#btn-resolve").onclick = async () => { await api("POST", "/api/errors/resolve-all"); loadErrors(); };
+  loadErrors().catch((e) => toast(e.message, "error"));
+});
+</script>{% endblock %}

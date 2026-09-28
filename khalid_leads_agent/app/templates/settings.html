@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="general">General</button>
+    <button class="tab" data-tab="google">Google Sheets</button>
+    <button class="tab" data-tab="odoo">Odoo</button>
+    <button class="tab" data-tab="columns">Column Mapping</button>
+    <button class="tab" data-tab="status">Status Mapping</button>
+    <button class="tab" data-tab="source">Source Mapping</button>
+    <button class="tab" data-tab="automation">Automation</button>
+    <button class="tab" data-tab="advanced">Advanced</button>
+  </div>
+
+  <section class="tab-panel active" data-panel="general">
+    <div class="form-grid">
+      <label class="field"><span>Agent Owner (اسم المسؤول كما يظهر في عمود «المسؤول الحالي»)</span><input type="text" data-key="agent_owner"></label>
+    </div>
+    <div class="actions"><button class="btn primary" data-save="general">حفظ</button>
+      <a class="btn" href="/setup">فتح معالج الإعداد</a></div>
+  </section>
+
+  <section class="tab-panel" data-panel="google">
+    <div id="google-status" class="alert info">…</div>
+    <div class="form-grid">
+      <label class="field"><span>طريقة الربط</span><select data-key="google_auth_mode">
+        <option value="oauth">Google OAuth Desktop App (مفضل)</option><option value="service_account">Service Account</option></select></label>
+      <div></div>
+      <div class="field"><span class="small"><b>ملف OAuth client (Desktop app JSON)</b></span>
+        <div class="row"><input type="file" id="f-oauth" accept=".json"><button class="btn sm" id="btn-up-oauth">رفع</button></div></div>
+      <div class="field"><span class="small"><b>ملف Service Account JSON</b></span>
+        <div class="row"><input type="file" id="f-sa" accept=".json"><button class="btn sm" id="btn-up-sa">رفع</button></div></div>
+    </div>
+    <div class="actions" style="margin-bottom:16px">
+      <button class="btn primary" id="btn-connect">Connect Google</button>
+      <button class="btn" id="btn-disconnect">فصل Google</button>
+    </div>
+    <div class="form-grid">
+      <label class="field"><span>Spreadsheet ID</span><input type="text" data-key="spreadsheet_id" class="ltr" style="width:100%"></label>
+      <label class="field"><span>Sheet/Tab Name</span><input type="text" data-key="sheet_name" list="tab-list"><datalist id="tab-list"></datalist></label>
+      <label class="field"><span>رقم صف العناوين</span><input type="number" min="1" data-key="header_row"></label>
+      <label class="field"><span>صيغة ختم الملاحظة</span><input type="text" data-key="note_stamp_format" class="ltr"></label>
+      <label class="field full"><span>Pending Status Values — قيم «حالة المتابعة» التي تعتبر بانتظار التواصل (قيمة في كل سطر، واكتب <b>(فارغ)</b> للخلية الفارغة)</span>
+        <textarea data-key="pending_status_values" data-type="lines"></textarea></label>
+      <label class="check"><input type="checkbox" data-key="append_notes"> Append Notes (عدم مسح الملاحظات القديمة)</label>
+      <label class="check"><input type="checkbox" data-key="validate_dropdown_values"> التحقق من أن القيم موجودة في Dropdown قبل الكتابة</label>
+    </div>
+    <div class="actions" style="margin-top:14px"><button class="btn primary" data-save="google">حفظ</button>
+      <button class="btn" id="btn-load-tabs">تحميل أسماء التابات</button>
+      <button class="btn success" id="btn-test-google">Test Connection</button></div>
+    <div id="google-test" style="margin-top:14px"></div>
+  </section>
+
+  <section class="tab-panel" data-panel="odoo">
+    <div class="form-grid">
+      <label class="field"><span>Base URL</span><input type="url" data-key="odoo_base_url" class="ltr"></label>
+      <label class="field"><span>CRM URL (اختياري)</span><input type="url" data-key="odoo_crm_url" class="ltr" placeholder="{base}/odoo/crm"></label>
+      <label class="field"><span>رابط الـLead (قالب)</span><input type="text" data-key="odoo_lead_url_template" class="ltr"></label>
+      <label class="field"><span>طريقة الكتابة في Chatter</span><select data-key="odoo_write_method">
+        <option value="ui_first">واجهة Odoo أولًا ثم جلسة المتصفح (RPC)</option><option value="rpc_first">جلسة المتصفح (RPC) أولًا ثم الواجهة</option></select></label>
+      <label class="field"><span>نوع Activity (XML ID)</span><input type="text" data-key="odoo_activity_type_xmlid" class="ltr"></label>
+      <label class="field"><span>طريقة تشغيل الاتصال</span><select data-key="call_launch_mode">
+        <option value="odoo_click">الضغط على زر Call الموجود في Odoo (افتراضي)</option>
+        <option value="windows_handler">قراءة رابط Call من Odoo وتسليمه لـWindows/Phone Link مباشرة</option></select></label>
+      <label class="check"><input type="checkbox" data-key="call_fallback_windows_handler"> إذا لم يوجد زر الاتصال: استخدم رابط tel: في Windows مباشرة</label>
+      <label class="field full"><span>نص Log Note (المتغيرات: {result} {notes} {date} {source} {ref} {owner} {company} {phone})</span>
+        <textarea data-key="odoo_note_template" rows="7"></textarea></label>
+    </div>
+    <div class="actions"><button class="btn primary" data-save="odoo">حفظ</button>
+      <button class="btn" id="btn-odoo-login">Open Login</button>
+      <button class="btn success" id="btn-odoo-test">Test Session</button></div>
+    <div class="search-bar" style="margin-top:16px"><input type="search" id="odoo-q" placeholder="اختبار البحث: اسم أو رقم جوال"><button class="btn" id="btn-odoo-search">اختبار البحث</button></div>
+    <div id="odoo-test"></div>
+  </section>
+
+  <section class="tab-panel" data-panel="columns">
+    <p class="muted">يتم تحديد الأعمدة بنص العنوان وليس بالحرف (A, B, C). اختر لكل حقل عنوان العمود المطابق في Sheet.</p>
+    <div class="actions" style="margin-bottom:14px"><button class="btn" id="btn-load-headers">تحميل العناوين من Sheet</button></div>
+    <div class="form-grid" id="columns-form"></div>
+    <div class="actions"><button class="btn primary" id="btn-save-columns">حفظ Column Mapping</button></div>
+    <div id="columns-msg" style="margin-top:12px"></div>
+  </section>
+
+  <section class="tab-panel" data-panel="status">
+    <p class="muted">اربط كل نتيجة داخلية بقيمة Dropdown الفعلية في عمود «حالة المتابعة».</p>
+    <table class="table"><thead><tr><th>الرمز الداخلي</th><th>الزر</th><th>قيمة Google Sheet</th></tr></thead><tbody id="status-rows"></tbody></table>
+    <datalist id="status-options"></datalist>
+    <div class="actions" style="margin-top:12px"><button class="btn primary" id="btn-save-status">حفظ Status Mapping</button></div>
+  </section>
+
+  <section class="tab-panel" data-panel="source">
+    <p class="muted">لا يتم تخمين الربط. أضف: قيمة Odoo (Source أو Source / Medium) ← قيمة Dropdown في Google Sheet.</p>
+    <div class="form-grid">
+      <label class="field"><span>Odoo Value (مثال: Meta / Leads أو Twajd)</span><input type="text" id="src-odoo"></label>
+      <label class="field"><span>Google Sheet Value</span><input type="text" id="src-sheet" list="source-options"><datalist id="source-options"></datalist></label>
+    </div>
+    <div class="actions" style="margin-bottom:14px"><button class="btn primary" id="btn-add-source">إضافة / تحديث</button></div>
+    <table class="table"><thead><tr><th>Odoo Value</th><th>Google Sheet Value</th><th></th></tr></thead><tbody id="source-rows"></tbody></table>
+  </section>
+
+  <section class="tab-panel" data-panel="automation">
+    <div class="alert warn"><b>Dry Run</b>: عند التفعيل يقرأ الـAgent من Sheet ويبحث في Odoo لكنه لا يكتب أي شيء (لا Sheet، لا Log Note، لا Activity) ويعرض معاينة فقط.</div>
+    <div class="form-grid">
+      <label class="check"><input type="checkbox" data-key="dry_run"> Dry Run Mode</label>
+      <label class="check"><input type="checkbox" data-key="auto_load_next"> Auto Load Next Lead</label>
+      <label class="check"><input type="checkbox" data-key="auto_sync_source"> Auto Sync Source (اقتراح المصدر من الربط)</label>
+      <label class="check"><input type="checkbox" data-key="auto_open_odoo_lead"> Auto Open Odoo Lead</label>
+      <label class="field"><span>Next Lead Delay (ثوانٍ)</span><input type="number" min="0" max="60" data-key="next_lead_delay_seconds"></label>
+      <label class="field"><span>ترتيب العملاء</span><select data-key="lead_ordering">
+        <option value="sheet_order">ترتيب Sheet من الأعلى للأسفل (افتراضي)</option>
+        <option value="sheet_reverse">ترتيب Sheet من الأسفل للأعلى</option>
+        <option value="oldest_first">Oldest first (حسب عمود التاريخ)</option>
+        <option value="newest_first">Newest first (حسب عمود التاريخ)</option></select></label>
+      <label class="field"><span>حماية التكرار: نفس العميل + نفس النتيجة خلال (ثوانٍ)</span><input type="number" min="0" data-key="duplicate_window_seconds"></label>
+    </div>
+    <div class="actions"><button class="btn primary" data-save="automation">حفظ</button></div>
+  </section>
+
+  <section class="tab-panel" data-panel="advanced">
+    <div class="form-grid">
+      <label class="field"><span>Browser profile path (فارغ = data/browser-profile)</span><input type="text" data-key="browser_profile_path" class="ltr" id="profile-path"></label>
+      <label class="field"><span>المتصفح</span><select data-key="browser_channel">
+        <option value="chromium">Chromium (مثبت عبر 01_install.bat)</option><option value="chrome">Google Chrome</option><option value="msedge">Microsoft Edge</option></select></label>
+      <label class="field"><span>مسار المتصفح (اختياري)</span><input type="text" data-key="browser_executable_path" class="ltr"></label>
+      <label class="check"><input type="checkbox" data-key="browser_headless"> Headless (غير مستحسن)</label>
+      <label class="field"><span>Navigation timeout (ms)</span><input type="number" data-key="navigation_timeout_ms"></label>
+      <label class="field"><span>Action timeout (ms)</span><input type="number" data-key="action_timeout_ms"></label>
+      <label class="field"><span>عدد المحاولات</span><input type="number" min="1" max="5" data-key="retry_attempts"></label>
+      <label class="field"><span>Logging level</span><select data-key="log_level"><option>DEBUG</option><option>INFO</option><option>WARNING</option><option>ERROR</option></select></label>
+    </div>
+    <div class="help" id="paths"></div>
+    <div class="actions"><button class="btn primary" data-save="advanced">حفظ</button></div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/settings.js?v={{ version }}"></script>{% endblock %}

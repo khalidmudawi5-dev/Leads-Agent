@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · Khalid Leads Agent</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="name">Khalid Leads Agent</div>
+      <div class="sub">لوحة متابعة العملاء اليومية</div>
+    </div>
+    <ul class="nav">
+      <li><a href="/" class="{{ 'active' if active == 'dashboard' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>الرئيسية</a></li>
+      <li><a href="/history" class="{{ 'active' if active == 'history' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>سجل المتابعات</a></li>
+      <li><a href="/skipped" class="{{ 'active' if active == 'skipped' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l7 7-7 7M13 5l7 7-7 7"/></svg>العملاء المتخطون</a></li>
+      <li><a href="/errors" class="{{ 'active' if active == 'errors' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17v.5"/></svg>الأخطاء</a></li>
+      <li><a href="/settings" class="{{ 'active' if active == 'settings' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>الإعدادات</a></li>
+      <li><a href="/diagnostics" class="{{ 'active' if active == 'diagnostics' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6 4 4 6-6"/><path d="M14 9h6v6"/></svg>التشخيص</a></li>
+    </ul>
+    <div class="foot">الإصدار {{ version }} · يعمل محليًا فقط</div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <h1>{{ title }}</h1>
+      <div class="chips">
+        <span class="chip user"><span class="dot" style="background:var(--primary)"></span><span class="txt">{{ owner }}</span></span>
+        <span class="chip" id="chip-odoo" style="cursor:pointer" title="اضغط للتحقق من تسجيل الدخول"><span class="dot"></span><span class="txt">Odoo: …</span></span>
+        <span class="chip" id="chip-google"><span class="dot"></span><span class="txt">Google: …</span></span>
+        <span class="chip {{ 'warn' if dry_run else 'ok' }}" id="chip-dry"><span class="dot"></span><span class="txt">Dry Run: {{ 'ON' if dry_run else 'OFF' }}</span></span>
+      </div>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="/static/js/app.js?v={{ version }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

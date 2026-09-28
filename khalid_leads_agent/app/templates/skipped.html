@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <p class="muted">التخطي لا يعدّل Google Sheet. العملاء يعودون تلقائيًا للقائمة بعد انتهاء مدة التخطي، أو يمكنك إعادتهم الآن.</p>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>الوقت</th><th>العميل</th><th>الهاتف</th><th>الصف</th><th>المدة</th><th>حتى</th><th>السبب</th><th>الحالة</th><th></th></tr></thead>
+    <tbody id="rows"></tbody></table></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+async function loadSkipped() {
+  const r = await api("GET", "/api/skipped");
+  $("#rows").innerHTML = r.items.length ? r.items.map((i) => `<tr><td>${esc(i.time)}</td><td><b>${esc(i.company)}</b></td>
+    <td class="ltr">${esc(i.phone)}</td><td>${i.row ?? "—"}</td><td>${esc(i.mode)}</td><td>${orDash(i.until)}</td><td>${orDash(i.reason)}</td>
+    <td>${i.active ? '<span class="badge amber">متخطى</span>' : '<span class="badge">انتهى</span>'}</td>
+    <td>${i.active ? `<button class="btn sm primary" data-id="${i.id}">إعادة للقائمة</button>` : ""}</td></tr>`).join("")
+    : '<tr><td colspan="9" class="empty">لا يوجد عملاء متخطون.</td></tr>';
+  $$("button[data-id]").forEach((b) => b.onclick = async () => { await api("POST", `/api/skipped/${b.dataset.id}/restore`); toast("تمت الإعادة للقائمة", "success"); loadSkipped(); });
+}
+document.addEventListener("DOMContentLoaded", () => loadSkipped().catch((e) => toast(e.message, "error")));
+</script>{% endblock %}

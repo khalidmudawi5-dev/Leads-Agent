@@ -1,0 +1,300 @@
+"""Orchestrates the daily workflow: queue → Odoo match → open/call → skip/refresh → manual mode."""
+from __future__ import annotations
+
+import asyncio
+import logging
+import re
+from datetime import timedelta
+
+from app.adapters.odoo.base import OdooLead
+from app.db import Database
+from app.errors import AgentError
+from app.models import LeadCache
+from app.repositories.lead_repo import LeadCacheRepository, SkipRepository
+from app.repositories.result_repo import CallResultRepository
+from app.services.google_sheets_service import SheetService
+from app.services.lead_queue_service import LeadQueueService
+from app.services.mapping_service import MappingService
+from app.services.odoo_service import MatchResult, OdooService
+from app.services.session_service import SessionService
+from app.services.settings_service import SettingsService
+from app.utils.phone import normalize_phone, phones_match, to_ascii_digits
+from app.utils.text import normalize_company
+from app.utils.timeutils import end_of_local_day_utc, start_of_local_day_utc, utcnow
+
+log = logging.getLogger(__name__)
+
+
+def last_note(notes: str) -> str:
+    chunks = [c.strip() for c in re.split(r"\n\s*\n", notes or "") if c.strip()]
+    return chunks[-1][:600] if chunks else ""
+
+
+class LeadWorkflowService:
+    def __init__(self, db: Database, settings: SettingsService, sheets: SheetService, queue: LeadQueueService,
+                 sessions: SessionService, odoo: OdooService, mappings: MappingService) -> None:
+        self.db = db
+        self.settings = settings
+        self.sheets = sheets
+        self.queue = queue
+        self.sessions = sessions
+        self.odoo = odoo
+        self.mappings = mappings
+
+    # ------------------------------------------------------------ helpers
+    def _cache(self, fingerprint: str) -> LeadCache:
+        with self.db.session() as s:
+            row = LeadCacheRepository(s).get(fingerprint)
+        if row is None:
+            raise AgentError("LEAD_NOT_IN_QUEUE", "العميل غير موجود في قائمة العمل. حدّث القائمة.", actions=["retry"])
+        return row
+
+    def _update_cache(self, fingerprint: str, **fields) -> None:
+        with self.db.session() as s:
+            row = LeadCacheRepository(s).get(fingerprint)
+            if row:
+                for k, v in fields.items():
+                    setattr(row, k, v)
+
+    def lead_view(self, fingerprint: str) -> dict:
+        c = self._cache(fingerprint)
+        s = self.settings.get()
+        odoo = OdooLead.from_dict(c.odoo_data) if c.odoo_data else None
+        resolution = self.mappings.resolve_source(odoo)
+        prefill = resolution.sheet_value if (resolution.mapped and s.auto_sync_source) else c.sheet_source
+        return {
+            "fingerprint": c.fingerprint, "sheet_row": c.sheet_row, "company_name": c.company_name,
+            "phone": c.phone_raw, "phone_norm": c.phone_norm, "owner": c.owner,
+            "followup_status": c.followup_status, "sheet_source": c.sheet_source, "notes": c.notes,
+            "last_note": last_note(c.notes), "odoo_lead_id": c.odoo_lead_id, "odoo": c.odoo_data,
+            "match_status": c.match_status, "candidates": c.match_candidates or [],
+            "source": {**resolution.to_dict(), "prefill": prefill, "sheet_current": c.sheet_source},
+        }
+
+    def stats(self) -> dict:
+        since = start_of_local_day_utc()
+        with self.db.session() as s:
+            counts = CallResultRepository(s).counts_since(since)
+            match_errors = LeadCacheRepository(s).count_by_match_status(("not_found", "error"))
+        pending = len(self.queue.queue()) if self.queue.loaded else 0
+        return {
+            "owner_total": len(self.queue.owner_leads), "pending": pending,
+            "contacted": sum(counts.values()), "no_answer": counts.get("NO_ANSWER", 0),
+            "interested": counts.get("INTERESTED", 0), "not_interested": counts.get("NOT_INTERESTED", 0),
+            "follow_up": counts.get("FOLLOW_UP", 0), "subscribed": counts.get("SUBSCRIBED", 0),
+            "invalid": counts.get("INVALID_NUMBER", 0), "match_errors": match_errors,
+        }
+
+    async def _refresh(self, strict: bool) -> list[str]:
+        """Reload the sheet. With a cached queue, Google errors become warnings."""
+        try:
+            await asyncio.to_thread(self.queue.refresh)
+            return []
+        except AgentError as exc:
+            if strict or not self.queue.loaded:
+                raise
+            return [f"تعذر تحديث القائمة من Google Sheet؛ يتم استخدام آخر نسخة. ({exc.message_ar})"]
+
+    def _payload(self, fingerprint: str | None, warnings: list[str] | None = None) -> dict:
+        sess = self.sessions.ensure()
+        return {
+            "lead": self.lead_view(fingerprint) if fingerprint else None,
+            "done": fingerprint is None,
+            "stats": self.stats(),
+            "session": self.sessions.to_dict(sess),
+            "warnings": warnings or [],
+        }
+
+    # ------------------------------------------------------------- queue
+    async def current(self) -> dict:
+        warnings: list[str] = []
+        if not self.queue.loaded:
+            warnings = await self._refresh(strict=True)
+        sess = self.sessions.ensure()
+        fp = sess.current_fingerprint
+        if fp and self.queue.find(fp):
+            return self._payload(fp, warnings)
+        return await self.next(refresh=False)
+
+    async def next(self, refresh: bool = True) -> dict:
+        warnings = await self._refresh(strict=False) if refresh else []
+        queue = self.queue.queue()
+        if not queue:
+            self.sessions.set_current(None, None)
+            return self._payload(None, warnings)
+        lead = queue[0]
+        self.sessions.set_current(lead.fingerprint, lead.sheet_row)
+        return self._payload(lead.fingerprint, warnings)
+
+    async def skip(self, fingerprint: str, mode: str, reason: str = "") -> dict:
+        c = self._cache(fingerprint)
+        sess = self.sessions.ensure()
+        until = {
+            "10m": utcnow() + timedelta(minutes=10),
+            "30m": utcnow() + timedelta(minutes=30),
+            "today": end_of_local_day_utc(),
+            "session": None,
+        }[mode]
+        with self.db.session() as s:
+            SkipRepository(s).add(fingerprint=fingerprint, session_id=sess.id, company_name=c.company_name,
+                                  phone=c.phone_raw, sheet_row=c.sheet_row, mode=mode, until=until, reason=reason)
+        if mode == "session":
+            self.sessions.mark_skipped(fingerprint)
+        elif sess.current_fingerprint == fingerprint:
+            self.sessions.set_current(None, None)
+        return await self.next(refresh=False)
+
+    def restore_skip(self, skip_id: int) -> None:
+        with self.db.session() as s:
+            row = SkipRepository(s).deactivate(skip_id)
+        if row:
+            self.sessions.unskip(row.fingerprint)
+
+    # -------------------------------------------------------------- odoo
+    def _store_match(self, fingerprint: str, match: MatchResult, lead: OdooLead | None = None) -> None:
+        if match.status == "matched":
+            chosen = lead or match.lead
+            self._update_cache(fingerprint, odoo_lead_id=chosen.id if chosen else None,
+                               odoo_data=chosen.to_dict() if chosen else None, match_status="matched",
+                               match_candidates=None)
+        else:
+            self._update_cache(fingerprint, odoo_lead_id=None, odoo_data=None, match_status=match.status,
+                               match_candidates=[c.to_dict() for c in match.candidates])
+
+    async def _load_lead(self, lead: OdooLead, open_in_browser: bool) -> tuple[OdooLead, list[str]]:
+        warnings: list[str] = []
+        try:
+            if open_in_browser or lead.id is None:
+                return await self.odoo.adapter.open_lead(lead), warnings
+            return await self.odoo.adapter.get_lead(lead.id), warnings
+        except AgentError as exc:
+            if exc.code == "ODOO_LOGIN_REQUIRED":
+                raise
+            warnings.append(exc.message_ar)
+            return lead, warnings
+
+    async def search_odoo(self, fingerprint: str, query: str = "") -> dict:
+        c = self._cache(fingerprint)
+        company, phone = c.company_name, c.phone_norm
+        if query.strip():
+            digits = re.sub(r"\D", "", to_ascii_digits(query))
+            company, phone = ("", normalize_phone(query)) if len(digits) >= 7 else (query.strip(), "")
+        try:
+            match = await self.odoo.find_match(company, phone)
+        except AgentError as exc:
+            if exc.code != "ODOO_LOGIN_REQUIRED":
+                self._update_cache(fingerprint, match_status="error")
+            raise
+        warnings: list[str] = []
+        lead = None
+        if match.status == "matched" and match.lead:
+            lead, warnings = await self._load_lead(match.lead, self.settings.get().auto_open_odoo_lead)
+        self._store_match(fingerprint, match, lead)
+        payload = self._payload(fingerprint, warnings)
+        payload["match"] = {"status": match.status, "strategy": match.strategy}
+        return payload
+
+    async def select_candidate(self, fingerprint: str, odoo_id: int | None, ui_index: int | None, ui_query: str) -> dict:
+        c = self._cache(fingerprint)
+        chosen = next((OdooLead.from_dict(d) for d in (c.match_candidates or [])
+                       if (odoo_id is not None and d.get("id") == odoo_id)
+                       or (odoo_id is None and d.get("ui_index") == ui_index)), None)
+        if chosen is None:
+            chosen = OdooLead(id=odoo_id, ui_index=ui_index, ui_query=ui_query)
+        lead, warnings = await self._load_lead(chosen, True)
+        self._store_match(fingerprint, MatchResult("matched", lead, [], "user_choice"), lead)
+        return self._payload(fingerprint, warnings)
+
+    async def open_in_odoo(self, fingerprint: str) -> dict:
+        c = self._cache(fingerprint)
+        if not c.odoo_lead_id:
+            await self.odoo.adapter.open_url(self.settings.get().crm_url)
+            return self._payload(fingerprint, ["العميل غير مربوط بـLead؛ تم فتح CRM."])
+        lead = await self.odoo.adapter.open_lead(OdooLead(id=c.odoo_lead_id))
+        self._update_cache(fingerprint, odoo_data=lead.to_dict())
+        return self._payload(fingerprint)
+
+    async def open_crm(self) -> None:
+        await self.odoo.adapter.open_url(self.settings.get().crm_url)
+
+    async def call(self, fingerprint: str | None = None, odoo_id: int | None = None) -> dict:
+        """Open the right lead and click Odoo's own call link. Phone Link takes over from Windows."""
+        sheet_phone = ""
+        if fingerprint:
+            c = self._cache(fingerprint)
+            if not c.odoo_lead_id or not c.odoo_data:
+                raise AgentError("NOT_MATCHED", "اربط العميل بـLead في Odoo أولًا (إعادة البحث).", actions=["retry"])
+            lead = OdooLead.from_dict(c.odoo_data)
+            sheet_phone = c.phone_norm
+        elif odoo_id:
+            lead = await self.odoo.adapter.get_lead(odoo_id)
+        else:
+            raise AgentError("NOT_MATCHED", "لا يوجد عميل محدد للاتصال.")
+        assert lead.id is not None
+        if sheet_phone and phones_match(lead.phone, sheet_phone):
+            field, number = "phone", lead.phone
+        elif sheet_phone and phones_match(lead.mobile, sheet_phone):
+            field, number = "mobile", lead.mobile
+        elif lead.phone:
+            field, number = "phone", lead.phone
+        elif lead.mobile:
+            field, number = "mobile", lead.mobile
+        else:
+            raise AgentError("NO_PHONE_IN_ODOO", "لا يوجد رقم هاتف على العميل في Odoo.", actions=["open_odoo", "skip"])
+        outcome = await self.odoo.adapter.click_call(lead.id, field, number)
+        return {"call_started_at": utcnow().isoformat() + "Z", "phone_field": field, "phone": number,
+                "method": outcome.method}
+
+    async def refresh_lead(self, fingerprint: str) -> dict:
+        warnings = await self._refresh(strict=False)
+        c = self._cache(fingerprint)
+        if c.odoo_lead_id:
+            try:
+                lead = await self.odoo.adapter.get_lead(c.odoo_lead_id)
+                self._update_cache(fingerprint, odoo_data=lead.to_dict())
+            except AgentError as exc:
+                if exc.code == "ODOO_LOGIN_REQUIRED":
+                    raise
+                warnings.append(exc.message_ar)
+        return self._payload(fingerprint, warnings)
+
+    # ------------------------------------------------------------ manual
+    def _linked_fingerprint(self, phone_norm: str) -> str | None:
+        """A sheet row of the owner is linked only on an unambiguous phone match."""
+        if not phone_norm:
+            return None
+        rows = [lead for lead in self.queue.owner_leads if any(phones_match(p, phone_norm) for p in lead.phones)]
+        return rows[0].fingerprint if len(rows) == 1 else None
+
+    async def manual_search(self, query: str) -> dict:
+        query = query.strip()
+        if len(query) < 2:
+            raise AgentError("QUERY_TOO_SHORT", "اكتب اسم العميل أو رقم الجوال.")
+        if not self.queue.loaded:
+            await self._refresh(strict=False)
+        digits = re.sub(r"\D", "", to_ascii_digits(query))
+        if len(digits) >= 7:
+            phone_norm = normalize_phone(query)
+            found = await self.odoo.adapter.search_by_phone(phone_norm)
+            found = [c for c in found if c.id is None or phones_match(c.phone, phone_norm) or phones_match(c.mobile, phone_norm)]
+        else:
+            found = await self.odoo.adapter.search_by_name(query)
+            nq = normalize_company(query)
+            found.sort(key=lambda c: 0 if normalize_company(c.company_name) == nq else 1)
+        return {"candidates": [c.to_dict() for c in found]}
+
+    async def manual_open(self, odoo_id: int) -> dict:
+        lead = await self.odoo.adapter.open_lead(OdooLead(id=odoo_id))
+        linked = None
+        for number in (lead.phone, lead.mobile):
+            linked = self._linked_fingerprint(normalize_phone(number))
+            if linked:
+                break
+        if linked:
+            self._update_cache(linked, odoo_lead_id=lead.id, odoo_data=lead.to_dict(), match_status="matched",
+                               match_candidates=None)
+            c = self._cache(linked)
+            self.sessions.set_current(linked, c.sheet_row)
+            return {"linked": True, **self._payload(linked, ["تم ربط العميل بصفه في Google Sheet عبر رقم الجوال."])}
+        return {"linked": False, "odoo": lead.to_dict(),
+                "warnings": ["العميل غير مربوط بصف مؤكد في Google Sheet؛ سيتم تحديث Odoo فقط."]}
