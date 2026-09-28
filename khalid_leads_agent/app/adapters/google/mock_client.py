@@ -38,6 +38,10 @@ class InMemorySheetsClient(SheetsClient):
         rows = self.sheets.get(name)
         if rows is None:
             raise KeyError(f"Unable to parse range: {a1_range}")
+        m = re.search(r"![A-Z]+\d*:([A-Z]+)", a1_range)
+        width = max((len(r) for r in rows), default=0)
+        if m and _col_index(m.group(1)) >= width:  # mimic the real API grid check
+            raise ValueError(f"Range ({a1_range}) exceeds grid limits. Max columns: {width}")
         out = [list(map(str, r)) for r in copy.deepcopy(rows)]
         for r in out:  # the API trims trailing empty cells
             while r and r[-1] == "":

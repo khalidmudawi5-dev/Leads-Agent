@@ -161,7 +161,9 @@ class SheetService:
                 msg = "لا توجد صلاحية على ملف Google Sheet. تأكد من مشاركة الملف مع الحساب المستخدم."
             elif status == 404:
                 msg = "لم يتم العثور على ملف Google Sheet. تحقق من Spreadsheet ID."
-            elif status == 400 and "range" in text.lower() or isinstance(exc, KeyError):
+            elif status == 400 and "exceeds grid limits" in text.lower():
+                msg = "تعذر قراءة نطاق الأعمدة المطلوب من Google Sheet."
+            elif (status == 400 and "unable to parse range" in text.lower()) or isinstance(exc, KeyError):
                 msg = "اسم الـTab غير صحيح أو غير موجود في الملف."
             elif status == 401 or "invalid_grant" in text:
                 self.reset_client()
@@ -190,7 +192,9 @@ class SheetService:
     def read_rows(self) -> list[list[str]]:
         s = self.settings.get()
         self._require_basics(s)
-        return self._call(self.client().get_values, s.spreadsheet_id, f"{quote_sheet(s.sheet_name)}!A1:ZZ")
+        # The bare tab name reads the whole used grid; a fixed range like A1:ZZ fails with
+        # "exceeds grid limits" on tabs that have fewer columns.
+        return self._call(self.client().get_values, s.spreadsheet_id, quote_sheet(s.sheet_name))
 
     def headers(self) -> list[str]:
         s = self.settings.get()

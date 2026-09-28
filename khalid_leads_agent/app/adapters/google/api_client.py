@@ -44,7 +44,7 @@ class GoogleSheetsApiClient(SheetsClient):
 
     def dropdown_options(self, spreadsheet_id: str, sheet_name: str, col_index: int, header_row: int) -> list[str]:
         col = col_letter(col_index)
-        rng = f"{quote_sheet(sheet_name)}!{col}{header_row + 1}:{col}{header_row + 200}"
+        rng = f"{quote_sheet(sheet_name)}!{col}{header_row + 1}:{col}"  # open-ended: never exceeds the grid
         meta = self._svc.spreadsheets().get(
             spreadsheetId=spreadsheet_id, ranges=[rng], includeGridData=True,
             fields="sheets.data.rowData.values.dataValidation",
