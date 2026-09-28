@@ -1,0 +1,1504 @@
+أنت الآن Senior Software Architect + Python Engineer + Automation Engineer + QA Engineer.
+
+أريد منك بناء مشروع كامل Production-Ready يعمل محليًا على Windows باسم:
+
+Khalid Leads Agent
+
+مهم جدًا:
+- لا تنفذ جزءًا صغيرًا ثم تطلب مني التجربة.
+- لا تتوقف بعد إنشاء Skeleton.
+- نفذ المشروع End-to-End بالكامل.
+- أنشئ جميع الملفات والكود والواجهات والاختبارات وملفات التشغيل.
+- اختبر المشروع قدر الإمكان بنفسك.
+- أصلح الأخطاء التي تظهر أثناء الاختبارات.
+- لا تحذف أو تعدل بيانات حقيقية أثناء الاختبارات.
+- استخدم Mock/Dry Run للاختبارات التي قد تغير بيانات Odoo أو Google Sheets.
+- لا تعيد بناء Odoo ولا Google Sheet.
+- هذا Agent يعمل فوق الأنظمة الحالية الموجودة بالفعل.
+- حافظ على Google Sheet كما هو ولا تغير تصميمه أو أعمدته أو Data Validation.
+- الواجهة عربية RTL واحترافية وسهلة جدًا للمستخدم.
+
+==================================================
+1. BUSINESS CONTEXT
+==================================================
+
+أنا خالد، أعمل ضمن فريق الحلول.
+
+لدينا Google Sheet مشترك بين الفريق، يتم توزيع العملاء فيه على الموظفين.
+
+أنا أتعامل فقط مع الصفوف التي يكون فيها:
+
+مسؤول العميل = خالد
+
+طريقة عملي الحالية:
+
+1. أفتح Google Sheet.
+2. أبحث عن العملاء المسندين إلى خالد.
+3. آخذ اسم المنشأة أو رقم الجوال.
+4. أفتح Odoo CRM.
+5. أذهب إلى Leads.
+6. أبحث عن العميل.
+7. أفتح Lead.
+8. أراجع بيانات العميل.
+9. أراجع Source / Medium / Campaign.
+10. أضغط على رقم الهاتف / Call.
+11. Odoo يطلق الاتصال عن طريق Windows.
+12. Microsoft Phone Link يظهر.
+13. Phone Link متصل بجوالي HONOR.
+14. أجري المكالمة بنفسي.
+15. بعد المكالمة أسجل النتيجة داخل Odoo.
+16. أرجع إلى Google Sheet.
+17. أسجل حالة العميل والملاحظات والمصدر.
+
+أريد تحويل معظم هذه العملية إلى Agent محلي.
+
+==================================================
+2. IMPORTANT CALLING ARCHITECTURE
+==================================================
+
+لا تقم ببناء VoIP.
+
+لا تحاول إجراء المكالمة بالصوت عن طريق Python.
+
+لا تتحكم في Microsoft Phone Link في V1.
+
+المطلوب فقط:
+
+عندما أضغط "اتصال الآن" من واجهة Agent:
+
+Agent يفتح Lead الصحيح في Odoo ثم يستخدم زر/رابط Call الموجود بالفعل في Odoo.
+
+Odoo/Chrome يقوم بإطلاق رقم الهاتف إلى Windows Phone Link بالطريقة الحالية الموجودة عندي.
+
+أنا أتولى الحديث مع العميل بنفسي.
+
+بعد المكالمة أعود لواجهة Agent وأسجل النتيجة.
+
+==================================================
+3. TECHNOLOGY STACK
+==================================================
+
+استخدم:
+
+Backend:
+Python 3.12+
+FastAPI
+
+Automation:
+Playwright for Python
+
+Local Database:
+SQLite
+SQLAlchemy
+
+Frontend:
+HTML5
+CSS3
+Vanilla JavaScript
+Bootstrap 5 RTL أو CSS احترافي مماثل
+
+Templates:
+Jinja2
+
+Google:
+Google Sheets API
+
+Configuration:
+.env
+
+Logging:
+Python logging مع RotatingFileHandler
+
+Testing:
+pytest
+
+Windows:
+BAT scripts لتثبيت وتشغيل وإيقاف النظام.
+
+يفضل استخدام:
+pydantic-settings
+python-dotenv
+httpx
+google-api-python-client
+google-auth
+google-auth-oauthlib
+
+لا تستخدم Node.js إلا إذا كانت هناك ضرورة حقيقية.
+
+==================================================
+4. PROJECT OBJECTIVE
+==================================================
+
+أريد لوحة Local Web تعمل مثل:
+
+http://127.0.0.1:8765
+
+وتكون شاشة عمل يومية لإدارة Leads الخاصة بخالد.
+
+Workflow:
+
+Google Sheet
+↓
+قراءة صفوف خالد فقط
+↓
+اختيار أول عميل يحتاج متابعة
+↓
+البحث عنه في Odoo
+↓
+مطابقة العميل
+↓
+قراءة بيانات Odoo
+↓
+قراءة Source / Medium / Campaign
+↓
+عرض العميل في Agent
+↓
+فتح Odoo / اتصال
+↓
+خالد يتحدث مع العميل
+↓
+تسجيل النتيجة
+↓
+تحديث Odoo
+↓
+تحديث Google Sheet
+↓
+الانتقال تلقائيًا للعميل التالي
+
+==================================================
+5. GOOGLE SHEET STRUCTURE
+==================================================
+
+Google Sheet الحالي يحتوي على أعمدة مشابهة لما يلي:
+
+اسم المنشأة
+رقم الجوال
+المسؤول الحالي
+حالة المتابعة
+مصدر العميل
+هل تم التسجيل بالنسخة التجريبية
+سبب عدم الاشتراك
+تاريخ انتهاء الاشتراك
+الملاحظات
+
+قد تختلف مواقع الأعمدة بالحروف أو الترتيب.
+
+ممنوع الاعتماد على:
+A, B, C...
+
+بدل ذلك:
+اكتشف الأعمدة باستخدام Header Text.
+
+أنشئ Column Mapping في الإعدادات.
+
+مثال:
+
+company_name = اسم المنشأة
+phone = رقم الجوال
+owner = المسؤول الحالي
+followup_status = حالة المتابعة
+source = مصدر العميل
+trial_registered = هل تم التسجيل بالنسخة التجريبية
+not_subscribed_reason = سبب عدم الاشتراك
+subscription_expiry = تاريخ انتهاء الاشتراك
+notes = الملاحظات
+
+يجب أن يمكن تعديل أسماء Mapping من صفحة Settings.
+
+==================================================
+6. GOOGLE SHEET SAFETY
+==================================================
+
+هذه نقطة CRITICAL.
+
+الملف مشترك مع فريق كامل.
+
+Agent يجب ألا يعدل أي صف لا يخص خالد.
+
+قبل أي Update:
+
+تحقق مرة أخرى أن:
+
+المسؤول الحالي == خالد
+
+لا تعتمد على رقم الصف القديم فقط لأن الصفوف يمكن أن تتحرك.
+
+استخدم قدر الإمكان:
+
+Company Name + Phone + Owner
+
+للتأكد من أن السجل ما زال هو نفسه.
+
+لا تغير:
+- Formatting
+- Dropdown Validation
+- Formulas
+- Filters
+- Colors
+- Other users' records
+
+استخدم Values API لتحديث الخلايا المطلوبة فقط.
+
+لا تعمل Clear Range.
+
+لا تعمل Replace لصف كامل إذا كنت تحتاج تعديل خليتين فقط.
+
+أنشئ Backup/Audit Log محلي لكل تغيير:
+
+timestamp
+sheet_row
+company_name
+phone
+column
+old_value
+new_value
+status
+
+==================================================
+7. GOOGLE AUTHENTICATION
+==================================================
+
+دعم طريقتين:
+
+A. Google OAuth Desktop App - Preferred
+B. Service Account
+
+اجعل OAuth الطريقة الافتراضية للمستخدم العادي.
+
+إذا لم توجد credentials:
+
+اعرض Setup Wizard واضح.
+
+لا تجعل التطبيق ينهار.
+
+صفحة Settings تعرض:
+
+Google Connection:
+Connected / Not Connected
+
+Spreadsheet ID
+Sheet/Tab Name
+Owner Name = خالد
+
+زر:
+Connect Google
+
+زر:
+Test Connection
+
+==================================================
+8. ODOO DETAILS
+==================================================
+
+Odoo يعمل من المتصفح.
+
+الرابط Domain يكون Configurable مثل:
+
+https://worldofss.odoo.com
+
+ولا تفترض إصدار Odoo.
+
+قد يكون Odoo 18 أو 19.
+
+لذلك:
+لا تعتمد على Version Specific API في V1.
+
+استخدم Browser Automation بواسطة Playwright.
+
+لكن صمم OdooAdapter Interface بحيث نستطيع لاحقًا إضافة Odoo JSON-RPC/API بدون تغيير Business Logic.
+
+Architecture:
+
+OdooAdapter
+    BrowserOdooAdapter
+    FutureApiOdooAdapter
+
+==================================================
+9. ODOO LOGIN
+==================================================
+
+لا تخزن Password في Source Code.
+
+استخدم Playwright Persistent Browser Context.
+
+أنشئ Browser Profile خاص بالمشروع:
+
+data/browser-profile
+
+أول مرة:
+
+افتح Chrome/Odoo للمستخدم لكي يقوم Login يدويًا.
+
+بعدها احفظ Session داخل Persistent Profile.
+
+إذا انتهت الجلسة:
+
+يظهر في Agent:
+
+"تسجيل الدخول إلى Odoo مطلوب"
+
+وزر:
+
+فتح Odoo لتسجيل الدخول
+
+ثم زر:
+
+تحقق من تسجيل الدخول
+
+==================================================
+10. ODOO LEAD SEARCH
+==================================================
+
+البحث يجب أن يكون Robust.
+
+Search priority:
+
+1. Phone exact / normalized
+2. Mobile exact / normalized
+3. Company Name exact
+4. Company Name fuzzy/partial
+
+Normalize Saudi numbers.
+
+مثال هذه الأشكال يجب اعتبارها متقاربة:
+
+0561234567
+966561234567
++966561234567
++966 56 123 4567
+05 6123 4567
+
+أنشئ:
+
+normalize_phone()
+
+ويستخدم للمقارنة.
+
+==================================================
+11. MATCHING LOGIC
+==================================================
+
+إذا وجد Match واحد قوي:
+
+افتحه تلقائيًا.
+
+إذا وجد أكثر من Lead محتمل:
+
+لا تختر عشوائيًا.
+
+اعرض نافذة:
+
+"وجدنا أكثر من عميل"
+
+وتعرض:
+
+Company
+Phone
+Mobile
+Salesperson
+Source
+Lead Status
+
+وأجعل المستخدم يختار.
+
+إذا لم يوجد:
+
+اعرض:
+
+"لم يتم العثور على العميل في Odoo"
+
+Buttons:
+
+إعادة البحث
+فتح CRM
+تخطي العميل
+
+ممنوع إنشاء Lead جديد تلقائيًا في V1.
+
+==================================================
+12. ODOO DATA EXTRACTION
+==================================================
+
+بعد فتح Lead اقرأ قدر الإمكان:
+
+Lead Name
+Company Name
+Contact Name
+Phone
+Mobile
+Email
+Salesperson
+Stage
+Source
+Medium
+Campaign
+UTM Source
+UTM Medium
+UTM Campaign
+Service Type إن وجد
+Latest Chatter Notes إن أمكن
+
+Selectors يجب ألا تعتمد على CSS classes عشوائية فقط.
+
+استخدم:
+labels
+field names
+text
+aria attributes
+stable Odoo DOM selectors
+
+أنشئ Selector Strategy مع fallbacks.
+
+ضع Selectors في ملف مستقل:
+
+odoo_selectors.py
+
+لتسهيل تعديلها لاحقًا.
+
+==================================================
+13. SOURCE MAPPING
+==================================================
+
+Google Sheet يحتوي Dropdown لمصدر العميل مثل:
+
+Meta || Leads
+تيك توك
+باور بي اي
+وغيرها
+
+Odoo قد يحتوي:
+
+Source
+Medium
+UTM Source
+UTM Medium
+Campaign
+
+لا تخمن Mapping.
+
+أنشئ صفحة:
+
+Settings > Source Mapping
+
+مثال:
+
+Odoo Source/Medium:
+Meta / Leads
+
+Google Sheet:
+Meta || Leads
+
+Twajd:
+تيك توك
+
+إلخ.
+
+المستخدم يستطيع إضافة:
+
+Odoo Value → Sheet Dropdown Value
+
+إذا لم يوجد Mapping:
+
+لا تكتب قيمة خاطئة.
+
+اعرض:
+
+"المصدر غير مربوط"
+
+واسمح للمستخدم باختيار القيمة المناسبة من قائمة قيم Sheet الحالية.
+
+ثم يمكن حفظ Mapping للاستخدام مستقبلًا.
+
+==================================================
+14. MAIN DASHBOARD
+==================================================
+
+Arabic RTL.
+
+Top cards:
+
+عملاء خالد اليوم
+بانتظار التواصل
+تم التواصل
+لم يتم الرد
+مهتم
+غير مهتم
+متابعة لاحقة
+أخطاء المطابقة
+
+تحتها:
+
+Current Lead Card
+
+تحتوي:
+
+اسم المنشأة
+رقم الجوال
+المصدر في Google Sheet
+Source من Odoo
+Medium
+Campaign
+حالة المتابعة الحالية
+آخر ملاحظة
+رقم الصف كمرجع فقط
+
+Buttons:
+
+فتح في Odoo
+اتصال الآن
+إعادة البحث
+تخطي
+تحديث البيانات
+
+==================================================
+15. CALL BUTTON
+==================================================
+
+زر:
+
+اتصال الآن
+
+يعمل كالتالي:
+
+1. تأكد أن Lead الصحيح مفتوح.
+2. حدد Phone/Mobile.
+3. نفذ نفس Call Action الموجودة في Odoo.
+4. اترك Windows/Phone Link يتولى الباقي.
+5. لا تحاول الضغط على زر الاتصال الأخضر في Phone Link.
+6. لا تحاول إنهاء المكالمة آليًا.
+
+بعد تشغيل Call:
+
+غيّر UI إلى:
+
+"المكالمة قيد التنفيذ / في انتظار تسجيل النتيجة"
+
+مع Timer محلي يبدأ من 00:00.
+
+Timer لا يعني أننا نقرأ حالة المكالمة الفعلية.
+
+Buttons:
+
+إنهاء تسجيل المكالمة
+تسجيل النتيجة
+
+==================================================
+16. CALL RESULT PANEL
+==================================================
+
+بعد المكالمة اعرض أزرار كبيرة:
+
+مهتم
+غير مهتم
+لم يتم الرد
+رقم غير صحيح
+متابعة لاحقًا
+تم الاشتراك
+
+وأيضًا:
+
+ملاحظة حرة
+
+Checkbox:
+تحديث Google Sheet
+
+Checkbox:
+إضافة Log Note في Odoo
+
+كلاهما Enabled افتراضيًا.
+
+==================================================
+17. RESULT MAPPING
+==================================================
+
+لا Hardcode القيم الموجودة في Sheet فقط.
+
+Settings > Status Mapping
+
+مثال داخلي:
+
+INTERESTED
+NOT_INTERESTED
+NO_ANSWER
+INVALID_NUMBER
+FOLLOW_UP
+SUBSCRIBED
+
+ويربطها المستخدم مع قيمة Dropdown الفعلية في Google Sheet.
+
+مثال:
+
+NO_ANSWER → لم يتم الرد
+
+INVALID_NUMBER → بيانات التواصل غير صحيحة
+
+وهكذا.
+
+اقرأ Data Validation Options من Sheet إذا أمكن.
+
+==================================================
+18. ODOO LOG NOTE
+==================================================
+
+عند الحفظ:
+
+أضف Log Note في Chatter.
+
+صيغة مقترحة:
+
+متابعة آلية بواسطة Khalid Leads Agent
+نتيجة التواصل: مهتم
+الملاحظات: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر.
+التاريخ: ...
+المصدر: ...
+
+لكن اجعل النص Configurable.
+
+لا تستخدم Send Message.
+
+استخدم Log Note.
+
+==================================================
+19. FOLLOW-UP ACTIVITY
+==================================================
+
+إذا اخترت:
+
+متابعة لاحقًا
+
+أظهر:
+
+Date
+Time
+Follow-up Note
+
+وحاول إنشاء Activity في Odoo.
+
+إذا تعذر إنشاء Activity بسبب اختلاف واجهة Odoo:
+
+لا تفشل عملية الحفظ كلها.
+
+سجل:
+
+Activity creation failed
+
+لكن أكمل تحديث Note + Google Sheet.
+
+اعرض Warning للمستخدم.
+
+==================================================
+20. GOOGLE SHEET UPDATE
+==================================================
+
+بعد اختيار النتيجة:
+
+حدّث فقط الحقول اللازمة.
+
+مثال:
+
+حالة المتابعة
+مصدر العميل
+سبب عدم الاشتراك إذا تم إدخاله
+الملاحظات
+تاريخ انتهاء الاشتراك عند الحاجة
+
+لا تمس أي عمود آخر.
+
+قبل Update:
+اقرأ Current Values مرة ثانية.
+
+إذا تغير Owner ولم يعد خالد:
+
+STOP
+
+ولا تعدل السجل.
+
+اعرض:
+
+"تم تحويل العميل إلى موظف آخر؛ لن يتم تحديث الصف."
+
+==================================================
+21. NOTES HANDLING
+==================================================
+
+لا تمسح الملاحظات القديمة.
+
+عند إضافة Note جديد:
+
+إذا كانت الخلية تحتوي ملاحظة قديمة:
+
+Append.
+
+مثال:
+
+[28/09/2026 15:30 - خالد]
+العميل مهتم...
+
+مع الحفاظ على النص السابق.
+
+وفر Option في Settings:
+
+Append Notes = true
+
+==================================================
+22. NEXT LEAD
+==================================================
+
+بعد Successful Save:
+
+Toast:
+"تم حفظ النتيجة في Odoo وGoogle Sheet"
+
+ثم Countdown:
+الانتقال للعميل التالي خلال 3 ثوانٍ
+
+مع زر:
+
+إلغاء الانتقال
+
+ثم Load Next Lead.
+
+==================================================
+23. SKIP LEAD
+==================================================
+
+زر:
+تخطي مؤقتًا
+
+لا يحدث Google Sheet.
+
+يسجل فقط محليًا.
+
+ويظهر Lead مرة أخرى لاحقًا.
+
+وفر:
+
+Snooze:
+10 دقائق
+30 دقيقة
+اليوم
+تخطي للجلسة الحالية
+
+==================================================
+24. SESSION RESUME
+==================================================
+
+إذا تم إغلاق Agent:
+
+عند التشغيل مرة أخرى:
+
+اعرض:
+
+استكمال جلسة خالد السابقة؟
+
+ويحتفظ بـ:
+
+Current Row
+Skipped Leads
+Completed IDs
+Errors
+
+لا يعتمد على Row Number وحده.
+
+==================================================
+25. LOCAL DATABASE
+==================================================
+
+أنشئ Tables مثل:
+
+settings
+lead_sessions
+lead_cache
+call_results
+sync_logs
+error_logs
+source_mappings
+status_mappings
+skipped_leads
+
+كل Table يحتوي created_at / updated_at عند الحاجة.
+
+==================================================
+26. HISTORY SCREEN
+==================================================
+
+صفحة:
+
+سجل المتابعات
+
+Filters:
+
+اليوم
+هذا الأسبوع
+اسم العميل
+رقم الهاتف
+النتيجة
+نجح تحديث Odoo؟
+نجح تحديث Sheet؟
+
+Columns:
+
+وقت الاتصال
+العميل
+الهاتف
+النتيجة
+الملاحظات
+Odoo
+Google
+Duration
+Errors
+
+==================================================
+27. ERRORS
+==================================================
+
+لا تعرض Stack Trace للمستخدم العادي.
+
+اعرض Error Message عربية واضحة.
+
+مثل:
+
+تعذر العثور على زر الاتصال في Odoo.
+
+مع buttons:
+
+إعادة المحاولة
+فتح Odoo
+تخطي
+
+وفي Logs سجل Stack Trace الكامل.
+
+==================================================
+28. DRY RUN MODE
+==================================================
+
+هذه ميزة CRITICAL.
+
+Settings:
+
+Dry Run Mode
+
+عندما تكون ON:
+
+اقرأ Google Sheet
+ابحث في Odoo
+اعرض Lead
+
+لكن:
+
+لا تحدث Google Sheet
+لا تكتب Log Note
+لا تنشئ Activity
+
+أي زر Save يعرض Preview:
+
+Would update:
+Sheet Status: ...
+Sheet Source: ...
+Odoo Note: ...
+
+اجعل Dry Run = ON افتراضيًا عند أول تشغيل.
+
+المستخدم هو الذي يعطله.
+
+==================================================
+29. DUPLICATE PROTECTION
+==================================================
+
+لا تسمح Double Click على Save.
+
+استخدم idempotency key لكل عملية.
+
+إذا تم حفظ نفس Lead + نفس النتيجة خلال ثوانٍ:
+
+لا تكرر Odoo Note.
+
+لا تكرر Google Update.
+
+==================================================
+30. UI DESIGN
+==================================================
+
+تصميم Professional Modern CRM.
+
+Arabic RTL.
+
+الألوان هادئة.
+
+Sidebar:
+
+الرئيسية
+سجل المتابعات
+العملاء المتخطون
+الأخطاء
+الإعدادات
+
+Top bar:
+
+خالد
+Odoo Status
+Google Status
+Dry Run Status
+
+Current Lead كبير وواضح.
+
+الأزرار مناسبة للاستخدام طوال اليوم.
+
+يجب أن تعمل الواجهة على شاشة Desktop 1920x1080 بشكل ممتاز.
+
+==================================================
+31. SETTINGS SCREEN
+==================================================
+
+Sections:
+
+General
+Google Sheets
+Odoo
+Column Mapping
+Status Mapping
+Source Mapping
+Automation
+Advanced
+
+General:
+
+Agent Owner:
+خالد
+
+Google:
+
+Spreadsheet ID
+Sheet Name
+OAuth
+Test Connection
+
+Odoo:
+
+Base URL
+CRM URL
+Test Session
+Open Login
+
+Automation:
+
+Auto Load Next Lead
+Auto Sync Source
+Auto Open Odoo Lead
+Next Lead Delay
+Dry Run
+
+Advanced:
+
+Browser profile path
+Timeouts
+Logging level
+
+==================================================
+32. CONFIG FILE
+==================================================
+
+أنشئ:
+
+.env.example
+
+ولا تضع Secrets حقيقية.
+
+مثال:
+
+APP_HOST=127.0.0.1
+APP_PORT=8765
+
+AGENT_OWNER=خالد
+
+ODOO_BASE_URL=https://worldofss.odoo.com
+
+GOOGLE_SPREADSHEET_ID=
+GOOGLE_SHEET_NAME=
+
+DRY_RUN=true
+
+BROWSER_HEADLESS=false
+
+==================================================
+33. SECURITY
+==================================================
+
+المشروع Local فقط.
+
+Bind افتراضيًا على:
+
+127.0.0.1
+
+وليس:
+0.0.0.0
+
+لا تحفظ:
+Google Password
+Odoo Password
+
+في SQLite.
+
+OAuth tokens تحفظ محليًا في:
+
+data/credentials
+
+وتكون ضمن .gitignore.
+
+Browser Profile:
+data/browser-profile
+
+أيضًا .gitignore.
+
+==================================================
+34. PLAYWRIGHT BROWSER
+==================================================
+
+يفضل Chromium/Chrome Persistent Context.
+
+Browser Headless = false.
+
+أريد أن أرى Odoo.
+
+يمكن للAgent فتح Lead Tab.
+
+لا تفتح عشرات Tabs.
+
+أعد استخدام Tab موجود.
+
+==================================================
+35. ROBUSTNESS
+==================================================
+
+أضف:
+
+timeouts
+retry محدود
+screenshots عند automation errors
+
+Screenshots تحفظ في:
+
+logs/screenshots/
+
+مثال:
+
+odoo-call-button-not-found-20260928-153000.png
+
+==================================================
+36. SELECTOR DIAGNOSTICS
+==================================================
+
+أنشئ Developer/Diagnostics screen.
+
+تعرض:
+
+Current Odoo URL
+Lead detected?
+Phone detected?
+Source detected?
+Call button detected?
+Log Note button detected?
+Activities button detected?
+
+Buttons:
+
+Capture DOM snapshot
+Capture screenshot
+
+هذا يسهل تعديل Selectors إذا تغير Odoo.
+
+==================================================
+37. WINDOWS INSTALLATION
+==================================================
+
+أنشئ:
+
+01_install.bat
+
+يقوم بـ:
+
+إنشاء venv
+pip install requirements
+playwright install chromium
+إنشاء directories
+نسخ .env.example إلى .env إذا لم يوجد
+
+أنشئ:
+
+02_start_agent.bat
+
+يفتح Agent ويشغل Browser:
+
+http://127.0.0.1:8765
+
+أنشئ:
+
+03_stop_agent.bat
+
+أنشئ:
+
+04_run_tests.bat
+
+==================================================
+38. REQUIREMENTS
+==================================================
+
+أنشئ requirements.txt حقيقي ومكتمل.
+
+لا تضع Libraries غير مستخدمة.
+
+==================================================
+39. FIRST RUN WIZARD
+==================================================
+
+إذا كان الإعداد ناقصًا:
+
+لا تظهر Dashboard فارغ.
+
+ابدأ Wizard:
+
+Step 1
+اسم المستخدم:
+خالد
+
+Step 2
+ربط Google Sheet
+
+Step 3
+تحديد Tab
+
+Step 4
+Column Mapping
+
+Step 5
+Odoo URL
+
+Step 6
+تسجيل دخول Odoo
+
+Step 7
+اختبار البحث
+
+Step 8
+Dry Run Test
+
+Step 9
+Ready
+
+==================================================
+40. TESTS
+==================================================
+
+اكتب Tests لـ:
+
+phone normalization
+status mapping
+source mapping
+safe row update
+owner validation
+duplicate protection
+notes append
+lead ordering
+resume session
+
+Mock Google API.
+
+Mock Odoo adapter.
+
+لا تستخدم بيانات Production في tests.
+
+==================================================
+41. LEAD ORDERING
+==================================================
+
+Default:
+
+الصفوف الخاصة بـ خالد
++
+غير المكتملة
++
+من الأعلى إلى الأسفل حسب ترتيب Sheet
+
+لكن Settings تسمح لاحقًا:
+
+Oldest first
+Newest first
+
+==================================================
+42. WHAT COUNTS AS PENDING
+==================================================
+
+لا تخمن فقط.
+
+أنشئ Settings:
+
+Pending Status Values
+
+يمكن تحديد عدة قيم مثل:
+
+فارغ
+لم يتم الرد
+متابعة
+
+ويقرأ Agent بناءً عليها.
+
+==================================================
+43. IMPORTANT DATA RULE
+==================================================
+
+اسم المنشأة وحده ليس Primary Key.
+
+رقم الصف وحده ليس Primary Key.
+
+استخدم Local Fingerprint:
+
+normalized company
++
+normalized phone
++
+owner
+
+واحتفظ أيضًا بـ Sheet Row للأداء فقط.
+
+==================================================
+44. AUDIT LOG
+==================================================
+
+كل تغيير خارجي يسجل:
+
+action_id
+timestamp
+system
+record
+before
+after
+success
+error
+
+Systems:
+
+GOOGLE_SHEETS
+ODOO
+
+==================================================
+45. MANUAL MODE
+==================================================
+
+أضف Search Box داخل Agent.
+
+يمكنني كتابة:
+
+اسم عميل
+أو
+رقم جوال
+
+ثم:
+
+بحث في Odoo
+
+حتى إذا لم يكن ضمن Queue.
+
+لكن لا تسمح له بتحديث Google Sheet تلقائيًا إذا لم يتم الربط بصف خالد بشكل مؤكد.
+
+==================================================
+46. VOICE - PREPARE ONLY
+==================================================
+
+لا تنفذ Speech-to-Text الآن إذا سيعقد V1.
+
+لكن صمم ResultService بحيث يمكن إضافة Voice Input لاحقًا.
+
+ضع TODO واضح لـ V2:
+
+Voice Note
+→ transcription
+→ AI extraction
+→ status
+→ notes
+→ follow-up date
+
+ولا تجعل V1 تعتمد على AI API مدفوع.
+
+==================================================
+47. NO AI HALLUCINATION
+==================================================
+
+لا تستخدم LLM لاتخاذ قرار بشأن:
+
+هوية العميل
+Source mapping
+Result
+Row matching
+
+هذه عمليات deterministic.
+
+AI يمكن إضافته لاحقًا فقط لتلخيص كلام خالد.
+
+==================================================
+48. DOCUMENTATION
+==================================================
+
+أنشئ:
+
+README_AR.md
+
+بالعربية.
+
+يحتوي:
+
+متطلبات التشغيل
+طريقة التثبيت
+طريقة Google OAuth
+طريقة ربط Sheet
+طريقة Login إلى Odoo
+طريقة تشغيل Dry Run
+طريقة تنفيذ أول مكالمة
+Troubleshooting
+طريقة تعديل Selectors
+
+أنشئ أيضًا:
+
+ARCHITECTURE.md
+
+و:
+
+TEST_REPORT.md
+
+==================================================
+49. CODE QUALITY
+==================================================
+
+أريد:
+
+typing
+docstrings للأجزاء المهمة
+service architecture
+repository separation
+no giant single Python file
+
+Suggested structure:
+
+khalid_leads_agent/
+    app/
+        main.py
+        config.py
+        db.py
+
+        api/
+        models/
+        schemas/
+        repositories/
+        services/
+            google_sheets_service.py
+            odoo_service.py
+            lead_queue_service.py
+            sync_service.py
+            call_result_service.py
+
+        adapters/
+            google/
+            odoo/
+                base.py
+                browser_adapter.py
+                odoo_selectors.py
+
+        utils/
+            phone.py
+            logging.py
+
+        templates/
+        static/
+
+    data/
+    logs/
+    tests/
+
+==================================================
+50. IMPLEMENTATION PRIORITY
+==================================================
+
+P0 - Must Work:
+
+Google connection
+Read Khalid rows
+Queue
+Odoo login/session
+Search Odoo
+Display Lead
+Read Source
+Open Lead
+Call Action
+Result form
+Odoo Log Note
+Google update
+Next lead
+Dry Run
+Audit
+Resume
+
+P1:
+
+Follow-up Activity
+History
+Mappings UI
+Diagnostics
+Retry
+
+P2:
+
+Extra polish
+
+لا تبدأ P2 قبل إنهاء واختبار P0 وP1.
+
+==================================================
+51. FINAL VALIDATION
+==================================================
+
+بعد الانتهاء:
+
+شغّل tests.
+
+تحقق من:
+
+Python imports
+FastAPI startup
+SQLite migration/init
+HTML routes
+Static files
+Dry Run
+Mocks
+
+أصلح أي Failure قبل إنهاء المهمة.
+
+==================================================
+52. FINAL RESPONSE REQUIRED FROM YOU
+==================================================
+
+بعد تنفيذ المشروع لا تعطيني شرحًا طويلًا للكود.
+
+أعطني تقريرًا مختصرًا بالشكل التالي:
+
+1. ما تم إنجازه
+2. نتيجة الاختبارات
+3. مسار المشروع
+4. خطوات التشغيل:
+   01_install.bat
+   02_start_agent.bat
+5. ما الذي سأراه عند أول تشغيل
+6. الأشياء الوحيدة التي تحتاج مني إعدادًا يدويًا:
+   Google OAuth
+   Spreadsheet ID
+   Odoo login
+7. أي قيود حقيقية متبقية
+
+لا تقل لي:
+"يمكنني لاحقًا..."
+إذا كان الشيء جزءًا من P0/P1.
+
+نفذه الآن.
+
+ابدأ أولًا بفحص محتويات المجلد الحالي.
+إذا كان فارغًا، أنشئ المشروع.
+إذا كان هناك مشروع موجود، لا تحذف الملفات عشوائيًا وادمج التغييرات بأمان.
+
+ابدأ التنفيذ الآن.
