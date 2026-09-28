@@ -13,7 +13,9 @@ Safety rules implemented here (see README_AR.md):
 from __future__ import annotations
 
 import logging
+import re
 import threading
+import unicodedata
 import time
 import uuid
 from collections.abc import Callable
@@ -100,6 +102,14 @@ class UpdatePlan:
                 "warnings": self.warnings}
 
 
+_BIDI_MARKS = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")
+
+
+def normalize_tab_title(title: str) -> str:
+    """Tab name comparison that ignores extra spaces and invisible direction marks."""
+    return " ".join(_BIDI_MARKS.sub("", unicodedata.normalize("NFKC", title or "")).split()).casefold()
+
+
 def format_note_entry(note: str, owner: str, when: datetime, stamp_format: str) -> str:
     stamp = stamp_format.format(date=when.strftime("%d/%m/%Y %H:%M"), owner=owner)
     return f"{stamp}\n{note.strip()}"
@@ -128,6 +138,7 @@ class SheetService:
         self._options_cache: dict[tuple[str, str, str], tuple[float, list[str]]] = {}
         self.last_snapshot: SheetSnapshot | None = None
         self.last_error: str = ""
+        self._titles: dict[tuple[str, str], str] = {}
 
     # ------------------------------------------------------------ client
     def client(self) -> SheetsClient:
@@ -142,6 +153,36 @@ class SheetService:
         with self._lock:
             self._client = None
             self._options_cache.clear()
+            self._titles.clear()
+
+    def tab_title(self) -> str:
+        """The real tab title in the spreadsheet matching the configured name.
+
+        The configured name may differ by spaces or invisible RTL/LTR marks (e.g. lost when
+        selected in a browser dropdown); Google needs the exact title.
+        """
+        s = self.settings.get()
+        self._require_basics(s)
+        key = (s.spreadsheet_id, s.sheet_name)
+        if key in self._titles:
+            return self._titles[key]
+        titles = self._call(self.client().spreadsheet_info, s.spreadsheet_id)["sheets"]
+        if s.sheet_name in titles:
+            title = s.sheet_name
+        else:
+            wanted = normalize_tab_title(s.sheet_name)
+            matches = [t for t in titles if normalize_tab_title(t) == wanted]
+            if len(matches) != 1:
+                self.last_error = "اسم الـTab غير موجود في الملف."
+                raise AgentError(
+                    "SHEET_TAB_NOT_FOUND",
+                    f"لم يتم العثور على Tab باسم «{s.sheet_name}». التابات الموجودة في الملف: " + "، ".join(titles),
+                    actions=["open_settings"], status_code=409,
+                )
+            title = matches[0]
+            log.info("Tab name %r resolved to actual title %r", s.sheet_name, title)
+        self._titles[key] = title
+        return title
 
     def _call(self, fn: Callable, *args):
         """Run a Google call and translate errors to clear Arabic messages."""
@@ -174,7 +215,10 @@ class SheetService:
             else:
                 msg = "تعذر الاتصال بـGoogle Sheets. تحقق من الإنترنت ثم أعد المحاولة."
             self.last_error = msg
-            raise AgentError("GOOGLE_ERROR", msg, actions=["retry"], status_code=502) from exc
+            detail = text[:400]
+            log.error("Google Sheets error (status=%s): %s", status, detail)
+            raise AgentError("GOOGLE_ERROR", f"{msg} (Google: {detail})", actions=["retry"],
+                             status_code=502, details={"google_status": status, "google_message": detail}) from exc
 
     def _require_basics(self, s: AppSettings) -> None:
         if not s.spreadsheet_id.strip():
@@ -194,7 +238,7 @@ class SheetService:
         self._require_basics(s)
         # The bare tab name reads the whole used grid; a fixed range like A1:ZZ fails with
         # "exceeds grid limits" on tabs that have fewer columns.
-        return self._call(self.client().get_values, s.spreadsheet_id, quote_sheet(s.sheet_name))
+        return self._call(self.client().get_values, s.spreadsheet_id, quote_sheet(self.tab_title()))
 
     def headers(self) -> list[str]:
         s = self.settings.get()
@@ -283,7 +327,7 @@ class SheetService:
             return []
         options: list[str] = []
         try:
-            options = self._call(self.client().dropdown_options, s.spreadsheet_id, s.sheet_name, col, s.header_row)
+            options = self._call(self.client().dropdown_options, s.spreadsheet_id, self.tab_title(), col, s.header_row)
         except AgentError:
             log.warning("Could not read data validation for %s", key)
         if not options:
@@ -300,7 +344,7 @@ class SheetService:
         info = self.spreadsheet_info()
         result: dict = {"ok": True, "title": info["title"], "tabs": info["sheets"], "header": [], "columns": {},
                         "missing": [], "owner_rows": 0, "total_rows": 0}
-        if s.sheet_name and s.sheet_name in info["sheets"]:
+        if s.sheet_name and any(normalize_tab_title(t) == normalize_tab_title(s.sheet_name) for t in info["sheets"]):
             header = self.headers()
             columns, missing = self.resolve_columns(header, s.column_mapping)
             result.update({"header": header, "columns": {k: header[i] for k, i in columns.items()}, "missing": missing})
@@ -375,7 +419,7 @@ class SheetService:
                         actions=["open_settings"],
                     )
             plan.changes.append(CellChange(
-                key=key, header=snap.header[col], col_index=col, cell=cell_ref(s.sheet_name, lead.sheet_row, col),
+                key=key, header=snap.header[col], col_index=col, cell=cell_ref(self.tab_title(), lead.sheet_row, col),
                 old=old, new=new, user_entered=key in user_entered_keys,
             ))
         return plan

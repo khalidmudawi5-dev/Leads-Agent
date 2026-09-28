@@ -79,7 +79,7 @@ const RENDER = {
         await save({ spreadsheet_id: extract($("#w-sid").value) });
         $("#w-sid").value = W.cfg.settings.spreadsheet_id;
         const r = await api("GET", "/api/sheet/tabs");
-        $("#w-tab").innerHTML = r.sheets.map((t) => `<option ${t === W.cfg.settings.sheet_name ? "selected" : ""}>${esc(t)}</option>`).join("");
+        $("#w-tab").innerHTML = r.sheets.map((t) => `<option value="${esc(t)}" ${t === W.cfg.settings.sheet_name ? "selected" : ""}>${esc(t)}</option>`).join("");
         msg(`الملف: <b>${esc(r.title)}</b>`, "success");
       } catch (e) { showError(e, $("#w-msg")); }
     });

@@ -148,3 +148,29 @@ def test_missing_required_column_is_reported(container, sheet):
 
 def test_sample_rows_fixture_is_fictional():
     assert all("05" in r[4] or "+966" in r[4] for r in sample_rows()[1:])
+
+
+def test_tab_name_with_extra_spaces_or_bidi_marks_is_resolved(env, odoo):
+    """The browser drops trailing/double spaces from <option> text; Google needs the exact title."""
+    from app.adapters.google.mock_client import InMemorySheetsClient
+    from tests.conftest import VALIDATIONS, make_container, sample_rows
+
+    real = "‏رصد تواجد-عملاء  محتملين 2026 "
+    sheet = InMemorySheetsClient({"Other": [["x"]], real: sample_rows()}, validations=VALIDATIONS)
+    c = make_container(env, sheet, odoo, sheet_name="رصد تواجد-عملاء محتملين 2026")
+    snap = c.sheets.load()
+    assert len(c.sheets.owner_leads(snap)) == 4
+    lead = next(lead for lead in snap.leads if lead.company_name == "مؤسسة الاختبار الأولى")
+    plan = c.sheets.plan_update(LeadRef(lead.fingerprint, lead.sheet_row, lead.company_name, lead.phone_norm),
+                                {"followup_status": "مهتم"}, "")
+    c.sheets.apply(plan, dry_run=False)
+    assert sheet.sheets[real][1][3] == "مهتم" and sheet.sheets["Other"] == [["x"]]
+    assert c.sheets.test_connection()["owner_rows"] == 4
+
+
+def test_unknown_tab_lists_existing_tabs(container):
+    container.settings.update({"sheet_name": "غير موجود"})
+    container.sheets.reset_client()
+    with pytest.raises(AgentError) as exc:
+        container.sheets.load()
+    assert exc.value.code == "SHEET_TAB_NOT_FOUND" and "Leads" in exc.value.message_ar
