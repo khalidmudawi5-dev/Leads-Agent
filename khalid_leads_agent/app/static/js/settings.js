@@ -15,11 +15,13 @@ function setField(el, value) {
 }
 
 async function loadSettings() {
+  const headerInfo = CFG && CFG.headerInfo;
   CFG = await api("GET", "/api/settings");
+  CFG.headerInfo = headerInfo || null;
   $$("[data-key]").forEach((el) => setField(el, CFG.settings[el.dataset.key]));
   $("#paths").textContent = `data: ${CFG.paths.data} · logs: ${CFG.paths.logs} · browser profile: ${CFG.paths.browser_profile}`;
   renderGoogleStatus(CFG.google);
-  renderColumns([]);
+  renderColumns(CFG.headerInfo || null);
   loadPendingChips();
 }
 
@@ -128,43 +130,78 @@ async function loadTabs(btn) {
 }
 
 // ------------------------------------------------------------ columns
-function renderColumns(header) {
+function colLetter(i) { let n = i + 1, out = ""; while (n) { const r = (n - 1) % 26; out = String.fromCharCode(65 + r) + out; n = Math.floor((n - 1) / 26); } return out; }
+const normH = (v) => String(v || "").replace(/[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, "").replace(/\s+/g, " ").trim();
+
+/** One dropdown per field with *every* sheet column (letter + title). Headers load automatically. */
+function renderColumns(info) {
   const map = CFG.settings.column_mapping;
+  const header = info ? info.header : null;
+  const resolved = info ? info.columns : {};
   $("#columns-form").innerHTML = Object.keys(CFG.column_labels).map((k) => {
     const req = CFG.required_columns.includes(k);
-    const opts = [...new Set([map[k] || "", ...header])];
-    return `<label class="field"><span>${esc(CFG.column_labels[k])}${req ? " *" : ""} <span class="ltr muted small">(${k})</span></span>
-      ${header.length ? `<select data-col="${k}">${opts.map((h) => `<option value="${esc(h)}" ${h === (map[k] || "") ? "selected" : ""}>${h ? esc(h) : "— غير مستخدم —"}</option>`).join("")}</select>`
-        : `<input type="text" data-col="${k}" value="${esc(map[k] || "")}">`}</label>`;
+    const current = map[k] || "";
+    let control;
+    let status = "";
+    if (header && header.length) {
+      const cols = header.map((h, i) => ({ i, h: normH(h) })).filter((c) => c.h);
+      const found = resolved[k] ? normH(resolved[k]) : "";
+      const selected = found || (cols.some((c) => c.h === normH(current)) ? normH(current) : "");
+      const lost = current && !selected;
+      control = `<select data-col="${k}" ${lost ? 'class="needs-choice"' : ""}>
+        <option value="">— غير مستخدم —</option>
+        ${lost ? `<option value="${esc(current)}" selected>⚠ ${esc(current)} (غير موجود في الـSheet)</option>` : ""}
+        ${cols.map((c) => `<option value="${esc(c.h)}" ${c.h === selected ? "selected" : ""}>${colLetter(c.i)} — ${esc(c.h)}</option>`).join("")}
+      </select>`;
+      const idx = cols.find((c) => c.h === selected);
+      status = idx ? `<div class="help" style="color:var(--success)">✓ العمود ${colLetter(idx.i)}</div>`
+        : (lost || (req && !current)) ? `<div class="help" style="color:var(--danger)">✗ غير موجود في صف العناوين${req ? " — حقل مطلوب" : ""}</div>` : "";
+    } else {
+      control = `<input type="text" data-col="${k}" value="${esc(current)}">`;
+    }
+    return `<label class="field"><span>${esc(CFG.column_labels[k])}${req ? " *" : ""} <span class="ltr muted small">(${k})</span></span>${control}${status}</label>`;
   }).join("");
 }
 async function loadHeaders(btn) {
-  await withBusy(btn, async () => {
+  const run = async () => {
     try {
       const r = await api("GET", "/api/sheet/headers");
-      renderColumns(r.header);
+      CFG.headerInfo = r;
+      renderColumns(r);
       const missing = r.missing.map((k) => CFG.column_labels[k]);
-      $("#columns-msg").innerHTML = missing.length ? `<div class="alert warn">غير مطابقة حاليًا: ${missing.map(esc).join("، ")}</div>` : '<div class="alert success">كل الأعمدة مطابقة.</div>';
-    } catch (e) { showError(e, $("#columns-msg")); }
-  });
+      $("#columns-msg").innerHTML = `<div class="alert ${missing.length ? "warn" : "success"}">تم تحميل ${r.header.filter((h) => normH(h)).length} عمود من صف العناوين رقم ${CFG.settings.header_row}.
+        ${missing.length ? ` غير مطابقة حاليًا: <b>${missing.map(esc).join("، ")}</b> — اختر العمود الصحيح من القائمة ثم احفظ.` : " كل الأعمدة مطابقة."}</div>`;
+    } catch (e) {
+      renderColumns(null);
+      showError(e, $("#columns-msg"));
+    }
+  };
+  if (btn) await withBusy(btn, run); else await run();
 }
 async function saveColumns() {
   const mapping = {};
   $$("[data-col]").forEach((el) => { mapping[el.dataset.col] = el.value; });
-  try { await api("PUT", "/api/settings", { column_mapping: mapping }); toast("تم حفظ Column Mapping", "success"); await loadSettings(); }
+  try { await api("PUT", "/api/settings", { column_mapping: mapping }); toast("تم حفظ Column Mapping", "success"); await loadSettings(); await loadHeaders(); }
   catch (e) { toast(e.message, "error"); }
 }
 
 // ------------------------------------------------------------- status
 async function loadStatus() {
   const r = await api("GET", "/api/settings/status-mapping");
-  $("#status-rows").innerHTML = r.items.map((i) => `<tr><td class="ltr">${esc(i.code)}</td>
-    <td><input type="text" data-label="${i.code}" value="${esc(i.label)}"></td>
-    <td><input type="text" data-sv="${i.code}" value="${esc(i.sheet_value)}" list="status-options"></td></tr>`).join("");
-  try {
-    const o = await api("GET", "/api/sheet/options/followup_status");
-    $("#status-options").innerHTML = o.options.map((v) => `<option value="${esc(v)}">`).join("");
-  } catch (e) { /* sheet not connected yet */ }
+  let options = null;
+  try { options = (await api("GET", "/api/sheet/options/followup_status")).options; } catch (e) { /* sheet not connected yet */ }
+  $("#status-rows").innerHTML = r.items.map((i) => {
+    let ctl;
+    if (options && options.length) {
+      const lost = i.sheet_value && !options.includes(i.sheet_value);
+      ctl = `<select data-sv="${i.code}" ${lost ? 'class="needs-choice"' : ""}><option value="">— اختر —</option>
+        ${lost ? `<option value="${esc(i.sheet_value)}" selected>⚠ ${esc(i.sheet_value)} (غير موجود في القائمة)</option>` : ""}
+        ${options.map((o) => `<option value="${esc(o)}" ${o === i.sheet_value ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+    } else {
+      ctl = `<input type="text" data-sv="${i.code}" value="${esc(i.sheet_value)}">`;
+    }
+    return `<tr><td class="ltr">${esc(i.code)}</td><td><input type="text" data-label="${i.code}" value="${esc(i.label)}"></td><td>${ctl}</td></tr>`;
+  }).join("");
 }
 async function saveStatus() {
   const items = $$("[data-sv]").map((el, i) => ({ code: el.dataset.sv, sheet_value: el.value, label: $(`[data-label="${el.dataset.sv}"]`).value, sort_order: i }));
@@ -182,7 +219,13 @@ async function loadSources() {
   renderSources((await api("GET", "/api/settings/source-mapping")).items);
   try {
     const o = await api("GET", "/api/sheet/options/source");
-    $("#source-options").innerHTML = o.options.map((v) => `<option value="${esc(v)}">`).join("");
+    if (o.options.length) {
+      const old = $("#src-sheet");
+      const sel = document.createElement("select");
+      sel.id = "src-sheet";
+      sel.innerHTML = '<option value="">— اختر قيمة من قائمة الـSheet —</option>' + o.options.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+      old.replaceWith(sel);
+    }
   } catch (e) { /* not connected */ }
 }
 async function addSource() {
@@ -219,6 +262,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     $$(".tab-panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === t.dataset.tab));
     if (t.dataset.tab === "status") loadStatus().catch((e) => toast(e.message, "error"));
     if (t.dataset.tab === "source") loadSources().catch((e) => toast(e.message, "error"));
+    if (t.dataset.tab === "columns" && !CFG.headerInfo) loadHeaders($("#btn-load-headers"));
   });
   const hash = location.hash.replace("#", "");
   $$("[data-save]").forEach((b) => b.onclick = () => saveSection(b.dataset.save));
