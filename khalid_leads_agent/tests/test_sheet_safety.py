@@ -215,3 +215,17 @@ def test_overwritten_header_cell_is_explained(container, sheet):
     assert sheet.write_calls == []
     sheet.sheets["Leads"][0][2] = "اسم المنشأة"  # fixed in the sheet → works again
     assert container.sheets.load().columns["company_name"] == 2
+
+
+def test_source_written_differently_uses_the_sheet_option(container, sheet):
+    lead, ref = ref_for(container, "مؤسسة الاختبار الأولى")
+    plan = container.sheets.plan_update(ref, {"followup_status": "مهتم", "source": "meta / leads "}, "")
+    assert {c.key: c.new for c in plan.changes}["source"] == "Meta || Leads"  # exact dropdown text
+
+
+def test_unknown_source_never_blocks_status_and_notes(container, sheet):
+    lead, ref = ref_for(container, "مؤسسة الاختبار الأولى")
+    plan = container.sheets.plan_update(ref, {"followup_status": "مهتم", "source": "Snapchat"}, "[x - خالد]\nمهتم")
+    assert {c.key for c in plan.changes} == {"followup_status", "notes"}
+    assert any("مصدر العميل" in w and "Snapchat" in w for w in plan.warnings)
+    assert container.sheets.apply(plan, dry_run=False) == "success"

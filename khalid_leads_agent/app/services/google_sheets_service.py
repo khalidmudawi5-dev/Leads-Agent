@@ -27,6 +27,7 @@ from app.config import COLUMN_LABELS_AR, REQUIRED_COLUMNS, AppSettings
 from app.db import Database
 from app.errors import AgentError, ConfigIncomplete, GoogleNotConnected, OwnerChanged, RowNotFound
 from app.repositories.log_repo import LogRepository
+from app.services.mapping_service import source_key
 from app.services.settings_service import SettingsService
 from app.repositories.settings_repo import SettingsRepository
 from app.utils.a1 import cell_ref, col_letter, quote_sheet
@@ -382,12 +383,12 @@ class SheetService:
         owner = self.settings.get().agent_owner
         return [lead for lead in snap.leads if same_person(lead.owner, owner)]
 
-    def dropdown_options(self, key: str) -> list[str]:
+    def dropdown_options(self, key: str, fresh: bool = False) -> list[str]:
         """Allowed values for a mapped column: Data Validation first, else existing distinct values."""
         s = self.settings.get()
         cache_key = (s.spreadsheet_id, s.sheet_name, key)
         cached = self._options_cache.get(cache_key)
-        if cached and time.time() - cached[0] < 300:
+        if cached and not fresh and time.time() - cached[0] < 300:
             return cached[1]
         snap = self.last_snapshot or self.load()
         col = snap.columns.get(key)
@@ -481,12 +482,29 @@ class SheetService:
             if s.validate_dropdown_values and key in ("followup_status", "source") and new:
                 options = self.dropdown_options(key)
                 if options and new not in options:
-                    raise AgentError(
-                        "VALUE_NOT_IN_DROPDOWN",
-                        f"القيمة «{new}» غير موجودة في قائمة «{COLUMN_LABELS_AR.get(key, key)}» في Google Sheet. "
-                        "عدّل الربط من الإعدادات.",
-                        actions=["open_settings"],
-                    )
+                    options = self.dropdown_options(key, fresh=True)  # the team may have just added it
+                if options and new not in options:
+                    same = [o for o in options if source_key(o) == source_key(new)]
+                    if len(same) == 1:
+                        # Same value written differently (spaces, case, "/" vs "||"): use the sheet's exact text.
+                        log.info("Value %r for %s written as dropdown option %r", new, key, same[0])
+                        new = same[0]
+                        if old == new:
+                            continue
+                    elif key == "source":
+                        # Optional field: never block the status/notes update because of it.
+                        plan.warnings.append(
+                            f"لم يتم تحديث «مصدر العميل» لأن القيمة «{new}» غير موجودة في قائمة الـSheet "
+                            f"(القيم المتاحة: {'، '.join(options[:12])}). صحّح الربط من الإعدادات ← Source Mapping."
+                        )
+                        continue
+                    else:
+                        raise AgentError(
+                            "VALUE_NOT_IN_DROPDOWN",
+                            f"القيمة «{new}» غير موجودة في قائمة «{COLUMN_LABELS_AR.get(key, key)}» في Google Sheet "
+                            f"(القيم المتاحة: {'، '.join(options[:12])}). عدّل الربط من الإعدادات ← Status Mapping.",
+                            actions=["open_settings"],
+                        )
             plan.changes.append(CellChange(
                 key=key, header=snap.header[col], col_index=col, cell=cell_ref(self.tab_title(), lead.sheet_row, col),
                 old=old, new=new, user_entered=key in user_entered_keys,

@@ -210,15 +210,18 @@ async function saveStatus() {
 }
 
 // ------------------------------------------------------------- source
+let SHEET_SOURCES = null;
 function renderSources(items) {
-  $("#source-rows").innerHTML = items.length ? items.map((i) => `<tr><td>${esc(i.odoo_value)}</td><td>${esc(i.sheet_value)}</td>
+  const known = (v) => !SHEET_SOURCES || !SHEET_SOURCES.length || SHEET_SOURCES.includes(v);
+  $("#source-rows").innerHTML = items.length ? items.map((i) => `<tr><td>${esc(i.odoo_value)}</td>
+    <td>${esc(i.sheet_value)}${known(i.sheet_value) ? "" : ' <span class="badge red">⚠ غير موجودة في قائمة الـSheet — احذف هذا الربط وأضفه من جديد</span>'}</td>
     <td><button class="btn sm danger" data-del="${i.id}">حذف</button></td></tr>`).join("") : '<tr><td colspan="3" class="empty">لا يوجد ربط بعد.</td></tr>';
   $$("[data-del]").forEach((b) => b.onclick = async () => { const r = await api("DELETE", `/api/settings/source-mapping/${b.dataset.del}`); renderSources(r.items); });
 }
 async function loadSources() {
-  renderSources((await api("GET", "/api/settings/source-mapping")).items);
   try {
     const o = await api("GET", "/api/sheet/options/source");
+    SHEET_SOURCES = o.options;
     if (o.options.length) {
       const old = $("#src-sheet");
       const sel = document.createElement("select");
@@ -227,6 +230,7 @@ async function loadSources() {
       old.replaceWith(sel);
     }
   } catch (e) { /* not connected */ }
+  renderSources((await api("GET", "/api/settings/source-mapping")).items);
 }
 async function addSource() {
   try {

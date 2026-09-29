@@ -310,6 +310,7 @@ class ResultService:
                 step = await asyncio.to_thread(self.sync.update_sheet, ref, changes, entry, dry_run=False,
                                                action_id=row.idempotency_key)
                 row.sheet_status = step.status
+                warnings += [w for w in step.warnings if w not in warnings]
                 if step.status in ("failed", "blocked"):
                     errors.append(step.message)
         ok = {"success", "skipped", "nochange", "dry_run"}
