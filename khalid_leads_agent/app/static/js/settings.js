@@ -211,12 +211,42 @@ async function saveStatus() {
 
 // ------------------------------------------------------------- source
 let SHEET_SOURCES = null;
+/** Same normalization as the server (case, spaces and the separators / | || \ › > - are ignored). */
+function srcKey(v) {
+  return String(v || "").normalize("NFKC").toLowerCase().split(/\s*(?:\|\||\||\/|\\|›|>|-)\s*/)
+    .map((p) => p.replace(/\s+/g, " ").trim()).filter(Boolean).join(" / ");
+}
+function sheetMatch(value) {
+  if (!SHEET_SOURCES || !SHEET_SOURCES.length) return { known: null, option: value };
+  if (SHEET_SOURCES.includes(value)) return { known: true, option: value };
+  const same = SHEET_SOURCES.filter((o) => srcKey(o) === srcKey(value));
+  return same.length === 1 ? { known: true, option: same[0], respelled: true } : { known: false, option: "" };
+}
 function renderSources(items) {
-  const known = (v) => !SHEET_SOURCES || !SHEET_SOURCES.length || SHEET_SOURCES.includes(v);
-  $("#source-rows").innerHTML = items.length ? items.map((i) => `<tr><td>${esc(i.odoo_value)}</td>
-    <td>${esc(i.sheet_value)}${known(i.sheet_value) ? "" : ' <span class="badge red">⚠ غير موجودة في قائمة الـSheet — احذف هذا الربط وأضفه من جديد</span>'}</td>
-    <td><button class="btn sm danger" data-del="${i.id}">حذف</button></td></tr>`).join("") : '<tr><td colspan="3" class="empty">لا يوجد ربط بعد.</td></tr>';
+  $("#source-rows").innerHTML = items.length ? items.map((i, n) => {
+    const m = sheetMatch(i.sheet_value);
+    let cell;
+    if (SHEET_SOURCES && SHEET_SOURCES.length) {
+      cell = `<select data-edit="${n}" ${m.known ? "" : 'class="needs-choice"'}>
+        ${m.known ? "" : '<option value="" selected>— اختر القيمة الصحيحة من قائمة الـSheet —</option>'}
+        ${SHEET_SOURCES.map((o) => `<option value="${esc(o)}" ${o === m.option ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>
+        ${m.known === false ? `<div class="help" style="color:var(--danger)">القيمة المحفوظة «${esc(i.sheet_value)}» غير موجودة في قائمة الـSheet — اختر القيمة الصحيحة وسيُحفظ تلقائيًا.</div>`
+          : m.respelled ? `<div class="help" style="color:var(--success)">✓ ستُكتب كما في الـSheet: «${esc(m.option)}»</div>` : ""}`;
+    } else {
+      cell = esc(i.sheet_value);
+    }
+    return `<tr><td><b>${esc(i.odoo_value)}</b></td><td>${cell}</td>
+      <td><button class="btn sm danger" data-del="${i.id}">حذف</button></td></tr>`;
+  }).join("") : '<tr><td colspan="3" class="empty">لا يوجد ربط بعد.</td></tr>';
   $$("[data-del]").forEach((b) => b.onclick = async () => { const r = await api("DELETE", `/api/settings/source-mapping/${b.dataset.del}`); renderSources(r.items); });
+  $$("select[data-edit]").forEach((sel) => sel.onchange = async () => {
+    if (!sel.value) return;
+    const item = items[+sel.dataset.edit];
+    try {
+      const r = await api("POST", "/api/settings/source-mapping", { odoo_value: item.odoo_value, sheet_value: sel.value });
+      renderSources(r.items); toast(`تم الحفظ: ${item.odoo_value} ← ${sel.value}`, "success");
+    } catch (e) { toast(e.message, "error"); }
+  });
 }
 async function loadSources() {
   try {
