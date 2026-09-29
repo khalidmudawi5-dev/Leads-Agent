@@ -326,6 +326,30 @@ textarea { min-height: 90px; resize: vertical; }
 .search-field input { padding-inline-start: 42px; padding-inline-end: 48px; height: 46px; border-radius: 13px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .search-field kbd { position: absolute; inset-inline-end: 12px; top: 50%; transform: translateY(-50%); }
 
+/* ---------- status filter (which follow-up statuses the queue looks for) */
+.filter-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm);
+}
+.filter-bar .fb-label { font-weight: 800; font-size: .9rem; display: inline-flex; align-items: center; gap: 8px; }
+.filter-bar .fb-label svg { width: 18px; height: 18px; color: var(--primary); }
+.fb-chips { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+.fchip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 8px; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text-2); font-weight: 700; font-size: .86rem;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.fchip:hover { border-color: var(--primary); }
+.fchip .box { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid var(--border-strong); display: grid; place-items: center; }
+.fchip .box svg { width: 12px; height: 12px; opacity: 0; }
+.fchip .n { font-size: .74rem; padding: 1px 7px; border-radius: 999px; background: var(--surface-3); color: var(--muted); }
+.fchip.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.fchip.on .box { background: var(--primary); border-color: var(--primary); color: #fff; }
+.fchip.on .box svg { opacity: 1; }
+.fchip.on .n { background: var(--primary); color: #fff; }
+.fchip.empty-status { border-style: dashed; }
+.fchip:disabled { opacity: .6; cursor: wait; }
+
 /* ---------- chatter timeline */
 .live-pill {
   display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: .75rem; font-weight: 700;

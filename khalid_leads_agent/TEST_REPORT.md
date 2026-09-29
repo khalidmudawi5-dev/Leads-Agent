@@ -1,8 +1,8 @@
 # Test Report — Khalid Leads Agent 1.1.0
 
-## Update 1.1.0 (2026-09-29): modern UI, Chatter history, live sync, keyboard shortcuts
+## Update 1.1.0 (2026-09-29): modern UI, Chatter history, live sync, keyboard shortcuts, status filter
 
-**Result:** ✅ **88 passed, 0 failed** (Python 3.11, Playwright 1.x with headless Chromium).
+**Result:** ✅ **89 passed, 0 failed** (Python 3.11, Playwright 1.x with headless Chromium).
 
 | New / changed test | Covers |
 |---|---|
@@ -12,6 +12,7 @@
 | `test_api.py::test_live_sync_refreshes_lead_when_odoo_changes` | `/api/lead/{fp}/live`: baseline, no change, change → refreshed lead + cache updated; manual-mode endpoint; logged-out polling returns quietly with no error log |
 | `test_api.py::test_live_sync_can_be_disabled` | Setting `live_sync_enabled = false` |
 | `test_api.py::test_pages_and_static` | Also serves the bundled Tajawal font files |
+| `test_api.py::test_status_filter_choose_what_the_queue_looks_for` | Status filter: options = empty cell + sheet dropdown values with the owner's row counts; choosing «مهتم» only switches the queue at once; «مهتم + لم يتم الرد + (فارغ)» saved; empty selection rejected with an Arabic message; no sheet writes |
 
 Manual UI check (headless Chromium, 1600×1000, `USE_MOCKS=true`): dashboard, Chatter timeline, shortcuts help (`?`), result panel via `R` then `5`, dark mode via `Alt+D`, live polling every 5 s, Tajawal loaded (`document.fonts.check`), **0 JavaScript errors**.
 

@@ -7,6 +7,7 @@ import re
 from datetime import timedelta
 
 from app.adapters.odoo.base import OdooLead
+from app.config import EMPTY_TOKEN
 from app.db import Database
 from app.errors import AgentError
 from app.models import LeadCache
@@ -19,7 +20,7 @@ from app.services.odoo_service import MatchResult, OdooService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
 from app.utils.phone import normalize_phone, phones_match, to_ascii_digits
-from app.utils.text import normalize_company
+from app.utils.text import normalize_company, normalize_text
 from app.utils.timeutils import end_of_local_day_utc, start_of_local_day_utc, utcnow
 
 log = logging.getLogger(__name__)
@@ -257,6 +258,58 @@ class LeadWorkflowService:
                     raise
                 warnings.append(exc.message_ar)
         return self._payload(fingerprint, warnings)
+
+    # ------------------------------------------------------ status filter
+    def _status_options(self) -> list[str]:
+        try:
+            return self.sheets.dropdown_options("followup_status")
+        except Exception:  # noqa: BLE001 - the filter still works from the rows' own values
+            log.info("Could not read follow-up status options", exc_info=True)
+            return []
+
+    async def status_filter(self) -> dict:
+        """Which follow-up statuses the queue looks for, with how many of the owner's rows have each."""
+        warnings: list[str] = []
+        if not self.queue.loaded:
+            warnings = await self._refresh(strict=False)
+        s = self.settings.get()
+        counts: dict[str, int] = {}
+        labels: dict[str, str] = {"": ""}
+        for lead in self.queue.owner_leads:
+            key = normalize_text(lead.followup_status)
+            counts[key] = counts.get(key, 0) + 1
+            labels.setdefault(key, lead.followup_status.strip())
+        values = [""] + await asyncio.to_thread(self._status_options) + [v for v in s.pending_status_values if v]
+        values += [labels[k] for k in counts if k]
+        selected = s.pending_values_normalized()
+        options, seen = [], set()
+        for v in values:
+            key = normalize_text(v)
+            if key in seen:
+                continue
+            seen.add(key)
+            options.append({"value": v.strip(), "empty": key == "", "count": counts.get(key, 0),
+                            "selected": key in selected})
+        return {"options": options, "loaded": self.queue.loaded, "warnings": warnings}
+
+    async def set_status_filter(self, values: list[str]) -> dict:
+        """Save the statuses to look for; the queue is re-filtered at once (no sheet write)."""
+        clean: list[str] = []
+        for v in values:
+            v = "" if v.strip() == EMPTY_TOKEN else v.strip()
+            if v not in clean:
+                clean.append(v)
+        if not clean:
+            raise AgentError("STATUS_FILTER_EMPTY", "اختر حالة متابعة واحدة على الأقل.")
+        self.settings.update({"pending_status_values": clean})
+        sess = self.sessions.ensure()
+        fp = sess.current_fingerprint
+        if fp and any(lead.fingerprint == fp for lead in self.queue.queue()):
+            payload = self._payload(fp)
+        else:
+            payload = await self.next(refresh=False)
+        payload["filter"] = await self.status_filter()
+        return payload
 
     # --------------------------------------------------------- live sync
     async def _signature(self, lead_id: int) -> tuple[str | None, dict]:

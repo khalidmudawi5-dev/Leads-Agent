@@ -40,6 +40,7 @@ async function init() {
     if (sess.needs_prompt) return askResume(sess.session);
     await api("POST", "/api/session/start", { resume: true });
     await loadCurrent();
+    loadFilter();
   } catch (e) { showError(e, $("#lead-card"), { retry: init }); }
   $("#manual-form").onsubmit = (ev) => { ev.preventDefault(); manualSearch(); };
   $("#btn-refresh-queue").onclick = (ev) => withBusy(ev.currentTarget, refreshQueue);
@@ -152,8 +153,8 @@ function askResume(sess) {
       <div class="k">تم تخطيهم</div><div>${sess.skipped_count}</div>
       <div class="k">الأخطاء</div><div>${sess.errors_count}</div></div>`,
     buttons: [
-      { label: "استكمال الجلسة", cls: "primary", onClick: async () => { Modal.close(); await api("POST", "/api/session/start", { resume: true }); loadCurrent(); } },
-      { label: "بدء جلسة جديدة", onClick: async () => { Modal.close(); await api("POST", "/api/session/start", { resume: false }); loadCurrent(); } },
+      { label: "استكمال الجلسة", cls: "primary", onClick: async () => { Modal.close(); await api("POST", "/api/session/start", { resume: true }); await loadCurrent(); loadFilter(); } },
+      { label: "بدء جلسة جديدة", onClick: async () => { Modal.close(); await api("POST", "/api/session/start", { resume: false }); await loadCurrent(); loadFilter(); } },
     ],
   });
 }
@@ -164,8 +165,47 @@ async function loadCurrent() {
   catch (e) { renderFatal(e, loadCurrent); }
 }
 async function refreshQueue() {
-  try { render(await api("POST", "/api/queue/refresh")); toast("تم تحديث القائمة", "success"); }
+  try { render(await api("POST", "/api/queue/refresh")); toast("تم تحديث القائمة", "success"); loadFilter(); }
   catch (e) { renderFatal(e, refreshQueue); }
+}
+
+// ---------------------------------------------------------- status filter
+const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6L9 17l-5-5"/></svg>';
+S.filter = { options: [], busy: false };
+
+async function loadFilter() {
+  try { renderFilter((await api("GET", "/api/queue/filter")).options); }
+  catch (e) { $("#fb-chips").innerHTML = `<span class="small muted">${esc(e.message)}</span>`; }
+}
+
+function renderFilter(options) {
+  S.filter.options = options || [];
+  $("#fb-chips").innerHTML = S.filter.options.map((o, i) => `<button type="button" class="fchip ${o.selected ? "on" : ""} ${o.empty ? "empty-status" : ""}" data-i="${i}"
+      title="${o.empty ? "الصفوف التي خلية «حالة المتابعة» فيها فارغة" : esc(o.value)}"><span class="box">${CHECK}</span>
+      ${o.empty ? "فارغة (بدون حالة)" : esc(o.value)}<span class="n">${o.count}</span></button>`).join("")
+    || '<span class="small muted">لا توجد حالات بعد. حدّث القائمة من Google Sheet.</span>';
+  $$("#fb-chips .fchip").forEach((b) => b.onclick = () => toggleFilter(+b.dataset.i));
+}
+
+async function toggleFilter(i) {
+  if (S.filter.busy) return;
+  const opts = S.filter.options.map((o, j) => (j === i ? { ...o, selected: !o.selected } : o));
+  const values = opts.filter((o) => o.selected).map((o) => o.value);
+  if (!values.length) { toast("اختر حالة متابعة واحدة على الأقل.", "warn"); return; }
+  S.filter.busy = true;
+  $$("#fb-chips .fchip").forEach((b) => { b.disabled = true; });
+  try {
+    const payload = await api("PUT", "/api/queue/filter", { values });
+    renderFilter(payload.filter.options);
+    const sameLead = payload.lead && S.lead && payload.lead.fingerprint === S.lead.fingerprint;
+    if (sameLead && (resultOpen() || S.call.startedAt)) renderStats(payload.stats);  // keep the open result panel
+    else if (!S.manual) render(payload);
+    else renderStats(payload.stats);
+    toast(`سيتم البحث عن: ${opts.filter((o) => o.selected).map((o) => o.empty ? "فارغة" : o.value).join("، ")} (${payload.stats.pending} عميل)`, "info", 3500);
+  } catch (e) {
+    toast(e.message, "error");
+    renderFilter(S.filter.options);
+  } finally { S.filter.busy = false; }
 }
 function renderFatal(e, retry) {
   $("#result-card").classList.add("hidden");
@@ -705,7 +745,7 @@ async function goNext() {
   clearInterval(S.nextTimer);
   $("#next-card").classList.add("hidden");
   $("#lead-card").innerHTML = '<div class="empty"><span class="spinner"></span> جاري تحميل العميل التالي…</div>';
-  try { render(await api("POST", "/api/lead/next")); } catch (e) { renderFatal(e, goNext); }
+  try { render(await api("POST", "/api/lead/next")); loadFilter(); } catch (e) { renderFatal(e, goNext); }
 }
 
 // ------------------------------------------------------------ manual mode

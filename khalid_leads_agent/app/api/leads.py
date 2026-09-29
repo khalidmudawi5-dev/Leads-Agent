@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import container
 from app.container import AppContainer
-from app.schemas.api import ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn
+from app.schemas.api import ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
 
 router = APIRouter(prefix="/api")
 
@@ -55,6 +55,16 @@ async def lead_next(c: AppContainer = Depends(container)) -> dict:
 async def queue_refresh(c: AppContainer = Depends(container)) -> dict:
     await c.workflow._refresh(strict=True)
     return await c.workflow.current()
+
+
+@router.get("/queue/filter")
+async def queue_filter(c: AppContainer = Depends(container)) -> dict:
+    return await c.workflow.status_filter()
+
+
+@router.put("/queue/filter")
+async def set_queue_filter(body: StatusFilterIn, c: AppContainer = Depends(container)) -> dict:
+    return await c.workflow.set_status_filter(body.values)
 
 
 @router.get("/stats")

@@ -74,3 +74,9 @@ class StatusMappingItem(BaseModel):
 
 class StatusMappingIn(BaseModel):
     items: list[StatusMappingItem]
+
+
+class StatusFilterIn(BaseModel):
+    """Follow-up statuses the queue should look for ("" = empty cell)."""
+
+    values: list[str] = Field(default_factory=list, max_length=100)

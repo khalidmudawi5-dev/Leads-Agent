@@ -20,6 +20,32 @@ async function loadSettings() {
   $("#paths").textContent = `data: ${CFG.paths.data} · logs: ${CFG.paths.logs} · browser profile: ${CFG.paths.browser_profile}`;
   renderGoogleStatus(CFG.google);
   renderColumns([]);
+  loadPendingChips();
+}
+
+/** Status chips that edit the Pending Status Values textarea (saved with the Google section). */
+async function loadPendingChips() {
+  const box = $("#pending-chips");
+  if (!box) return;
+  let options = [];
+  try { options = (await api("GET", "/api/queue/filter")).options; } catch (e) { box.innerHTML = ""; return; }
+  const area = $('[data-key="pending_status_values"]');
+  const current = () => fieldValue(area);
+  const draw = () => {
+    const sel = current().map((v) => v.trim());
+    box.innerHTML = options.map((o, i) => `<button type="button" class="fchip ${sel.includes(o.value) ? "on" : ""} ${o.empty ? "empty-status" : ""}" data-i="${i}">
+      <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6L9 17l-5-5"/></svg></span>
+      ${o.empty ? "فارغة (بدون حالة)" : esc(o.value)}<span class="n">${o.count}</span></button>`).join("");
+    $$(".fchip", box).forEach((b) => b.onclick = () => {
+      const v = options[+b.dataset.i].value;
+      const list = current();
+      const next = list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+      setField(area, next);
+      draw();
+    });
+  };
+  area.oninput = draw;
+  draw();
 }
 
 async function saveSection(name) {

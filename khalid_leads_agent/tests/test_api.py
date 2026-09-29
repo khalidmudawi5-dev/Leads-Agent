@@ -143,3 +143,30 @@ def test_live_sync_can_be_disabled(client, odoo):
     client.post(f"/api/lead/{fp}/search", json={"query": ""}, headers=H)
     r = client.get(f"/api/lead/{fp}/live", params={"since": "x"}).json()
     assert r == {"changed": False, "enabled": False, "interval": 5, "signature": "x"}
+
+
+def test_status_filter_choose_what_the_queue_looks_for(client, sheet):
+    client.post("/api/session/start", json={"resume": True}, headers=H)
+    f = client.get("/api/queue/filter").json()
+    opts = {o["value"]: o for o in f["options"]}
+    # empty cell first, then the sheet dropdown values, with the owner's row counts
+    assert f["options"][0]["empty"] and opts[""]["count"] == 1 and opts[""]["selected"]
+    assert opts["لم يتم الرد"]["count"] == 1 and opts["لم يتم الرد"]["selected"]
+    assert opts["مهتم"]["count"] == 1 and not opts["مهتم"]["selected"]
+    assert "غير مهتم" in opts and opts["غير مهتم"]["count"] == 0
+    assert client.get("/api/lead/current").json()["stats"]["pending"] == 3
+
+    # Look only for "مهتم": queue switches to that lead immediately; sheet untouched
+    r = client.put("/api/queue/filter", json={"values": ["مهتم"]}, headers=H).json()
+    assert r["lead"]["company_name"] == "مصنع مكتمل" and r["stats"]["pending"] == 1
+    assert [o["value"] for o in r["filter"]["options"] if o["selected"]] == ["مهتم"]
+    assert sheet.write_calls == []
+
+    # Interested + no answer + empty cell
+    r = client.put("/api/queue/filter", json={"values": ["مهتم", "لم يتم الرد", "(فارغ)"]}, headers=H).json()
+    assert r["stats"]["pending"] == 3
+    assert client.get("/api/settings").json()["settings"]["pending_status_values"] == ["مهتم", "لم يتم الرد", ""]
+
+    bad = client.put("/api/queue/filter", json={"values": []}, headers=H)
+    assert bad.status_code == 400 and bad.json()["error"]["message"] == "اختر حالة متابعة واحدة على الأقل."
+    assert client.get("/api/errors").json()["items"] == []

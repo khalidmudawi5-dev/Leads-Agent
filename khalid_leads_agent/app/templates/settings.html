@@ -40,8 +40,10 @@
       <label class="field"><span>Sheet/Tab Name</span><input type="text" data-key="sheet_name" list="tab-list"><datalist id="tab-list"></datalist></label>
       <label class="field"><span>رقم صف العناوين</span><input type="number" min="1" data-key="header_row"></label>
       <label class="field"><span>صيغة ختم الملاحظة</span><input type="text" data-key="note_stamp_format" class="ltr"></label>
-      <label class="field full"><span>Pending Status Values — قيم «حالة المتابعة» التي تعتبر بانتظار التواصل (قيمة في كل سطر، واكتب <b>(فارغ)</b> للخلية الفارغة)</span>
-        <textarea data-key="pending_status_values" data-type="lines"></textarea></label>
+      <div class="field full"><span class="small"><b>حالات المتابعة التي يبحث عنها الـAgent</b> — اختر حالة أو أكثر (يمكن تغييرها أيضًا من الصفحة الرئيسية)</span>
+        <div class="fb-chips" id="pending-chips" style="margin-top:8px"></div></div>
+      <label class="field full"><span>أو اكتبها يدويًا (قيمة في كل سطر، واكتب <b>(فارغ)</b> للخلية الفارغة)</span>
+        <textarea data-key="pending_status_values" data-type="lines" rows="3"></textarea></label>
       <label class="check"><input type="checkbox" data-key="append_notes"> Append Notes (عدم مسح الملاحظات القديمة)</label>
       <label class="check"><input type="checkbox" data-key="validate_dropdown_values"> التحقق من أن القيم موجودة في Dropdown قبل الكتابة</label>
     </div>
