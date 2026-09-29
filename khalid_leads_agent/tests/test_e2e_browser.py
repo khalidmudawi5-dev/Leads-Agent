@@ -45,7 +45,8 @@ def test_full_workflow_real_browser(env):
 
             s = client.post(f"/api/lead/{lead['fingerprint']}/search", json={"query": ""}, headers=H).json()
             assert s["match"]["status"] == "matched" and s["lead"]["odoo"]["source"] == "Meta"
-            assert s["lead"]["source"]["odoo_value"] == "Meta / Leads" and not s["lead"]["source"]["mapped"]
+            assert s["lead"]["source"]["odoo_value"] == "Meta / Leads" and s["lead"]["source"]["mapped"]
+            assert s["lead"]["source"]["prefill"] == "Meta || Leads"  # identical sheet dropdown value
 
             call = client.post(f"/api/lead/{lead['fingerprint']}/call", headers=H).json()
             assert call["phone_field"] == "phone"

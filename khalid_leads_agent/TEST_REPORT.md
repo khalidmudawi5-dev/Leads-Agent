@@ -1,4 +1,12 @@
-# Test Report — Khalid Leads Agent 1.1.0
+# Test Report — Khalid Leads Agent 1.2.0
+
+## Update 1.2.0 (2026-09-29): saving clarity and source auto-match
+
+**Result:** ✅ **90 passed, 0 failed**.
+
+- Source: an Odoo source/medium that is *identical* (after normalization: case, spaces, `/ | || -`) to exactly one value of the sheet's source dropdown is used automatically (`auto: true`). Saved mappings still win; ambiguous or different values still require the user's choice (`test_mappings.py`, `test_results.py::test_source_auto_matched_to_identical_sheet_value`, e2e).
+- UI (headless Chromium, mocks): with Dry Run ON the result panel shows what *would* be written; the Dry Run dialog offers "stop Dry Run and save for real"; the real save wrote the Odoo note and the sheet (history: `success / success`); per-system outcome badges shown; 0 JavaScript errors.
+
 
 ## Update 1.1.0 (2026-09-29): modern UI, Chatter history, live sync, keyboard shortcuts, status filter
 

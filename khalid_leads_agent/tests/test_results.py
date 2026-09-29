@@ -158,13 +158,23 @@ def test_manual_open_links_only_on_unambiguous_phone(container, odoo):
     assert not not_linked["linked"]
 
 
-def test_source_mapping_saved_from_result(container):
+def test_source_auto_matched_to_identical_sheet_value(container, sheet):
+    lead = prepare(container)  # Odoo "Meta / Leads"; sheet dropdown has "Meta || Leads"
+    assert lead["source"]["mapped"] and lead["source"]["auto"] and lead["source"]["prefill"] == "Meta || Leads"
+    res = save(container, idempotency_key="key-src-000", fingerprint=lead["fingerprint"], result_code="INTERESTED",
+               source_value=lead["source"]["prefill"])
+    assert res["sheet_status"] == "success"
+    assert {c["key"]: c["new"] for c in res["preview"]["sheet"]}["source"] == "Meta || Leads"
+
+
+def test_source_mapping_saved_from_result(container, odoo):
+    odoo.leads[1].source, odoo.leads[1].medium = "Snapchat", "Ads"  # no identical sheet value
     lead = prepare(container)
-    assert lead["source"]["odoo_value"] == "Meta / Leads" and not lead["source"]["mapped"]
+    assert lead["source"]["odoo_value"] == "Snapchat / Ads" and not lead["source"]["mapped"]
     save(container, idempotency_key="key-src-001", fingerprint=lead["fingerprint"], result_code="INTERESTED",
-         source_value="Meta || Leads", save_source_mapping=True, source_odoo_value="Meta / Leads")
+         source_value="Meta || Leads", save_source_mapping=True, source_odoo_value="Snapchat / Ads")
     view = container.workflow.lead_view(lead["fingerprint"])
-    assert view["source"]["mapped"] and view["source"]["prefill"] == "Meta || Leads"
+    assert view["source"]["mapped"] and not view["source"]["auto"] and view["source"]["prefill"] == "Meta || Leads"
 
 
 def test_status_not_in_dropdown_is_blocked(container, sheet):

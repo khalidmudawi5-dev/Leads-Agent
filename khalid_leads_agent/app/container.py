@@ -82,7 +82,7 @@ def build_container(
     odoo = OdooService(odoo_adapter)
     sessions = SessionService(db, settings)
     queue = LeadQueueService(db, settings, sheets, sessions)
-    mappings = MappingService(db)
+    mappings = MappingService(db, source_options=lambda: sheets.dropdown_options("source"))
     sync = SyncService(db, sheets, odoo)
     results = ResultService(db, settings, mappings, sync, sessions)
     workflow = LeadWorkflowService(db, settings, sheets, queue, sessions, odoo, mappings)

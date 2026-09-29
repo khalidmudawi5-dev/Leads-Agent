@@ -326,6 +326,18 @@ textarea { min-height: 90px; resize: vertical; }
 .search-field input { padding-inline-start: 42px; padding-inline-end: 48px; height: 46px; border-radius: 13px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .search-field kbd { position: absolute; inset-inline-end: 12px; top: 50%; transform: translateY(-50%); }
 
+/* ---------- "what will be written" summary in the result panel */
+.write-summary { border: 1px solid var(--border); border-radius: 13px; background: var(--surface-2); padding: 12px 14px; margin: 4px 0 14px; }
+.write-summary.dry { border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: var(--warning-soft); }
+.write-summary .ws-head { display: flex; align-items: center; gap: 10px; font-weight: 800; margin-bottom: 8px; flex-wrap: wrap; }
+.write-summary ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: .9rem; }
+.write-summary li { display: flex; gap: 8px; align-items: baseline; }
+.write-summary .sys { font-weight: 800; min-width: 94px; color: var(--muted); font-size: .8rem; }
+.write-summary .ok { color: var(--success); font-weight: 700; }
+.write-summary .no { color: var(--muted); }
+.write-summary .warn-t { color: var(--warning); font-weight: 700; }
+select.needs-choice { border-color: var(--warning); box-shadow: 0 0 0 3px var(--warning-soft); }
+
 /* ---------- status filter (which follow-up statuses the queue looks for) */
 .filter-bar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; padding: 12px 16px;

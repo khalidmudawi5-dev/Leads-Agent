@@ -1,7 +1,9 @@
 """Status and source mappings (deterministic, user-defined – no guessing)."""
 from __future__ import annotations
 
+import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from app.adapters.odoo.base import OdooLead
@@ -10,6 +12,7 @@ from app.errors import AgentError
 from app.repositories.mapping_repo import MappingRepository
 from app.utils.text import normalize_text
 
+log = logging.getLogger(__name__)
 _SEP = re.compile(r"\s*(?:\|\||\||/|\\|›|>|-)\s*")
 
 
@@ -25,10 +28,11 @@ class SourceResolution:
     sheet_value: str = ""
     odoo_value: str = ""  # the Odoo label that matched (or the best label to map)
     candidates: list[str] = field(default_factory=list)  # Odoo labels, in priority order
+    auto: bool = False  # matched an identical sheet dropdown value (no saved mapping needed)
 
     def to_dict(self) -> dict:
         return {"mapped": self.mapped, "sheet_value": self.sheet_value, "odoo_value": self.odoo_value,
-                "candidates": self.candidates}
+                "candidates": self.candidates, "auto": self.auto}
 
 
 def odoo_source_labels(lead: OdooLead | None) -> list[str]:
@@ -55,8 +59,10 @@ def odoo_source_labels(lead: OdooLead | None) -> list[str]:
 
 
 class MappingService:
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, source_options: Callable[[], list[str]] | None = None) -> None:
         self.db = db
+        # Allowed values of the sheet's source column (dropdown), used for identical-value matching.
+        self.source_options = source_options
 
     # ------------------------------------------------------------ status
     def statuses(self) -> list[dict]:
@@ -110,8 +116,22 @@ class MappingService:
         with self.db.session() as s:
             MappingRepository(s).delete_source(mapping_id)
 
+    def _sheet_source_options(self) -> list[str]:
+        if self.source_options is None:
+            return []
+        try:
+            return self.source_options()
+        except Exception:  # noqa: BLE001 - Google not reachable: fall back to saved mappings only
+            log.debug("Could not read sheet source options", exc_info=True)
+            return []
+
     def resolve_source(self, lead: OdooLead | None) -> SourceResolution:
-        """Exact (normalized) lookup only. Unmapped → the UI asks the user to pick."""
+        """Deterministic only: a saved mapping first, then an *identical* sheet dropdown value.
+
+        "Identical" means equal after normalization (case, spaces, and the separators / | || - are
+        ignored), e.g. Odoo "Meta / Leads" == sheet "Meta || Leads". Nothing fuzzy; if no single
+        identical value exists the UI asks the user to pick.
+        """
         labels = odoo_source_labels(lead)
         with self.db.session() as s:
             repo = MappingRepository(s)
@@ -119,4 +139,10 @@ class MappingService:
                 row = repo.source_by_key(source_key(label))
                 if row:
                     return SourceResolution(True, row.sheet_value, label, labels)
+        if labels:
+            options = self._sheet_source_options()
+            for label in labels:
+                same = [o for o in options if o.strip() and source_key(o) == source_key(label)]
+                if len(same) == 1:
+                    return SourceResolution(True, same[0], label, labels, auto=True)
         return SourceResolution(False, "", labels[0] if labels else "", labels)

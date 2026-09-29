@@ -30,13 +30,21 @@ def test_source_mapping_resolution_priority(container):
     m = container.mappings
     lead = OdooLead(id=1, source="Meta", medium="Leads")
     assert odoo_source_labels(lead)[0] == "Meta / Leads"
+    m.source_options = None
     res = m.resolve_source(lead)
-    assert not res.mapped and res.odoo_value == "Meta / Leads"  # never guessed
+    assert not res.mapped and res.odoo_value == "Meta / Leads"  # no mapping and no sheet options: never guessed
+    m.source_options = lambda: ["Meta || Leads", "تيك توك", "باور بي اي"]
+    res = m.resolve_source(lead)  # identical sheet value after normalization ("/" == "||")
+    assert res.mapped and res.auto and res.sheet_value == "Meta || Leads" and res.odoo_value == "Meta / Leads"
+    assert not m.resolve_source(OdooLead(id=5, source="Snapchat")).mapped  # nothing fuzzy
+    m.source_options = lambda: ["Meta || Leads", "meta | leads"]  # ambiguous → user picks
+    assert not m.resolve_source(lead).mapped
+    m.source_options = None
     m.save_source("Meta", "Meta || Leads (generic)")
     assert m.resolve_source(lead).sheet_value == "Meta || Leads (generic)"
     m.save_source("Meta / Leads", "Meta || Leads")  # more specific wins
     res = m.resolve_source(lead)
-    assert res.mapped and res.sheet_value == "Meta || Leads" and res.odoo_value == "Meta / Leads"
+    assert res.mapped and res.sheet_value == "Meta || Leads" and res.odoo_value == "Meta / Leads" and not res.auto
 
 
 def test_source_mapping_other_source(container):

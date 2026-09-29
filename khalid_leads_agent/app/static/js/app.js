@@ -135,6 +135,32 @@ const Shortcuts = {
 };
 document.addEventListener("keydown", (ev) => Shortcuts.handle(ev));
 
+/** Turn Dry Run on/off from anywhere (topbar chip, dashboard). Fires "dry-run-changed". */
+async function setDryRun(on) {
+  await api("PUT", "/api/settings", { dry_run: !!on });
+  await refreshStatus();
+  document.dispatchEvent(new CustomEvent("dry-run-changed", { detail: { dry_run: !!on } }));
+  toast(on ? "تم تفعيل Dry Run: لن يتم تعديل Odoo أو Google Sheet" : "تم إيقاف Dry Run: الحفظ سيكتب فعليًا في Odoo وGoogle Sheet",
+    on ? "warn" : "success", 5000);
+}
+
+function confirmDryRunToggle(currentlyOn) {
+  Modal.open({
+    title: currentlyOn ? "إيقاف Dry Run؟" : "تفعيل Dry Run؟",
+    html: currentlyOn
+      ? `<p>عند إيقاف Dry Run، زر <b>حفظ النتيجة</b> سيقوم فعليًا بـ:</p>
+         <ul><li>إضافة <b>Log Note</b> في Chatter العميل في Odoo (و Activity عند «متابعة لاحقًا»).</li>
+         <li>تحديث <b>حالة المتابعة</b> و<b>المصدر</b> و<b>الملاحظات</b> في صف العميل في Google Sheet فقط.</li></ul>
+         <p class="muted small">يبقى التحقق من «المسؤول الحالي» قبل أي تعديل، ولا يتم تعديل صفوف الآخرين.</p>`
+      : "<p>في وضع Dry Run يتم عرض معاينة فقط ولا يُكتب أي شيء في Odoo أو Google Sheet.</p>",
+    buttons: [
+      { label: currentlyOn ? "نعم، أوقف Dry Run" : "نعم، فعّل Dry Run", cls: currentlyOn ? "success" : "primary",
+        onClick: async () => { Modal.close(); try { await setDryRun(!currentlyOn); } catch (e) { toast(e.message, "error"); } } },
+      { label: "إلغاء" },
+    ],
+  });
+}
+
 function setTheme(theme) {
   if (theme) document.documentElement.dataset.theme = theme; else delete document.documentElement.dataset.theme;
   try { theme ? localStorage.setItem("kla-theme", theme) : localStorage.removeItem("kla-theme"); } catch (e) { /* private mode */ }
@@ -209,6 +235,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const sh = $("#btn-shortcuts"); if (sh) sh.onclick = () => Shortcuts.help();
   refreshStatus();
   setInterval(refreshStatus, 20000);
+  const dryChip = $("#chip-dry");
+  if (dryChip) {
+    dryChip.style.cursor = "pointer";
+    dryChip.title = "اضغط لتفعيل/إيقاف Dry Run";
+    dryChip.onclick = () => confirmDryRunToggle(!!(window.AGENT_STATUS && window.AGENT_STATUS.dry_run));
+  }
   const odooChip = $("#chip-odoo");
   if (odooChip) odooChip.onclick = async () => {
     try { const r = await api("POST", "/api/odoo/check-login"); toast(r.logged_in ? "Odoo: متصل" : "تسجيل الدخول إلى Odoo مطلوب", r.logged_in ? "success" : "warn"); }

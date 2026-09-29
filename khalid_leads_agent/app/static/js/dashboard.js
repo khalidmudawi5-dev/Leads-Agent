@@ -30,6 +30,12 @@ const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", 
 // ------------------------------------------------------------------ boot
 document.addEventListener("DOMContentLoaded", init);
 document.addEventListener("agent-status", (e) => { $("#dry-ribbon").classList.toggle("hidden", !e.detail.dry_run); });
+document.addEventListener("dry-run-changed", (e) => {
+  if (S.settings) S.settings.dry_run = e.detail.dry_run;
+  const b = $("#r-save");
+  if (b) b.innerHTML = `${e.detail.dry_run ? "حفظ (Dry Run – معاينة)" : "حفظ النتيجة"} <kbd>Ctrl ↵</kbd>`;
+  updateWriteSummary();
+});
 
 async function init() {
   try {
@@ -614,6 +620,7 @@ async function openResultPanel() {
         <label class="check"><input type="checkbox" id="r-odoo" ${ctx.odooId ? "checked" : "disabled"}> إضافة Log Note في Odoo</label>
       </div>
       ${ctx.manual ? '<div class="alert info small">وضع يدوي: العميل غير مربوط بصف مؤكد في Google Sheet، لذلك لن يتم تحديث Sheet.</div>' : ""}
+      <div id="r-summary" class="write-summary"></div>
       <div id="r-msg"></div>
       <div class="actions">
         <button class="btn success lg" id="r-save">${S.settings.dry_run ? "حفظ (Dry Run – معاينة)" : "حفظ النتيجة"} <kbd>Ctrl ↵</kbd></button>
@@ -622,6 +629,8 @@ async function openResultPanel() {
       </div>
     </div>`;
   $$(".result-btn", card).forEach((b) => b.onclick = () => selectResult(b.dataset.code));
+  ["#r-sheet", "#r-odoo"].forEach((sel) => { $(sel).onchange = updateWriteSummary; });
+  updateWriteSummary();
   $("#r-cancel").onclick = () => card.classList.add("hidden");
   $("#r-save").onclick = (ev) => saveResult(ev.currentTarget, false);
   $("#r-preview").onclick = (ev) => saveResult(ev.currentTarget, true);
@@ -633,13 +642,50 @@ async function openResultPanel() {
     if (src.sheet_current && !all.includes(src.sheet_current)) all.unshift(src.sheet_current);
     all.forEach((v) => { const o = document.createElement("option"); o.value = v; o.textContent = v; sel.appendChild(o); });
     sel.value = src.prefill || "";
+    sel.onchange = updateWriteSummary;
+    updateWriteSummary();
   }
   const reasons = await loadOptions("not_subscribed_reason");
   $("#reason-list").innerHTML = reasons.map((r) => `<option value="${esc(r)}">`).join("");
 }
 
+/** Live "what will be written" box, so it is clear before saving what Odoo and the sheet receive. */
+function updateWriteSummary() {
+  const box = $("#r-summary");
+  if (!box || !S.result.ctx) return;
+  const ctx = S.result.ctx;
+  const dry = !!(S.settings && S.settings.dry_run);
+  const st = S.statuses.find((x) => x.code === S.result.code);
+  const odooOn = $("#r-odoo") && $("#r-odoo").checked && !!ctx.odooId;
+  const sheetOn = $("#r-sheet") && $("#r-sheet").checked && !ctx.manual;
+  const srcSel = $("#r-source");
+  const src = srcSel ? srcSel.value : "";
+  const srcInfo = ctx.source || {};
+  if (srcSel) srcSel.classList.toggle("needs-choice", sheetOn && !src && !!srcInfo.odoo_value);
+  const rows = [];
+  rows.push(`<li><span class="sys">Odoo</span>${odooOn
+    ? `<span class="ok">✓ Log Note في Chatter</span>${S.result.code === "FOLLOW_UP" ? ' <span class="ok">+ Activity</span>' : ""}`
+    : `<span class="no">لن تتم إضافة Log Note${ctx.odooId ? "" : " (العميل غير مربوط بـOdoo)"}</span>`}</li>`);
+  if (sheetOn) {
+    rows.push(`<li><span class="sys">حالة المتابعة</span>${st ? `<span class="ok">← ${esc(st.sheet_value || "(غير مربوطة – راجع Status Mapping)")}</span>` : '<span class="warn-t">اختر النتيجة أولًا</span>'}</li>`);
+    rows.push(`<li><span class="sys">مصدر العميل</span>${src
+      ? `<span class="ok">← ${esc(src)}</span>${srcInfo.auto && src === srcInfo.sheet_value ? ' <span class="badge green">مطابق لـOdoo تلقائيًا</span>' : ""}`
+      : `<span class="warn-t">بدون تغيير${srcInfo.odoo_value ? ` — Odoo = «${esc(srcInfo.odoo_value)}»، اختر القيمة المقابلة من القائمة لتحديثه` : ""}</span>`}</li>`);
+    rows.push('<li><span class="sys">الملاحظات</span><span class="ok">← تُضاف ملاحظة جديدة مع الحفاظ على القديمة</span></li>');
+  } else {
+    rows.push('<li><span class="sys">Google Sheet</span><span class="no">لن يتم التحديث</span></li>');
+  }
+  box.className = "write-summary" + (dry ? " dry" : "");
+  box.innerHTML = `<div class="ws-head">${dry
+    ? `⚠️ Dry Run مفعّل: هذا ما <u>كان</u> سيُكتب، ولن يتم تعديل أي نظام <span class="spacer"></span><button type="button" class="btn sm success" id="r-dry-off">إيقاف Dry Run</button>`
+    : "عند الحفظ سيتم كتابة:"}</div><ul>${rows.join("")}</ul>`;
+  const off = $("#r-dry-off");
+  if (off) off.onclick = () => confirmDryRunToggle(true);
+}
+
 function selectResult(code) {
   S.result.code = code;
+  setTimeout(updateWriteSummary, 0);
   $$(".result-btn").forEach((b) => b.classList.toggle("selected", b.dataset.code === code));
   $("#r-followup").classList.toggle("hidden", code !== "FOLLOW_UP");
   $("#r-expiry").classList.toggle("hidden", code !== "SUBSCRIBED");
@@ -684,7 +730,7 @@ async function saveResult(btn, previewOnly) {
     await withBusy(btn, async () => {
       const res = await api("POST", previewOnly ? "/api/result/preview" : "/api/result", buildResultBody(previewOnly));
       if (previewOnly) { showPreview(res, "معاينة التغييرات (Would update)"); return; }
-      if (res.dry_run) { showPreview(res, "Dry Run — لم يتم تعديل أي نظام", () => afterSave(res)); return; }
+      if (res.dry_run) { showPreview(res, "Dry Run — لم يتم تعديل أي نظام", () => afterSave(res), true); return; }
       toast(res.message, res.status === "done" ? "success" : "warn", 6000);
       (res.warnings || []).forEach((w) => toast(w, "warn", 8000));
       afterSave(res);
@@ -697,7 +743,7 @@ async function saveResult(btn, previewOnly) {
   }
 }
 
-function showPreview(res, title, onClose) {
+function showPreview(res, title, onClose, offerRealSave = false) {
   const p = res.preview || {};
   const sheet = (p.sheet || []).map((c) => `<tr><td><b>Sheet ${esc(c.column)}</b></td><td class="pre">${orDash(c.old)}</td><td class="pre">${orDash(c.new)}</td></tr>`).join("");
   const html = `<p><b>Would update:</b></p>
@@ -706,10 +752,35 @@ function showPreview(res, title, onClose) {
     <h3 style="margin-top:16px">Odoo Note</h3>${p.odoo_note ? `<div class="info note-box">${esc(p.odoo_note)}</div>` : '<div class="muted">لن تتم إضافة ملاحظة.</div>'}
     ${p.activity ? `<h3 style="margin-top:16px">Odoo Activity</h3><div class="info">${esc(p.activity.date_deadline)} — ${esc(p.activity.summary)}<div class="small muted">${esc(p.activity.note || "")}</div></div>` : ""}
     ${(res.warnings || []).map((w) => `<div class="alert warn" style="margin-top:10px">${esc(w)}</div>`).join("")}`;
-  Modal.open({ title, html, wide: true, buttons: [{ label: onClose ? "متابعة" : "إغلاق", cls: "primary", onClick: () => { Modal.close(); if (onClose) onClose(); } }] });
+  const buttons = [{ label: onClose ? "متابعة بدون حفظ" : "إغلاق", cls: offerRealSave ? "" : "primary", onClick: () => { Modal.close(); if (onClose) onClose(); } }];
+  if (offerRealSave) {
+    buttons.unshift({ label: "إيقاف Dry Run والحفظ فعليًا الآن", cls: "success", onClick: async (btn) => {
+      btn.disabled = true;
+      try {
+        await setDryRun(false);
+        Modal.close();
+        S.result.key = uuid();  // a new real save (the Dry Run record stays in history)
+        await saveResult($("#r-save"), false);
+      } catch (e) { btn.disabled = false; toast(e.message, "error"); }
+    } });
+  }
+  Modal.open({ title, html: (offerRealSave ? '<div class="alert warn"><b>لم يتم تسجيل شيء في Odoo أو Google Sheet</b> لأن وضع Dry Run مفعّل.</div>' : "") + html, wide: true, buttons });
 }
 
 // ------------------------------------------------------------- next lead
+const STEP = { success: ["green", "✓ تم"], failed: ["red", "✗ فشل"], blocked: ["red", "⛔ تم الإيقاف"], skipped: ["", "— لم يُطلب"],
+  nochange: ["blue", "بدون تغيير"], dry_run: ["amber", "Dry Run (لم يُكتب)"], pending: ["", "…"] };
+function stepBadge(name, status) {
+  const [cls, label] = STEP[status] || ["", status || "—"];
+  return `<span class="badge ${cls}">${name}: ${label}</span>`;
+}
+function outcomeLine(res) {
+  const errs = (res.errors || []).map((e) => `<div class="small" style="color:var(--danger)">${esc(e)}</div>`).join("");
+  return `<div class="row small" style="gap:6px;margin-top:6px">${stepBadge("Odoo Log Note", res.odoo_note_status)}
+    ${res.odoo_activity_status && res.odoo_activity_status !== "skipped" ? stepBadge("Activity", res.odoo_activity_status) : ""}
+    ${stepBadge("Google Sheet", res.sheet_status)}</div>${errs}`;
+}
+
 function afterSave(res) {
   stopCall();
   S.call = { startedAt: null, endedAt: null, timer: null };
@@ -718,20 +789,20 @@ function afterSave(res) {
   const card = $("#next-card");
   card.classList.remove("hidden");
   if (res.next_delay === null || res.next_delay === undefined) {
-    card.innerHTML = `<div class="row between"><b>${esc(res.message)}</b><button class="btn primary" id="btn-next">العميل التالي <kbd>N</kbd></button></div>`;
+    card.innerHTML = `<div class="row between"><div><b>${esc(res.message)}</b>${outcomeLine(res)}</div><button class="btn primary" id="btn-next">العميل التالي <kbd>N</kbd></button></div>`;
     $("#btn-next").onclick = goNext;
     return;
   }
   let left = res.next_delay;
   const total = Math.max(1, res.next_delay);
   const draw = () => {
-    card.innerHTML = `<div class="countdown"><b>${esc(res.message)}</b><span class="spacer"></span>
+    card.innerHTML = `<div class="countdown"><div><b>${esc(res.message)}</b>${outcomeLine(res)}</div><span class="spacer"></span>
       <span class="ring" style="--p:${Math.round((left / total) * 100)}"><span>${left}</span></span>
       <span>الانتقال للعميل التالي خلال <b>${left}</b> ثوانٍ</span>
       <button class="btn" id="btn-cancel-next">إلغاء الانتقال <kbd>Esc</kbd></button><button class="btn primary" id="btn-next">الانتقال الآن <kbd>N</kbd></button></div>`;
     $("#btn-cancel-next").onclick = () => {
       clearInterval(S.nextTimer);
-      card.innerHTML = `<div class="row between"><span>تم إلغاء الانتقال التلقائي.</span><button class="btn primary" id="btn-next">العميل التالي <kbd>N</kbd></button></div>`;
+      card.innerHTML = `<div class="row between"><div><span>تم إلغاء الانتقال التلقائي.</span>${outcomeLine(res)}</div><button class="btn primary" id="btn-next">العميل التالي <kbd>N</kbd></button></div>`;
       $("#btn-next").onclick = goNext;
     };
     $("#btn-next").onclick = goNext;
