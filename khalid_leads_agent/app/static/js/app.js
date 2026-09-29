@@ -34,6 +34,20 @@ async function api(method, url, body) {
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+const ICONS = {
+  history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  skip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l7 7-7 7M13 5l7 7-7 7"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17v.5"/></svg>',
+  done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>',
+};
+/** Friendly empty state for tables/cards (same look on every page). */
+function emptyState(text, sub = "", icon = "done") {
+  return `<div class="empty" style="padding:28px 10px"><div class="ill">${ICONS[icon] || ICONS.done}</div>
+    <div class="big" style="font-size:1.05rem">${esc(text)}</div>${sub ? `<div class="small">${esc(sub)}</div>` : ""}</div>`;
+}
+function emptyRow(cols, text, sub = "", icon = "done") {
+  return `<tr><td colspan="${cols}" class="empty-cell">${emptyState(text, sub, icon)}</td></tr>`;
+}
 function orDash(v) { return v ? esc(v) : '<span class="muted">—</span>'; }
 function uuid() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, "");

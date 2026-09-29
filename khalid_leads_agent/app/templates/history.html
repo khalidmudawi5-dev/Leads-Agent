@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
+  <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+    <div><h2>سجل المتابعات</h2><p>كل نتيجة سجّلتها ونتيجة تحديث Odoo وGoogle Sheet لها. «تحديث العميل» يعيد فتحه لتسجيل نتيجة جديدة.</p></div></div>
   <form class="hist-filters" id="filters">
     <label class="field"><span>الفترة</span><select name="period"><option value="today">اليوم</option><option value="week">هذا الأسبوع</option><option value="">الكل</option></select></label>
     <label class="field"><span>اسم العميل</span><input type="text" name="name" placeholder="بحث بالاسم"></label>

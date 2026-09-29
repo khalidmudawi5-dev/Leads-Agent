@@ -2,9 +2,9 @@
 {% block content %}
 <div class="grid-2">
   <div class="card">
-    <h2>تشخيص Selectors في Odoo</h2>
-    <p class="muted">افتح Lead في متصفح Odoo الخاص بالـAgent ثم اضغط «فحص الصفحة الحالية». إذا فشل عنصر، عدّل الملف
-      <span class="ltr">app/adapters/odoo/odoo_selectors.py</span> ثم أعد تشغيل الـAgent.</p>
+    <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6 4 4 6-6"/><path d="M14 9h6v6"/></svg></span>
+      <div><h2>تشخيص Selectors في Odoo</h2><p>افتح Lead في متصفح Odoo الخاص بالـAgent ثم اضغط «فحص الصفحة الحالية». إذا فشل عنصر عدّل
+      <span class="ltr">app/adapters/odoo/odoo_selectors.py</span>.</p></div></div>
     <div class="actions" style="margin-bottom:14px">
       <button class="btn primary" id="btn-run">فحص الصفحة الحالية</button>
       <button class="btn" id="btn-dom">Capture DOM snapshot</button>
@@ -13,9 +13,9 @@
     <div id="diag"></div>
   </div>
   <div class="card">
-    <h2>سجل التدقيق (Audit Log)</h2>
-    <p class="muted small">كل تغيير خارجي على GOOGLE_SHEETS أو ODOO (بما فيها Dry Run).</p>
-    <div class="table-wrap" style="max-height:640px;overflow:auto"><table class="table">
+    <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      <div><h2>سجل التدقيق (Audit Log)</h2><p>كل تغيير خارجي على Google Sheets أو Odoo (بما فيها Dry Run).</p></div></div>
+    <div class="table-wrap" style="max-height:640px;overflow:auto"><table class="table hist">
       <thead><tr><th>الوقت</th><th>النظام</th><th>العملية</th><th>السجل</th><th>النتيجة</th></tr></thead>
       <tbody id="audit"></tbody></table></div>
   </div>
@@ -30,9 +30,9 @@ async function runDiag(btn) {
   await withBusy(btn, async () => {
     try {
       const d = await api("GET", "/api/diagnostics");
-      $("#diag").innerHTML = `<table class="table"><tbody>${CHECKS.map(([k, l]) => {
+      $("#diag").innerHTML = `<table class="table hist"><tbody>${CHECKS.map(([k, l]) => {
         const v = d[k];
-        const cell = typeof v === "boolean" ? `<span class="badge ${v ? "green" : "red"}">${v ? "نعم" : "لا"}</span>` : `<span class="ltr small">${esc(v ?? "")}</span>`;
+        const cell = typeof v === "boolean" ? `<span class="pill ${v ? "p-ok" : "p-bad"}">${v ? "نعم" : "لا"}</span>` : `<span class="ltr small">${esc(v ?? "")}</span>`;
         return `<tr><td><b>${l}</b></td><td>${cell}</td></tr>`;
       }).join("")}
       <tr><td>Phone / Mobile</td><td class="ltr">${esc(d.phone_value || "")} ${esc(d.mobile_value || "")}</td></tr>
@@ -53,8 +53,8 @@ async function loadAudit() {
   const r = await api("GET", "/api/audit");
   $("#audit").innerHTML = r.items.map((a) => `<tr><td class="nowrap small">${esc(a.time)}</td><td>${esc(a.system)}</td>
     <td class="small">${esc(a.action)}</td><td class="small">${esc(a.record)}</td>
-    <td>${a.dry_run ? '<span class="badge amber">Dry Run</span>' : (a.success ? '<span class="badge green">نجح</span>' : `<span class="badge red" title="${esc(a.error)}">فشل</span>`)}</td></tr>`).join("")
-    || '<tr><td colspan="5" class="empty">لا يوجد</td></tr>';
+    <td>${a.dry_run ? '<span class="pill p-warn">Dry Run</span>' : (a.success ? '<span class="pill p-ok">نجح</span>' : `<span class="pill p-bad" title="${esc(a.error)}">فشل</span>`)}</td></tr>`).join("")
+    || emptyRow(5, "لا توجد عمليات بعد", "ستظهر هنا كل كتابة في Odoo أو Google Sheet.", "history");
 }
 document.addEventListener("DOMContentLoaded", () => {
   $("#btn-run").onclick = (ev) => runDiag(ev.currentTarget);

@@ -1,12 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
-  <div class="row between" style="margin-bottom:12px">
-    <p class="muted" style="margin:0">رسائل واضحة للمستخدم. التفاصيل التقنية الكاملة (Stack Trace) محفوظة في <span class="ltr">logs/agent.log</span>.</p>
-    <div class="row"><label class="check"><input type="checkbox" id="show-all"> عرض المعالجة أيضًا</label>
-      <button class="btn" id="btn-resolve">تعليم الكل كمُعالج</button></div>
-  </div>
-  <div class="table-wrap"><table class="table">
+  <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17v.5"/></svg></span>
+    <div><h2>الأخطاء</h2><p>رسائل واضحة بالعربي. التفاصيل التقنية الكاملة محفوظة في <span class="ltr">logs/agent.log</span>.</p></div>
+    <div class="pi-actions"><label class="check"><input type="checkbox" id="show-all"> عرض المعالجة أيضًا</label>
+      <button class="btn" id="btn-resolve">تعليم الكل كمُعالج</button></div></div>
+  <div class="table-wrap"><table class="table hist">
     <thead><tr><th>الوقت</th><th>الرسالة</th><th>الرمز</th><th>المسار</th><th>Screenshot</th></tr></thead>
     <tbody id="rows"></tbody></table></div>
 </div>
@@ -14,9 +13,10 @@
 {% block scripts %}<script>
 async function loadErrors() {
   const r = await api("GET", "/api/errors?all=" + ($("#show-all").checked ? "true" : "false"));
-  $("#rows").innerHTML = r.items.length ? r.items.map((i) => `<tr><td class="nowrap">${esc(i.time)}</td><td><b>${esc(i.message)}</b></td>
-    <td class="ltr small">${esc(i.code)}</td><td class="ltr small">${esc((i.context || {}).path || "")}</td>
-    <td class="ltr small">${orDash(i.screenshot)}</td></tr>`).join("") : '<tr><td colspan="5" class="empty">لا توجد أخطاء.</td></tr>';
+  $("#rows").innerHTML = r.items.length ? r.items.map((i) => `<tr><td class="small muted nowrap">${esc(i.time)}</td>
+    <td><b>${esc(i.message)}</b>${i.resolved ? ' <span class="pill p-ok">معالج</span>' : ""}</td>
+    <td><span class="pill p-bad ltr">${esc(i.code)}</span></td><td class="ltr small muted">${esc((i.context || {}).path || "")}</td>
+    <td class="ltr small">${orDash(i.screenshot)}</td></tr>`).join("") : emptyRow(5, "لا توجد أخطاء", "كل شيء يعمل بشكل طبيعي.");
 }
 document.addEventListener("DOMContentLoaded", () => {
   $("#show-all").onchange = loadErrors;

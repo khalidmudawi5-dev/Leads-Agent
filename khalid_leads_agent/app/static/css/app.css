@@ -446,6 +446,21 @@ table.table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .table tr:hover td { background: var(--surface-2); }
 .filters { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-items: end; margin-bottom: 14px; }
 
+/* ---------- shared page header (all pages) */
+.page-intro { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+.page-intro .pi-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; flex-shrink: 0;
+  background: var(--primary-soft); color: var(--primary); }
+.page-intro .pi-icon svg { width: 22px; height: 22px; }
+.page-intro > div:not(.pi-actions) { flex: 1 1 260px; min-width: 0; }
+.page-intro h2 { margin: 0; font-size: 1.12rem; font-weight: 800; }
+.page-intro p { margin: 2px 0 0; color: var(--muted); font-size: .88rem; }
+.page-intro .pi-actions { margin-inline-start: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.table .empty-cell { padding: 34px 12px; }
+.pill.p-ok { --c: #059669; } .pill.p-bad { --c: #dc2626; } .pill.p-warn { --c: #d97706; } .pill.p-info { --c: var(--primary); }
+.check-list { display: grid; gap: 8px; }
+.check-list .it { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+
 /* ---------- history */
 .hist-filters { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)) auto; gap: 12px; align-items: end; margin-bottom: 16px; }
 .hist-filters label.field { margin: 0; }
@@ -580,6 +595,8 @@ td.ltr, th.ltr { display: table-cell; direction: ltr; text-align: right; }
 :root[data-palette="stc"] .stat.c-cyan   { --c: #ff375e; --tint: #fff0f3; --ring: #ffd9e1; }
 :root[data-palette="stc"] .stat.c-violet { --c: #a21caf; --tint: #fbeefc; --ring: #f3d8f5; }
 :root[data-palette="stc"] .stat.c-blue   { --c: #e11d48; --tint: #fff0f3; --ring: #ffd6df; }
+:root[data-palette="stc"] .btn.success { background: linear-gradient(180deg, #ff4d6d, #e11d48); }
+:root[data-palette="stc"] .toast.success { background: linear-gradient(135deg, #7a1fc2, #4f008c); }
 :root[data-palette="stc"] .toast.info { background: linear-gradient(135deg, #4f008c, #3a0068); }
 
 /* dark mode keeps the palette's hue, lighter for contrast */

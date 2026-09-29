@@ -51,7 +51,7 @@ async function loadHistory() {
       `<span class="pill r-${esc(params.get("result"))} active">${esc(r.result_labels[params.get("result")] || params.get("result"))}: ${r.items.length}</span>
        <span class="pill" data-r="">عرض الكل</span>`;
     $$("#summary .pill[data-r]").forEach((p) => p.onclick = () => { $("#f-result").value = p.dataset.r; loadHistory(); });
-    if (!r.items.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">لا توجد سجلات.</td></tr>'; return; }
+    if (!r.items.length) { tbody.innerHTML = emptyRow(9, "لا توجد سجلات لهذه الفلاتر", "غيّر الفترة أو النتيجة، أو اضغط «مسح».", "history"); return; }
     tbody.innerHTML = r.items.map((i) => `<tr>
       <td class="who"><b>${esc(i.company)}</b><div class="meta"><span>${esc(i.time)}</span>
         ${i.dry_run ? '<span class="badge amber">Dry Run</span>' : ""}${i.manual ? '<span class="badge">يدوي</span>' : ""}
