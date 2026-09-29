@@ -56,11 +56,16 @@ async function init() {
     const [st, cfg] = await Promise.all([api("GET", "/api/settings/status-mapping"), api("GET", "/api/settings")]);
     S.statuses = st.items; S.settings = cfg.settings;
     $("#dry-ribbon").classList.toggle("hidden", !S.settings.dry_run);
+    const updateId = new URLSearchParams(location.search).get("update");
     const sess = await api("GET", "/api/session");
-    if (sess.needs_prompt) return askResume(sess.session);
+    if (sess.needs_prompt && !updateId) return askResume(sess.session);
     await api("POST", "/api/session/start", { resume: true });
     await loadCurrent();
     loadFilter();
+    if (updateId) {
+      history.replaceState(null, "", "/");
+      await openUpdate(updateId);
+    }
   } catch (e) { showError(e, $("#lead-card"), { retry: init }); }
 }
 
@@ -696,6 +701,25 @@ function stopCall() {
   $("#call-banner").classList.add("hidden");
 }
 
+// ------------------------------------------------------- update from history
+/** «تحديث العميل» from the history page: reopen the lead with its previous result pre-selected. */
+async function openUpdate(resultId) {
+  let prev;
+  try { prev = (await api("GET", `/api/history/${resultId}`)).result; } catch (e) { toast(e.message, "error"); return; }
+  try {
+    if (prev.fingerprint) {
+      stopCall(); S.manual = null;
+      render(await api("POST", `/api/lead/${prev.fingerprint}/goto`));
+    } else if (prev.odoo_lead_id) {
+      await manualOpen({ id: prev.odoo_lead_id });
+    } else { toast("لا يمكن فتح هذا السجل.", "warn"); return; }
+  } catch (e) {
+    toast(e.code === "LEAD_NOT_IN_QUEUE" ? "العميل لم يعد ضمن عملائك في Google Sheet (ربما تم تحويله لموظف آخر)." : e.message, "error", 8000);
+    return;
+  }
+  await openResultPanel(prev);
+}
+
 // ------------------------------------------------------------ result panel
 async function loadOptions(key) {
   if (S.options[key]) return S.options[key];
@@ -713,7 +737,7 @@ function resultContext() {
     trialCurrent: l.trial_registered || "" };
 }
 
-async function openResultPanel() {
+async function openResultPanel(prev = null) {
   if (!S.lead && !S.manual) return;
   const ctx = resultContext();
   S.result = { code: null, key: uuid(), ctx, trial: "" };
@@ -723,6 +747,9 @@ async function openResultPanel() {
   card.innerHTML = `<div class="card-head"><h2>تسجيل النتيجة — ${esc(ctx.company)}</h2><span class="spacer"></span>
       <span class="small muted">اختر بالأرقام <kbd>1</kbd>…<kbd>${Math.min(S.statuses.length, 9)}</kbd> · <kbd>T</kbd> للملاحظة</span></div>
     ${ctx.odooId ? "" : '<div class="alert warn">العميل غير مربوط بـLead في Odoo؛ لن تتم إضافة Log Note.</div>'}
+    ${prev ? `<div class="alert info"><b>تحديث عميل سابق</b> — آخر نتيجة: <b>${esc(prev.result)}</b> (${esc(prev.time)})${prev.dry_run ? " · كانت Dry Run" : ""}
+      ${prev.note ? `<div class="small" style="margin-top:4px">الملاحظة السابقة: ${esc(prev.note)}</div>` : ""}
+      <div class="small muted" style="margin-top:4px">اختر النتيجة الجديدة واكتب ملاحظة؛ سيتم إضافة Log Note جديد في Odoo وتحديث الصف في Google Sheet مع الحفاظ على الملاحظات القديمة.</div></div>` : ""}
     <div class="result-buttons">${S.statuses.map((s, i) => `<button type="button" class="result-btn" data-code="${s.code}">${i < 9 ? `<span class="num">${i + 1}</span>` : ""}${esc(s.label)}</button>`).join("")}</div>
     <div style="margin-top:16px">
       <label class="field"><span>ملاحظة حرة</span><textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
@@ -767,6 +794,7 @@ async function openResultPanel() {
     if (src.sheet_current && !all.includes(src.sheet_current)) all.unshift(src.sheet_current);
     all.forEach((v) => { const o = document.createElement("option"); o.value = v; o.textContent = v; sel.appendChild(o); });
     sel.value = src.prefill || "";
+    if (prev && prev.source_value && [...sel.options].some((o) => o.value === prev.source_value)) sel.value = prev.source_value;
     sel.onchange = updateWriteSummary;
     updateWriteSummary();
   }
@@ -782,6 +810,12 @@ async function openResultPanel() {
       $$("button", seg).forEach((x) => x.classList.toggle("active", x === b));
       updateWriteSummary();
     });
+  }
+  if (prev && S.statuses.some((x) => x.code === prev.result_code)) {
+    selectResult(prev.result_code);
+    if (prev.followup_date) { $("#r-fdate").value = prev.followup_date; $("#r-ftime").value = prev.followup_time || "10:00"; }
+    if (prev.not_subscribed_reason) $("#r-reason-in").value = prev.not_subscribed_reason;
+    if (prev.subscription_expiry) $("#r-exp").value = prev.subscription_expiry;
   }
   const reasons = await loadOptions("not_subscribed_reason");
   $("#reason-list").innerHTML = reasons.map((r) => `<option value="${esc(r)}">`).join("");
@@ -870,6 +904,10 @@ async function saveResult(btn, previewOnly) {
     await withBusy(btn, async () => {
       const res = await api("POST", previewOnly ? "/api/result/preview" : "/api/result", buildResultBody(previewOnly));
       if (previewOnly) { showPreview(res, "معاينة التغييرات (Would update)"); return; }
+      if (res.duplicate && !res.dry_run) {
+        toast("نفس النتيجة سُجِّلت لهذا العميل قبل قليل؛ لم يتم تكرار الكتابة في Odoo وGoogle Sheet. اختر نتيجة مختلفة أو انتظر دقيقة.", "warn", 9000);
+        return;
+      }
       if (res.dry_run) { showPreview(res, "Dry Run — لم يتم تعديل أي نظام", () => afterSave(res), true); return; }
       toast(res.message, res.status === "done" ? "success" : "warn", 6000);
       (res.warnings || []).forEach((w) => toast(w, "warn", 8000));

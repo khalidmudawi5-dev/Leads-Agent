@@ -46,6 +46,7 @@ def history(period: str = "", name: str = "", phone: str = "", result: str = "",
         "odoo": r.odoo_note_status, "activity": r.odoo_activity_status, "google": r.sheet_status,
         "duration": r.duration_seconds, "errors": r.errors or [], "warnings": r.warnings or [],
         "dry_run": r.dry_run, "manual": r.manual_mode, "status": r.status, "followup_at": r.followup_at,
+        "fingerprint": r.fingerprint, "odoo_lead_id": r.odoo_lead_id,
         "can_retry": (not r.dry_run) and (r.odoo_note_status == "failed" or r.odoo_activity_status == "failed"
                                           or r.sheet_status in ("failed", "blocked")),
     } for r in rows], "result_labels": RESULT_LABELS}
@@ -58,7 +59,14 @@ def history_detail(result_id: int, c: AppContainer = Depends(container)) -> dict
         if r is None:
             raise AgentError("NOT_FOUND", "السجل غير موجود.")
         syncs = LogRepository(s).syncs_for(r.idempotency_key)
-        return {"preview": r.preview, "sync_logs": [
+        fdate, _, ftime = (r.followup_at or "").partition(" ")
+        return {"preview": r.preview, "result": {
+            "id": r.id, "time": fmt_local(r.created_at), "company": r.company_name, "result_code": r.result_code,
+            "result": RESULT_LABELS.get(r.result_code, r.result_code), "note": r.note, "source_value": r.source_value,
+            "not_subscribed_reason": r.not_subscribed_reason, "subscription_expiry": r.subscription_expiry,
+            "followup_date": fdate, "followup_time": ftime, "followup_note": r.followup_note,
+            "fingerprint": r.fingerprint, "odoo_lead_id": r.odoo_lead_id, "dry_run": r.dry_run,
+        }, "sync_logs": [
             {"time": fmt_local(x.created_at), "row": x.sheet_row, "column": x.column, "cell": x.cell,
              "old": x.old_value, "new": x.new_value, "status": x.status} for x in syncs]}
 

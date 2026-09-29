@@ -240,3 +240,27 @@ def test_history_shows_odoo_phone_when_sheet_has_none(client, sheet, odoo):
                                      "result_code": "NO_ANSWER"}, headers=H)
     item = client.get("/api/history?period=today").json()["items"][0]
     assert item["phone"] == "+966 56 555 5555"
+
+
+def test_history_row_can_be_reopened_and_updated(client, sheet, odoo):
+    client.put("/api/settings", json={"dry_run": False}, headers=H)
+    client.post("/api/session/start", json={"resume": True}, headers=H)
+    fp = client.get("/api/lead/current").json()["lead"]["fingerprint"]
+    client.post(f"/api/lead/{fp}/search", json={"query": ""}, headers=H)
+    client.post("/api/result", json={"idempotency_key": "upd-first-01", "fingerprint": fp, "result_code": "NO_ANSWER",
+                                     "note": "لم يرد"}, headers=H)
+    item = client.get("/api/history?period=today").json()["items"][0]
+    assert item["fingerprint"] == fp and item["odoo_lead_id"] == 1
+    detail = client.get(f"/api/history/{item['id']}").json()["result"]
+    assert detail["result_code"] == "NO_ANSWER" and detail["note"] == "لم يرد"
+
+    # The customer calls back later: reopen the same lead and save a new result.
+    back = client.post(f"/api/lead/{fp}/goto", headers=H).json()
+    assert back["lead"]["fingerprint"] == fp
+    res = client.post("/api/result", json={"idempotency_key": "upd-second-1", "fingerprint": fp,
+                                           "result_code": "INTERESTED", "note": "رجع اتصل وهو مهتم"}, headers=H).json()
+    assert res["status"] == "done" and res["sheet_status"] == "success" and res["odoo_note_status"] == "success"
+    assert sheet.sheets["Leads"][1][3] == "مهتم"  # status updated in the sheet
+    notes = sheet.sheets["Leads"][1][9]
+    assert "لم يرد" in notes and "رجع اتصل وهو مهتم" in notes  # history kept, new note appended
+    assert len([n for n in odoo.notes if n["lead_id"] == 1]) == 2  # a second Log note in Odoo

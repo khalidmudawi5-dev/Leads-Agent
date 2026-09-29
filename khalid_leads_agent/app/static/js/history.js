@@ -63,7 +63,8 @@ async function loadHistory() {
       <td>${stepBadge(i.google)}</td>
       <td class="ltr nowrap">${fmtDuration(i.duration)}</td>
       <td><div class="warn-list">${[...i.errors, ...i.warnings].map((e) => `<div>${esc(e)}</div>`).join("") || '<span class="muted">—</span>'}</div></td>
-      <td class="nowrap"><button class="btn sm" data-d="${i.id}">تفاصيل</button>
+      <td class="nowrap">${(i.fingerprint || i.odoo_lead_id) ? `<a class="btn sm success" href="/?update=${i.id}" title="العميل رجع تواصل؟ افتحه وسجّل نتيجة جديدة تُحدِّث Google Sheet وOdoo">تحديث العميل</a>` : ""}
+        <button class="btn sm" data-d="${i.id}">تفاصيل</button>
         ${i.can_retry ? `<button class="btn sm primary" data-rt="${i.id}">إعادة المحاولة</button>` : ""}</td></tr>`).join("");
     $$("button[data-rt]").forEach((b) => b.onclick = () => withBusy(b, async () => {
       try { const res = await api("POST", `/api/history/${b.dataset.rt}/retry`); toast(res.message, res.status === "done" ? "success" : "warn"); loadHistory(); }
