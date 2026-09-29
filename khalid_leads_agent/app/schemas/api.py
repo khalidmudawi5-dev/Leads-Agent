@@ -23,6 +23,7 @@ class ResultIn(BaseModel):
     save_source_mapping: bool = False
     source_odoo_value: str = ""
     not_subscribed_reason: str = ""
+    trial_registered: str = ""  # value for «هل تم التسجيل بالنسخة التجريبية» ("" = no change)
     subscription_expiry: str = ""
     followup_date: str = ""
     followup_time: str = ""

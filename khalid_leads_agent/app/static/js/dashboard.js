@@ -656,13 +656,14 @@ function resultContext() {
     return { manual: true, fingerprint: null, odooId: o.id, company: o.company_name || o.name, phone: o.phone || o.mobile, source: null, lead: null };
   }
   const l = S.lead;
-  return { manual: false, fingerprint: l.fingerprint, odooId: l.odoo_lead_id, company: l.company_name, phone: l.phone, source: l.source, lead: l };
+  return { manual: false, fingerprint: l.fingerprint, odooId: l.odoo_lead_id, company: l.company_name, phone: l.phone, source: l.source, lead: l,
+    trialCurrent: l.trial_registered || "" };
 }
 
 async function openResultPanel() {
   if (!S.lead && !S.manual) return;
   const ctx = resultContext();
-  S.result = { code: null, key: uuid(), ctx };
+  S.result = { code: null, key: uuid(), ctx, trial: "" };
   const card = $("#result-card");
   const src = ctx.source || {};
   card.classList.remove("hidden");
@@ -683,6 +684,9 @@ async function openResultPanel() {
       ${ctx.manual ? "" : `<label class="field"><span>مصدر العميل في Google Sheet</span><select id="r-source"><option value="">— بدون تغيير —</option></select></label>
       ${src.odoo_value && !src.mapped ? `<div class="alert warn"><b>المصدر غير مربوط:</b> Odoo = «${esc(src.odoo_value)}». اختر القيمة المناسبة من قائمة Sheet.
         <label class="check" style="display:flex;margin-top:8px"><input type="checkbox" id="r-save-map" checked> حفظ هذا الربط للاستخدام مستقبلًا</label></div>` : ""}`}
+      ${ctx.manual ? "" : `<div class="field"><span class="small"><b>هل تم التسجيل بالنسخة التجريبية؟</b>
+        <span class="muted">(الحالية في الـSheet: ${esc(ctx.trialCurrent || "فارغة")})</span></span>
+        <div class="seg" id="r-trial" style="margin-top:6px"><button type="button" data-v="" class="active">بدون تغيير</button></div></div>`}
       <div class="row" style="margin:6px 0 12px">
         <label class="check"><input type="checkbox" id="r-sheet" ${ctx.manual ? "disabled" : "checked"}> تحديث Google Sheet</label>
         <label class="check"><input type="checkbox" id="r-odoo" ${ctx.odooId ? "checked" : "disabled"}> إضافة Log Note في Odoo</label>
@@ -713,6 +717,19 @@ async function openResultPanel() {
     sel.onchange = updateWriteSummary;
     updateWriteSummary();
   }
+  if (!ctx.manual) {
+    let trialOpts = await loadOptions("trial_registered");
+    // Yes/No always offered (a column without a dropdown may only contain «لا» so far).
+    trialOpts = ["نعم", "لا", ...trialOpts];
+    const seg = $("#r-trial");
+    seg.innerHTML = '<button type="button" data-v="" class="active">بدون تغيير</button>' +
+      [...new Set(trialOpts)].map((v) => `<button type="button" data-v="${esc(v)}">${esc(v)}${v === ctx.trialCurrent ? " ✓" : ""}</button>`).join("");
+    $$("button", seg).forEach((b) => b.onclick = () => {
+      S.result.trial = b.dataset.v;
+      $$("button", seg).forEach((x) => x.classList.toggle("active", x === b));
+      updateWriteSummary();
+    });
+  }
   const reasons = await loadOptions("not_subscribed_reason");
   $("#reason-list").innerHTML = reasons.map((r) => `<option value="${esc(r)}">`).join("");
 }
@@ -739,6 +756,7 @@ function updateWriteSummary() {
     rows.push(`<li><span class="sys">مصدر العميل</span>${src
       ? `<span class="ok">← ${esc(src)}</span>${srcInfo.auto && src === srcInfo.sheet_value ? ' <span class="badge green">مطابق لـOdoo تلقائيًا</span>' : ""}`
       : `<span class="warn-t">بدون تغيير${srcInfo.odoo_value ? ` — Odoo = «${esc(srcInfo.odoo_value)}»، اختر القيمة المقابلة من القائمة لتحديثه` : ""}</span>`}</li>`);
+    if (S.result.trial) rows.push(`<li><span class="sys">النسخة التجريبية</span><span class="ok">← ${esc(S.result.trial)}</span></li>`);
     rows.push('<li><span class="sys">الملاحظات</span><span class="ok">← تُضاف ملاحظة جديدة مع الحفاظ على القديمة</span></li>');
   } else {
     rows.push('<li><span class="sys">Google Sheet</span><span class="no">لن يتم التحديث</span></li>');
@@ -777,6 +795,7 @@ function buildResultBody(previewOnly) {
     save_source_mapping: !!(mapBox && mapBox.checked && srcSel && srcSel.value),
     source_odoo_value: ctx.source ? (ctx.source.odoo_value || "") : "",
     not_subscribed_reason: S.result.code === "NOT_INTERESTED" ? $("#r-reason-in").value : "",
+    trial_registered: ctx.manual ? "" : (S.result.trial || ""),
     subscription_expiry: S.result.code === "SUBSCRIBED" ? $("#r-exp").value : "",
     followup_date: S.result.code === "FOLLOW_UP" ? $("#r-fdate").value : "",
     followup_time: S.result.code === "FOLLOW_UP" ? $("#r-ftime").value : "",

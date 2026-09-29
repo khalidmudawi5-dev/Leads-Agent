@@ -146,6 +146,8 @@ class SheetService:
         self._client_mode: str | None = None
         self._lock = threading.RLock()
         self._options_cache: dict[tuple[str, str, str], tuple[float, list[str]]] = {}
+        # True when the options came from a real Data Validation dropdown (not just values seen in the column).
+        self._validated: dict[tuple[str, str, str], bool] = {}
         self.last_snapshot: SheetSnapshot | None = None
         self.header_row_used: int | None = None
         self.last_error: str = ""
@@ -400,6 +402,7 @@ class SheetService:
                                  self.header_row_used or s.header_row)
         except AgentError:
             log.warning("Could not read data validation for %s", key)
+        self._validated[cache_key] = bool(options)
         if not options:
             for lead in snap.leads:
                 v = lead.values.get(key, "").strip()
@@ -479,10 +482,12 @@ class SheetService:
             old = lead.values.get(key, "")
             if old == new:
                 continue
-            if s.validate_dropdown_values and key in ("followup_status", "source") and new:
+            if s.validate_dropdown_values and key in ("followup_status", "source", "trial_registered") and new:
                 options = self.dropdown_options(key)
                 if options and new not in options:
                     options = self.dropdown_options(key, fresh=True)  # the team may have just added it
+                if key == "trial_registered" and not self._validated.get((s.spreadsheet_id, s.sheet_name, key)):
+                    options = []  # free-text column: only enforce a real dropdown
                 if options and new not in options:
                     same = [o for o in options if source_key(o) == source_key(new)]
                     if len(same) == 1:
@@ -491,11 +496,13 @@ class SheetService:
                         new = same[0]
                         if old == new:
                             continue
-                    elif key == "source":
-                        # Optional field: never block the status/notes update because of it.
+                    elif key in ("source", "trial_registered"):
+                        # Optional fields: never block the status/notes update because of them.
+                        label = COLUMN_LABELS_AR.get(key, key)
+                        hint = " صحّح الربط من الإعدادات ← Source Mapping." if key == "source" else ""
                         plan.warnings.append(
-                            f"لم يتم تحديث «مصدر العميل» لأن القيمة «{new}» غير موجودة في قائمة الـSheet "
-                            f"(القيم المتاحة: {'، '.join(options[:12])}). صحّح الربط من الإعدادات ← Source Mapping."
+                            f"لم يتم تحديث «{label}» لأن القيمة «{new}» غير موجودة في قائمة الـSheet "
+                            f"(القيم المتاحة: {'، '.join(options[:12])}).{hint}"
                         )
                         continue
                     else:

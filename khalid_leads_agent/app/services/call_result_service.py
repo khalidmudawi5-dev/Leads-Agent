@@ -150,6 +150,8 @@ class ResultService:
             source=source_value or (cache.sheet_source if cache else ""), ref=ref, owner=s.agent_owner,
             company=company, phone=phone,
         )
+        if inp.trial_registered.strip():
+            odoo_body += f"\nالتسجيل بالنسخة التجريبية: {inp.trial_registered.strip()}"
         if "{ref}" not in s.odoo_note_template:
             odoo_body += f"\n{ref}"  # the ref is required for de-duplication
 
@@ -158,6 +160,8 @@ class ResultService:
             sheet_changes["source"] = source_value
         if inp.not_subscribed_reason.strip():
             sheet_changes["not_subscribed_reason"] = inp.not_subscribed_reason.strip()
+        if inp.trial_registered.strip():
+            sheet_changes["trial_registered"] = inp.trial_registered.strip()
         if inp.result_code == "SUBSCRIBED" and inp.subscription_expiry:
             sheet_changes["subscription_expiry"] = inp.subscription_expiry
         entry_text = note_text or result_label

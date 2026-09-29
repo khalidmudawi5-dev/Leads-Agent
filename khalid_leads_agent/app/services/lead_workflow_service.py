@@ -107,6 +107,7 @@ class LeadWorkflowService:
             "match_status": c.match_status, "candidates": c.match_candidates or [],
             "source": {**resolution.to_dict(), "prefill": prefill, "sheet_current": c.sheet_source},
             "phone_check": phone_report(c.phone_raw, odoo) if odoo else None,
+            "trial_registered": (c.row_values or {}).get("trial_registered", ""),
         }
 
     def stats(self) -> dict:

@@ -194,3 +194,21 @@ def test_preview_only_writes_nothing_even_when_dry_run_off(container, sheet, odo
     from app.repositories.log_repo import LogRepository
     with container.db.session() as s:
         assert LogRepository(s).audits() == []
+
+
+def test_trial_registered_written_to_sheet_and_odoo_note(container, sheet, odoo):
+    lead = prepare(container)
+    assert lead["trial_registered"] == "لا"  # current sheet value is shown in the panel
+    res = save(container, idempotency_key="key-trial-01", fingerprint=lead["fingerprint"], result_code="INTERESTED",
+               trial_registered="نعم")
+    assert res["sheet_status"] == "success"
+    assert {c["key"]: c["new"] for c in res["preview"]["sheet"]}["trial_registered"] == "نعم"
+    assert sheet.sheets["Leads"][1][6] == "نعم"  # column «هل تم التسجيل بالنسخة التجريبية»
+    assert "التسجيل بالنسخة التجريبية: نعم" in odoo.notes[-1]["body"]
+
+
+def test_trial_registered_empty_means_no_change(container, sheet):
+    lead = prepare(container)
+    res = save(container, idempotency_key="key-trial-02", fingerprint=lead["fingerprint"], result_code="NO_ANSWER")
+    assert "trial_registered" not in {c["key"] for c in res["preview"]["sheet"]}
+    assert sheet.sheets["Leads"][1][6] == "لا"
