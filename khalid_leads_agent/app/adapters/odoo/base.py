@@ -34,6 +34,13 @@ class OdooLead:
     lead_type: str = ""
     active: bool = True
     latest_notes: list[str] = field(default_factory=list)
+    # Full chatter history, newest first. Each item: id, date (UTC "YYYY-MM-DD HH:MM:SS"), author,
+    # kind (note | message | email | tracking | system), subtype, body (plain text) and tracking
+    # ([{field, old, new}]).
+    chatter: list[dict[str, Any]] = field(default_factory=list)
+    # Planned activities: id, date_deadline, summary, type, user, note.
+    activities: list[dict[str, Any]] = field(default_factory=list)
+    write_date: str = ""
     url: str = ""
     ui_index: int | None = None  # only for UI-search fallback candidates without id
     ui_query: str = ""
@@ -120,6 +127,14 @@ class OdooAdapter(ABC):
 
     @abstractmethod
     async def capture_dom(self, name: str) -> str: ...
+
+    async def lead_signature(self, lead_id: int) -> str | None:
+        """Cheap fingerprint of the lead's current state in Odoo (fields + chatter + activities).
+
+        Used by live sync: when it changes, the agent re-reads the lead. ``None`` means
+        "cannot tell right now" (e.g. browser not started) and never triggers a refresh.
+        """
+        return None
 
     async def close(self) -> None:  # pragma: no cover - optional
         return None

@@ -132,6 +132,10 @@ class AppSettings(BaseModel):
     dry_run: bool = True
     lead_ordering: Literal["sheet_order", "sheet_reverse", "oldest_first", "newest_first"] = "sheet_order"
     duplicate_window_seconds: int = Field(default=60, ge=0, le=3600)
+    # Live sync: poll the open lead in Odoo and refresh the agent when anything changes there.
+    live_sync_enabled: bool = True
+    live_sync_interval_seconds: int = Field(default=5, ge=2, le=120)
+    chatter_history_limit: int = Field(default=40, ge=5, le=200)
     # Advanced
     browser_profile_path: str = ""
     browser_channel: str = "chromium"

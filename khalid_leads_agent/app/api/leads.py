@@ -87,6 +87,12 @@ async def lead_refresh(fingerprint: str, c: AppContainer = Depends(container)) -
     return await c.workflow.refresh_lead(fingerprint)
 
 
+@router.get("/lead/{fingerprint}/live")
+async def lead_live(fingerprint: str, since: str = "", c: AppContainer = Depends(container)) -> dict:
+    """Polled by the dashboard: returns the refreshed lead when it changed in Odoo."""
+    return await c.workflow.live(fingerprint, since)
+
+
 @router.post("/lead/{fingerprint}/skip")
 async def lead_skip(fingerprint: str, body: SkipIn, c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.skip(fingerprint, body.mode, body.reason)
@@ -118,6 +124,11 @@ async def manual_search(body: SearchIn, c: AppContainer = Depends(container)) ->
 @router.post("/manual/open")
 async def manual_open(body: ManualOpenIn, c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.manual_open(body.odoo_id)
+
+
+@router.get("/manual/{odoo_id}/live")
+async def manual_live(odoo_id: int, since: str = "", c: AppContainer = Depends(container)) -> dict:
+    return await c.workflow.manual_live(odoo_id, since)
 
 
 @router.post("/manual/call")

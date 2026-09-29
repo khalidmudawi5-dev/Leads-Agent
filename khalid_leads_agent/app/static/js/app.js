@@ -58,7 +58,10 @@ function toast(message, type = "info", ms = 4000) {
 }
 
 const Modal = {
-  open({ title, html, buttons = [], onOpen, wide }) {
+  /** Optional per-modal key handler (return true when handled). */
+  onKey: null,
+  isOpen() { return !!$("#modal-backdrop"); },
+  open({ title, html, buttons = [], onOpen, wide, onKey }) {
     Modal.close();
     const back = document.createElement("div");
     back.className = "modal-backdrop";
@@ -74,12 +77,80 @@ const Modal = {
       footer.appendChild(btn);
     });
     if (!buttons.length) footer.remove();
+    back.addEventListener("mousedown", (ev) => { if (ev.target === back) Modal.close(); });
     document.body.appendChild(back);
+    Modal.onKey = onKey || null;
     if (onOpen) onOpen($(".modal", back));
+    const first = $("footer .btn.primary, input, textarea, footer .btn", back);
+    if (first && !first.matches("input, textarea")) first.focus({ preventScroll: true });
     return back;
   },
-  close() { const m = $("#modal-backdrop"); if (m) m.remove(); },
+  close() { const m = $("#modal-backdrop"); if (m) m.remove(); Modal.onKey = null; },
 };
+
+// ------------------------------------------------------------ keyboard shortcuts
+/**
+ * Layout-independent shortcuts (uses KeyboardEvent.code, so they work with the Arabic keyboard too).
+ * Each entry: { code: "KeyC", label: "C", title: "اتصال الآن", group, run(ev), when?(), alt?, ctrl?, shift?, allowInInputs? }
+ */
+const Shortcuts = {
+  items: [],
+  register(list) { Shortcuts.items.push(...list); },
+  typing(el) {
+    return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
+  },
+  handle(ev) {
+    if (ev.repeat) return;
+    if (ev.key === "Escape") {
+      if (Modal.isOpen()) { ev.preventDefault(); Modal.close(); return; }
+    }
+    if (Modal.isOpen()) {
+      if (Modal.onKey && !Shortcuts.typing(ev.target) && Modal.onKey(ev)) ev.preventDefault();
+      return;
+    }
+    const typing = Shortcuts.typing(ev.target);
+    for (const sc of Shortcuts.items) {
+      if (sc.code !== ev.code) continue;
+      if (!!sc.alt !== ev.altKey || !!sc.ctrl !== (ev.ctrlKey || ev.metaKey) || (sc.shift !== undefined && !!sc.shift !== ev.shiftKey)) continue;
+      if (typing && !sc.allowInInputs) continue;
+      if (sc.when && !sc.when()) continue;
+      ev.preventDefault();
+      sc.run(ev);
+      return;
+    }
+  },
+  help() {
+    const groups = {};
+    Shortcuts.items.filter((s) => s.title).forEach((s) => { (groups[s.group || "عام"] = groups[s.group || "عام"] || []).push(s); });
+    const keys = (s) => [s.ctrl ? "Ctrl" : "", s.alt ? "Alt" : "", s.shift && s.label !== "?" ? "Shift" : "", s.label]
+      .filter(Boolean).map((k) => `<kbd>${esc(k)}</kbd>`).join("");
+    Modal.open({
+      title: "اختصارات لوحة المفاتيح", wide: false,
+      html: `<p class="muted small">الاختصارات تعمل مع لوحة المفاتيح العربية والإنجليزية، ولا تعمل أثناء الكتابة داخل حقل (ما عدا Ctrl+Enter و Esc).</p>
+        <div class="kbd-list">${Object.entries(groups).map(([g, list]) => `<h4>${esc(g)}</h4>` + list.map((s) =>
+          `<div class="help-row"><span>${esc(s.title)}</span><span class="keys">${keys(s)}</span></div>`).join("")).join("")}</div>`,
+      buttons: [{ label: "إغلاق", cls: "primary" }],
+    });
+  },
+};
+document.addEventListener("keydown", (ev) => Shortcuts.handle(ev));
+
+function setTheme(theme) {
+  if (theme) document.documentElement.dataset.theme = theme; else delete document.documentElement.dataset.theme;
+  try { theme ? localStorage.setItem("kla-theme", theme) : localStorage.removeItem("kla-theme"); } catch (e) { /* private mode */ }
+  const label = $("#theme-label");
+  if (label) label.textContent = document.documentElement.dataset.theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن";
+}
+function toggleTheme() { setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"); }
+
+const PAGES = ["/", "/history", "/skipped", "/errors", "/settings", "/diagnostics"];
+const PAGE_TITLES = ["الرئيسية", "سجل المتابعات", "العملاء المتخطون", "الأخطاء", "الإعدادات", "التشخيص"];
+Shortcuts.register([
+  { code: "Slash", label: "?", shift: true, title: "عرض الاختصارات", group: "عام", run: () => Shortcuts.help() },
+  { code: "KeyD", label: "D", alt: true, title: "تبديل الوضع الداكن / الفاتح", group: "عام", allowInInputs: true, run: toggleTheme },
+  ...PAGES.map((url, i) => ({ code: `Digit${i + 1}`, label: String(i + 1), alt: true, title: `الانتقال إلى ${PAGE_TITLES[i]}`,
+    group: "التنقل", allowInInputs: true, run: () => { if (location.pathname !== url) location.href = url; } })),
+]);
 
 const ACTION_LABELS = {
   retry: "إعادة المحاولة", open_odoo: "فتح Odoo", skip: "تخطي", open_login: "فتح Odoo لتسجيل الدخول",
@@ -133,6 +204,9 @@ async function refreshStatus() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  setTheme(document.documentElement.dataset.theme || "");
+  const th = $("#btn-theme"); if (th) th.onclick = toggleTheme;
+  const sh = $("#btn-shortcuts"); if (sh) sh.onclick = () => Shortcuts.help();
   refreshStatus();
   setInterval(refreshStatus, 20000);
   const odooChip = $("#chip-odoo");

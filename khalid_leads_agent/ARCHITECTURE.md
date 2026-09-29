@@ -64,6 +64,14 @@ The workflow is deterministic end to end. No LLM decides customer identity, row 
 - **Activity:** created with `activity_schedule`. A failure only produces a warning; the note and the sheet update still complete.
 - There are screenshots on automation errors, limited retries, configurable timeouts, and one relaunch if the user closed the browser window.
 
+### Chatter history & live sync
+- `get_lead` also returns `chatter` (newest first, up to `chatter_history_limit`): notes, messages, emails and field tracking (`mail.tracking.value`, read best-effort because it is often admin-only), plus planned `activities`. Fields are requested only if `fields_get` reports them, so Odoo 17/18/19 all work. A DOM fallback reads `.o-mail-Message` items when JSON-RPC is unavailable.
+- `lead_signature(lead_id)` is a cheap fingerprint: lead `write_date` + message count + latest message `write_date` + activity ids/`write_date`. It returns `None` when the browser has not been started, so polling never launches a browser.
+- The dashboard polls `GET /api/lead/{fingerprint}/live?since=<sig>` (or `/api/manual/{id}/live`) every `live_sync_interval_seconds`, paused while the tab is hidden. When the signature changes the server re-reads the lead, updates `lead_cache`, and returns the refreshed payload. Polling errors are returned quietly (`login_required` / `error`) and are not stored in `error_logs`.
+
+### UI
+- Tajawal font bundled locally in `app/static/fonts` (SIL OFL), a light/dark theme (`Alt+D`, remembered per browser), and a layout-independent keyboard shortcut registry (`Shortcuts` in `app.js`, using `KeyboardEvent.code` so it also works on the Arabic keyboard layout).
+
 ### Dry Run & duplicates
 - Dry Run is ON by default. It produces the same plan as a real save, including fresh sheet values and the appended notes, but writes nothing and records `dry_run` in the audit.
 - Idempotency: the client sends an `idempotency_key` per result panel. Replaying the same key returns the first outcome. Saves are serialized per lead with an asyncio lock. The same lead + same result inside `duplicate_window_seconds` is not written again.

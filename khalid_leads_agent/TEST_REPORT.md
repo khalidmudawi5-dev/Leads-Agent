@@ -1,4 +1,23 @@
-# Test Report — Khalid Leads Agent 1.0.0
+# Test Report — Khalid Leads Agent 1.1.0
+
+## Update 1.1.0 (2026-09-29): modern UI, Chatter history, live sync, keyboard shortcuts
+
+**Result:** ✅ **88 passed, 0 failed** (Python 3.11, Playwright 1.x with headless Chromium).
+
+| New / changed test | Covers |
+|---|---|
+| `test_browser_adapter.py::test_chatter_history_and_activities` | Full chatter read from the fake Odoo: note, stage tracking (old → new), system message, newest first; HTML bodies to text; planned activities |
+| `test_browser_adapter.py::test_live_signature_changes_on_any_odoo_edit` | Signature is `None` before the browser starts (never launched for polling), stable without changes, and changes on a field edit, a new chatter note and a new activity |
+| `test_browser_adapter.py::test_dom_chatter_fallback` | Chatter read from the page (author, date, body) when RPC is not used |
+| `test_api.py::test_live_sync_refreshes_lead_when_odoo_changes` | `/api/lead/{fp}/live`: baseline, no change, change → refreshed lead + cache updated; manual-mode endpoint; logged-out polling returns quietly with no error log |
+| `test_api.py::test_live_sync_can_be_disabled` | Setting `live_sync_enabled = false` |
+| `test_api.py::test_pages_and_static` | Also serves the bundled Tajawal font files |
+
+Manual UI check (headless Chromium, 1600×1000, `USE_MOCKS=true`): dashboard, Chatter timeline, shortcuts help (`?`), result panel via `R` then `5`, dark mode via `Alt+D`, live polling every 5 s, Tajawal loaded (`document.fonts.check`), **0 JavaScript errors**.
+
+---
+
+## Original report (1.0.0)
 
 **Date:** 2026-09-28
 **Result:** ✅ **81 passed, 0 failed**. The run used a clean virtual environment installed only from `requirements.txt`.

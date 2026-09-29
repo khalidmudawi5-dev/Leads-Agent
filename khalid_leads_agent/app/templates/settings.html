@@ -113,6 +113,14 @@
         <option value="newest_first">Newest first (حسب عمود التاريخ)</option></select></label>
       <label class="field"><span>حماية التكرار: نفس العميل + نفس النتيجة خلال (ثوانٍ)</span><input type="number" min="0" data-key="duplicate_window_seconds"></label>
     </div>
+    <h3 style="margin-top:18px">المزامنة المباشرة مع Odoo (Live Sync)</h3>
+    <p class="muted small">أي تعديل تعمله على العميل داخل Odoo (تغيير Stage أو المسؤول، ملاحظة جديدة في Chatter، Activity…) يظهر تلقائيًا في الـAgent خلال ثوانٍ، بدون الضغط على «تحديث».</p>
+    <div class="form-grid">
+      <label class="check"><input type="checkbox" data-key="live_sync_enabled"> تفعيل المزامنة المباشرة</label>
+      <div></div>
+      <label class="field"><span>فحص التغييرات كل (ثوانٍ)</span><input type="number" min="2" max="120" data-key="live_sync_interval_seconds"></label>
+      <label class="field"><span>عدد رسائل Chatter المعروضة</span><input type="number" min="5" max="200" data-key="chatter_history_limit"></label>
+    </div>
     <div class="actions"><button class="btn primary" data-save="automation">حفظ</button></div>
   </section>
 

@@ -24,15 +24,49 @@ class FakeOdooState:
             7: {"id": 7, "name": "فرصة - مؤسسة الاختبار", "partner_name": "مؤسسة الاختبار", "contact_name": "سعد",
                 "phone": "+966 56 123 4567", "mobile": "", "email_from": "test@example.com", "user_id": [2, "خالد"],
                 "stage_id": [1, "جديد"], "source_id": [3, "Meta"], "medium_id": [4, "Leads"],
-                "campaign_id": [5, "حملة سبتمبر"], "type": "lead", "active": True, "x_service_type": "رصد التواجد"},
+                "campaign_id": [5, "حملة سبتمبر"], "type": "lead", "active": True, "x_service_type": "رصد التواجد",
+                "write_date": "2026-09-28 10:00:00"},
             8: {"id": 8, "name": "شركة بلا زر", "partner_name": "شركة بلا زر", "contact_name": "", "phone": "",
                 "mobile": "", "email_from": "", "user_id": False, "stage_id": [1, "جديد"], "source_id": False,
-                "medium_id": False, "campaign_id": False, "type": "lead", "active": True, "x_service_type": False},
+                "medium_id": False, "campaign_id": False, "type": "lead", "active": True, "x_service_type": False,
+                "write_date": "2026-09-28 10:00:00"},
         }
-        self.messages: list[dict[str, Any]] = []
+        # Pre-existing chatter history on lead 7 (written by people, before the agent).
+        self.messages: list[dict[str, Any]] = [
+            {"id": 1, "model": "crm.lead", "res_id": 7, "body": "<p>Lead created from Meta</p>", "is_html": True,
+             "message_type": "notification", "subtype": "crm.mt_lead_create", "subtype_id": [9, "Lead Created"],
+             "author_id": [1, "OdooBot"], "date": "2026-09-20 08:00:00", "tracking_value_ids": []},
+            {"id": 2, "model": "crm.lead", "res_id": 7, "body": "", "is_html": True, "message_type": "notification",
+             "subtype": "crm.mt_lead_stage", "subtype_id": [10, "Stage Changed"], "author_id": [3, "سارة"],
+             "date": "2026-09-21 09:30:00", "tracking_value_ids": [1]},
+            {"id": 3, "model": "crm.lead", "res_id": 7, "body": "<p>العميل طلب عرض سعر<br>ويريد التواصل مساءً</p>", "is_html": True,
+             "message_type": "comment", "subtype": "mail.mt_note", "subtype_id": [2, "Note"],
+             "author_id": [3, "سارة"], "date": "2026-09-22 14:10:00", "tracking_value_ids": []},
+        ]
+        self.tracking: dict[int, dict[str, Any]] = {
+            1: {"id": 1, "field_desc": "Stage", "old_value_char": "جديد", "new_value_char": "مؤهل"},
+        }
         self.activities: list[dict[str, Any]] = []
+        self.clock = 0
         self.calls_clicked: list[str] = []
         self.rpc_log_notes = 0
+
+    def now(self) -> str:
+        """Monotonic fake timestamps so every write gets a new write_date."""
+        self.clock += 1
+        return f"2026-09-29 10:{self.clock // 60:02d}:{self.clock % 60:02d}"
+
+    def edit_lead(self, lead_id: int, **values: Any) -> None:
+        """Simulate the user editing the lead directly in Odoo."""
+        self.leads[lead_id].update(values, write_date=self.now())
+
+    def add_message(self, lead_id: int, body: str, message_type: str = "comment", subtype: str = "mail.mt_note",
+                    author: str = "خالد") -> None:
+        ts = self.now()
+        self.messages.append({"id": len(self.messages) + 1, "model": "crm.lead", "res_id": lead_id, "body": body,
+                              "message_type": message_type, "subtype": subtype,
+                              "subtype_id": [2, "Note"] if subtype == "mail.mt_note" else [1, "Discussions"],
+                              "author_id": [2, author], "date": ts, "write_date": ts, "tracking_value_ids": []})
 
 
 FIELDS = {
@@ -44,7 +78,10 @@ FIELDS = {
     "campaign_id": {"string": "Campaign", "type": "many2one"}, "type": {"string": "Type", "type": "selection"},
     "active": {"string": "Active", "type": "boolean"},
     "x_service_type": {"string": "Service Type", "type": "char"},
+    "write_date": {"string": "Last Updated on", "type": "datetime"},
 }
+MESSAGE_FIELDS = {f: {"string": f, "type": "char"} for f in (
+    "body", "date", "author_id", "message_type", "subtype_id", "tracking_value_ids", "write_date")}
 
 
 def _match(rec: dict, term: list) -> bool:
@@ -130,19 +167,34 @@ def make_app(state: FakeOdooState) -> FastAPI:
         elif model == "crm.lead" and method == "message_post":
             state.rpc_log_notes += 1
             for lead_id in args[0]:
-                state.messages.append({"id": len(state.messages) + 1, "model": "crm.lead", "res_id": lead_id,
-                                       "body": kwargs["body"], "message_type": kwargs.get("message_type"),
-                                       "subtype": kwargs.get("subtype_xmlid")})
+                state.add_message(lead_id, kwargs["body"], kwargs.get("message_type") or "comment",
+                                  kwargs.get("subtype_xmlid") or "mail.mt_note")
             result = len(state.messages)
         elif model == "crm.lead" and method == "activity_schedule":
             for lead_id in args[0]:
-                state.activities.append({"res_id": lead_id, **kwargs})
+                state.activities.append({"id": len(state.activities) + 1, "res_model": "crm.lead", "res_id": lead_id,
+                                         "write_date": state.now(), **kwargs})
             result = True
+        elif model == "mail.message" and method == "fields_get":
+            result = MESSAGE_FIELDS
         elif model == "mail.message" and method in ("search_read", "search_count"):
             domain = kwargs.get("domain") if method == "search_read" else args[0]
             rows = [m for m in state.messages if eval_domain(m, domain)]
-            result = len(rows) if method == "search_count" else [
-                {"id": m["id"], "body": html.escape(m["body"]), "date": "2026-09-28 12:00:00"} for m in reversed(rows)]
+            if method == "search_count":
+                result = len(rows)
+            else:
+                fields = kwargs.get("fields") or list(MESSAGE_FIELDS)
+                rows = sorted(rows, key=lambda m: (m.get("write_date") or m["date"], m["id"]), reverse=True)
+                rows = rows[: kwargs.get("limit") or len(rows)]
+                result = [{"id": m["id"], **{f: (m["body"] if m.get("is_html") else html.escape(m["body"])) if f == "body" else
+                                             m.get(f, m["date"] if f == "write_date" else False) for f in fields}}
+                          for m in rows]
+        elif model == "mail.tracking.value" and method == "read":
+            result = [state.tracking[i] for i in args[0] if i in state.tracking]
+        elif model == "mail.activity" and method == "search_read":
+            rows = [a for a in state.activities if eval_domain(a, kwargs.get("domain", []))]
+            result = [{"id": a["id"], "date_deadline": a.get("date_deadline", False), "summary": a.get("summary", False),
+                       "write_date": a["write_date"]} for a in rows]
         else:
             return {"jsonrpc": "2.0", "id": 1, "error": {"code": 200, "message": "Odoo Server Error",
                                                          "data": {"name": "builtins.AttributeError",
@@ -159,7 +211,9 @@ def make_app(state: FakeOdooState) -> FastAPI:
         if not logged(request):
             return RedirectResponse("/web/login", status_code=303)
         r = state.leads[lead_id]
-        msgs = "".join(f"<div class='o-mail-Message'><div class='o-mail-Message-body'>{html.escape(m['body'])}</div></div>"
+        msgs = "".join(f"<div class='o-mail-Message'><span class='o-mail-Message-author'>{html.escape(_m2o(m.get('author_id')))}</span>"
+                       f"<span class='o-mail-Message-date' title='{m['date']}'>now</span>"
+                       f"<div class='o-mail-Message-body'>{m['body'] if m.get('is_html') else html.escape(m['body'])}</div></div>"
                        for m in reversed(state.messages) if m["res_id"] == lead_id)
 
         def field(name: str, label: str, value: str, extra: str = "") -> str:

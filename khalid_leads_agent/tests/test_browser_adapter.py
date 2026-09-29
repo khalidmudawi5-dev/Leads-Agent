@@ -124,10 +124,11 @@ def test_search_open_extract_call_note_activity(adapter, fake_odoo):
     body = "متابعة آلية بواسطة Khalid Leads Agent\nنتيجة التواصل: مهتم\nالمرجع: KLA-TEST0001"
     res = run(adapter, adapter.post_log_note(7, body, "KLA-TEST0001"))
     assert res.success and res.method == "ui"
-    msgs = fake_odoo.state.messages
-    assert len(msgs) == 1 and msgs[0]["subtype"] == "mail.mt_note"  # Log note, never "Send message"
+    def mine():
+        return [m for m in fake_odoo.state.messages if "KLA-TEST0001" in m["body"]]
+    assert len(mine()) == 1 and mine()[0]["subtype"] == "mail.mt_note"  # Log note, never "Send message"
     again = run(adapter, adapter.post_log_note(7, body, "KLA-TEST0001"))
-    assert again.success and again.already_done and len(fake_odoo.state.messages) == 1
+    assert again.success and again.already_done and len(mine()) == 1
 
     act = run(adapter, adapter.schedule_activity(7, "2026-10-01", "متابعة", "اتصال"))
     assert act.success and fake_odoo.state.activities[0]["date_deadline"] == "2026-10-01"
@@ -174,3 +175,46 @@ def test_windows_handler_mode_reads_odoo_call_link(adapter, fake_odoo, monkeypat
     out = run(adapter, adapter.click_call(7, "phone", "0561234567"))
     assert out.success and out.method == "windows_tel"
     assert launched == ["tel:+966 56 123 4567"] and fake_odoo.state.calls_clicked == []
+
+
+def test_chatter_history_and_activities(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    lead = run(adapter, adapter.get_lead(7))
+    kinds = [(m["kind"], m["author"]) for m in lead.chatter]
+    assert kinds == [("note", "سارة"), ("tracking", "سارة"), ("system", "OdooBot")]  # newest first
+    assert lead.chatter[0]["body"] == "العميل طلب عرض سعر\nويريد التواصل مساءً"
+    assert lead.chatter[1]["tracking"] == [{"field": "Stage", "old": "جديد", "new": "مؤهل"}]
+    assert lead.latest_notes == ["العميل طلب عرض سعر\nويريد التواصل مساءً"]
+    assert lead.write_date == "2026-09-28 10:00:00"
+
+    run(adapter, adapter.schedule_activity(7, "2026-10-01", "اتصال متابعة", "بعد العرض"))
+    lead = run(adapter, adapter.get_lead(7))
+    assert [(a["date_deadline"], a["summary"]) for a in lead.activities] == [("2026-10-01", "اتصال متابعة")]
+
+
+def test_live_signature_changes_on_any_odoo_edit(adapter, fake_odoo):
+    assert run(adapter, adapter.lead_signature(7)) is None  # browser not started: never launched for polling
+    login(adapter, fake_odoo)
+    sig = run(adapter, adapter.lead_signature(7))
+    assert sig and run(adapter, adapter.lead_signature(7)) == sig  # stable when nothing changed
+
+    fake_odoo.state.edit_lead(7, stage_id=[2, "مؤهل"])  # field edit in Odoo
+    sig2 = run(adapter, adapter.lead_signature(7))
+    assert sig2 != sig
+    fake_odoo.state.add_message(7, "ملاحظة كتبها خالد من Odoo")  # new chatter note
+    sig3 = run(adapter, adapter.lead_signature(7))
+    assert sig3 != sig2
+    run(adapter, adapter.schedule_activity(7, "2026-10-02", "x", ""))  # new activity
+    assert run(adapter, adapter.lead_signature(7)) != sig3
+    lead = run(adapter, adapter.get_lead(7))
+    assert lead.stage == "مؤهل" and lead.chatter[0]["body"] == "ملاحظة كتبها خالد من Odoo"
+
+
+def test_dom_chatter_fallback(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    run(adapter, adapter.open_lead(OdooLead(id=7)))
+
+    async def dom():
+        return await adapter._w_dom_chatter(await adapter._w_page())
+    rows = run(adapter, adapter._rt.submit(dom()))
+    assert rows[0]["author"] == "سارة" and "عرض سعر" in rows[0]["body"] and rows[0]["date"] == "2026-09-22 14:10:00"

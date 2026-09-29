@@ -258,6 +258,69 @@ class LeadWorkflowService:
                 warnings.append(exc.message_ar)
         return self._payload(fingerprint, warnings)
 
+    # --------------------------------------------------------- live sync
+    async def _signature(self, lead_id: int) -> tuple[str | None, dict]:
+        """Current Odoo signature of a lead, or ``None`` plus a quiet status (polling never raises)."""
+        try:
+            return await self.odoo.adapter.lead_signature(lead_id), {}
+        except AgentError as exc:
+            if exc.code == "ODOO_LOGIN_REQUIRED":
+                self.odoo.mark_logged_out()
+                return None, {"login_required": True}
+            return None, {"error": exc.message_ar}
+        except Exception:  # noqa: BLE001 - background polling must stay silent
+            log.debug("Live sync signature failed for lead %s", lead_id, exc_info=True)
+            return None, {}
+
+    async def live(self, fingerprint: str, since: str) -> dict:
+        """Live sync for the current queue lead: re-read it when anything changed in Odoo.
+
+        The first poll (empty ``since``) only establishes the baseline signature.
+        """
+        s = self.settings.get()
+        c = self._cache(fingerprint)
+        base = {"changed": False, "enabled": s.live_sync_enabled, "interval": s.live_sync_interval_seconds,
+                "signature": since}
+        if not s.live_sync_enabled or not c.odoo_lead_id:
+            return base
+        sig, extra = await self._signature(c.odoo_lead_id)
+        base.update(extra)
+        if sig is None:
+            return base
+        base["signature"] = sig
+        if not since or sig == since:
+            return base
+        try:
+            lead = await self.odoo.adapter.get_lead(c.odoo_lead_id)
+        except AgentError:
+            log.info("Live sync re-read failed for lead %s", c.odoo_lead_id, exc_info=True)
+            base["signature"] = since  # retry on the next poll
+            return base
+        self._update_cache(fingerprint, odoo_data=lead.to_dict())
+        log.info("Live sync: lead %s changed in Odoo; refreshed", c.odoo_lead_id)
+        return {**self._payload(fingerprint), **base, "changed": True}
+
+    async def manual_live(self, odoo_id: int, since: str) -> dict:
+        """Live sync for a lead opened from manual search (not linked to a sheet row)."""
+        s = self.settings.get()
+        base = {"changed": False, "enabled": s.live_sync_enabled, "interval": s.live_sync_interval_seconds,
+                "signature": since}
+        if not s.live_sync_enabled:
+            return base
+        sig, extra = await self._signature(odoo_id)
+        base.update(extra)
+        if sig is None:
+            return base
+        base["signature"] = sig
+        if not since or sig == since:
+            return base
+        try:
+            lead = await self.odoo.adapter.get_lead(odoo_id)
+        except AgentError:
+            base["signature"] = since
+            return base
+        return {**base, "changed": True, "odoo": lead.to_dict()}
+
     # ------------------------------------------------------------ manual
     def _linked_fingerprint(self, phone_norm: str) -> str | None:
         """A sheet row of the owner is linked only on an unambiguous phone match."""

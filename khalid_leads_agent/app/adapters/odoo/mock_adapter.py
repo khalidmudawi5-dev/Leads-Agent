@@ -1,6 +1,7 @@
 """In-memory Odoo adapter for tests and development (never touches a real Odoo)."""
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from app.adapters.odoo.base import ActionOutcome, LoginStatus, OdooAdapter, OdooLead
@@ -21,6 +22,21 @@ class MockOdooAdapter(OdooAdapter):
         self.fail_activity = False
         self.fail_note = False
         self.fail_call = False
+        self.versions: dict[int, int] = {}
+
+    def touch(self, lead_id: int) -> None:
+        """Simulate an edit made directly in Odoo (changes the live-sync signature)."""
+        self.versions[lead_id] = self.versions.get(lead_id, 0) + 1
+
+    def _with_history(self, lead: OdooLead) -> OdooLead:
+        """Copy of ``lead`` whose chatter/activities include what this mock has written."""
+        assert lead.id is not None
+        notes = [{"id": 1000 + i, "date": "", "author": "Mock User", "kind": "note", "subtype": "Note",
+                  "body": n["body"], "tracking": []} for i, n in enumerate(self.notes) if n["lead_id"] == lead.id]
+        acts = [{"id": 1000 + i, "date_deadline": a["date"], "summary": a["summary"], "type": "To-Do",
+                 "user": "Mock User", "note": a["note"], "state": "planned"}
+                for i, a in enumerate(self.activities) if a["lead_id"] == lead.id]
+        return replace(lead, chatter=notes[::-1] + list(lead.chatter), activities=list(lead.activities) + acts)
 
     def _check(self) -> None:
         if not self.logged_in:
@@ -48,13 +64,13 @@ class MockOdooAdapter(OdooAdapter):
 
     async def get_lead(self, lead_id: int) -> OdooLead:
         self._check()
-        return self.leads[lead_id]
+        return self._with_history(self.leads[lead_id])
 
     async def open_lead(self, lead: OdooLead) -> OdooLead:
         self._check()
         assert lead.id is not None
         self.opened.append(lead.id)
-        return self.leads[lead.id]
+        return self._with_history(self.leads[lead.id])
 
     async def click_call(self, lead_id: int, phone_field: str, phone: str) -> ActionOutcome:
         self._check()
@@ -70,6 +86,7 @@ class MockOdooAdapter(OdooAdapter):
         if self.fail_note:
             return ActionOutcome(False, "none", "mock failure")
         self.notes.append({"lead_id": lead_id, "body": body})
+        self.touch(lead_id)
         return ActionOutcome(True, "mock")
 
     async def schedule_activity(self, lead_id: int, date_deadline: str, summary: str, note: str) -> ActionOutcome:
@@ -77,7 +94,14 @@ class MockOdooAdapter(OdooAdapter):
         if self.fail_activity:
             return ActionOutcome(False, "none", "Activity creation failed: mock")
         self.activities.append({"lead_id": lead_id, "date": date_deadline, "summary": summary, "note": note})
+        self.touch(lead_id)
         return ActionOutcome(True, "mock")
+
+    async def lead_signature(self, lead_id: int) -> str | None:
+        self._check()
+        if lead_id not in self.leads:
+            return None
+        return f"v{self.versions.get(lead_id, 0)}"
 
     async def diagnostics(self) -> dict[str, Any]:
         return {"url": "mock://odoo", "browser_open": True, "lead_detected": bool(self.opened),
@@ -96,7 +120,17 @@ def demo_odoo_leads() -> list[OdooLead]:
     return [
         OdooLead(id=101, name="طلب عرض - مؤسسة الأفق", company_name="مؤسسة الأفق للتجارة", contact_name="أحمد",
                  phone="+966 50 000 0001", salesperson="خالد", stage="جديد", source="Meta", medium="Leads",
-                 campaign="Q3", utm_source="Meta", utm_medium="Leads", utm_campaign="Q3"),
+                 campaign="Q3", utm_source="Meta", utm_medium="Leads", utm_campaign="Q3",
+                 chatter=[
+                     {"id": 3, "date": "2026-09-27 09:15:00", "author": "خالد", "kind": "note", "subtype": "Note",
+                      "body": "تواصلت مع العميل وطلب الاتصال بعد أسبوع لأن المدير مسافر.", "tracking": []},
+                     {"id": 2, "date": "2026-09-25 13:02:00", "author": "OdooBot", "kind": "tracking", "subtype": "",
+                      "body": "", "tracking": [{"field": "Stage", "old": "New", "new": "Qualified"}]},
+                     {"id": 1, "date": "2026-09-24 08:40:00", "author": "Meta Lead Ads", "kind": "email",
+                      "subtype": "", "body": "طلب عرض سعر لنظام رصد التواجد لعدد 45 موظف.", "tracking": []},
+                 ],
+                 activities=[{"id": 1, "date_deadline": "2026-10-01", "summary": "اتصال متابعة", "type": "Call",
+                              "user": "خالد", "note": "", "state": "planned"}]),
         OdooLead(id=102, name="شركة النخبة", company_name="شركة النخبة", phone="0500000002",
                  salesperson="خالد", stage="جديد", source="Twajd", medium="", campaign=""),
         OdooLead(id=103, name="مصنع الريادة", company_name="مصنع الريادة", phone="0500000003", source="Power BI"),

@@ -21,7 +21,8 @@ def test_pages_and_static(client):
         r = client.get(path)
         assert r.status_code == 200 and 'dir="rtl"' in r.text, path
     for path in ["/static/css/app.css", "/static/js/app.js", "/static/js/dashboard.js", "/static/js/settings.js",
-                 "/static/js/setup.js", "/static/js/history.js"]:
+                 "/static/js/setup.js", "/static/js/history.js", "/static/fonts/tajawal.css",
+                 "/static/fonts/tajawal-arabic-400.woff2", "/static/fonts/tajawal-arabic-700.woff2"]:
         assert client.get(path).status_code == 200, path
 
 
@@ -106,3 +107,39 @@ def test_unexpected_error_hidden(client, monkeypatch):
     monkeypatch.setattr(client.app.state.container.workflow, "stats", boom)
     r = TestClient(client.app, raise_server_exceptions=False).get("/api/stats")
     assert r.status_code == 500 and "secret" not in r.text and "logs/agent.log" in r.json()["error"]["message"]
+
+
+def test_live_sync_refreshes_lead_when_odoo_changes(client, odoo):
+    client.post("/api/session/start", json={"resume": True}, headers=H)
+    fp = client.get("/api/lead/current").json()["lead"]["fingerprint"]
+    client.post(f"/api/lead/{fp}/search", json={"query": ""}, headers=H)
+    lead_id = client.get("/api/lead/current").json()["lead"]["odoo_lead_id"]
+
+    first = client.get(f"/api/lead/{fp}/live").json()  # baseline only
+    assert first["changed"] is False and first["signature"] and first["enabled"]
+    same = client.get(f"/api/lead/{fp}/live", params={"since": first["signature"]}).json()
+    assert same["changed"] is False and "lead" not in same
+
+    odoo.leads[lead_id].stage = "مؤهل"  # the user edits the lead directly in Odoo…
+    odoo.touch(lead_id)
+    upd = client.get(f"/api/lead/{fp}/live", params={"since": first["signature"]}).json()
+    assert upd["changed"] is True and upd["signature"] != first["signature"]
+    assert upd["lead"]["odoo"]["stage"] == "مؤهل"
+    assert client.get("/api/lead/current").json()["lead"]["odoo"]["stage"] == "مؤهل"  # cached too
+
+    manual = client.get(f"/api/manual/{lead_id}/live", params={"since": "old"}).json()
+    assert manual["changed"] and manual["odoo"]["id"] == lead_id
+
+    odoo.logged_in = False  # polling never raises / never logs errors
+    quiet = client.get(f"/api/lead/{fp}/live", params={"since": upd["signature"]})
+    assert quiet.status_code == 200 and quiet.json()["login_required"] is True
+    assert client.get("/api/errors").json()["items"] == []
+
+
+def test_live_sync_can_be_disabled(client, odoo):
+    client.put("/api/settings", json={"live_sync_enabled": False}, headers=H)
+    client.post("/api/session/start", json={"resume": True}, headers=H)
+    fp = client.get("/api/lead/current").json()["lead"]["fingerprint"]
+    client.post(f"/api/lead/{fp}/search", json={"query": ""}, headers=H)
+    r = client.get(f"/api/lead/{fp}/live", params={"since": "x"}).json()
+    assert r == {"changed": False, "enabled": False, "interval": 5, "signature": "x"}

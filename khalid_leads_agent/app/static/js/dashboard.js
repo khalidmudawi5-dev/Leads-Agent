@@ -6,7 +6,24 @@ const S = {
   call: { startedAt: null, endedAt: null, timer: null },
   result: { code: null, key: null, ctx: null },
   options: {}, nextTimer: null, busy: false,
+  chatterFilter: "all", seenChatter: { key: null, ids: new Set() },
 };
+const ICON = {
+  note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
+  message: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>',
+  email: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+  tracking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M14 6l6 6-6 6"/></svg>',
+  system: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16v.5"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>',
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3h7v7M21 3l-9 9"/><path d="M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg>',
+  skip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l7 7-7 7M13 5l7 7-7 7"/></svg>',
+  result: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+  done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>',
+};
+const KIND_LABEL = { note: "ملاحظة داخلية", message: "رسالة", email: "بريد", tracking: "تغيير", system: "نظام" };
+const FILTERS = [["all", "الكل"], ["note", "الملاحظات"], ["message", "الرسائل"], ["tracking", "التغييرات"]];
 const PHONE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>';
 const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", "phone+company": "الهاتف + اسم المنشأة", company_exact: "اسم المنشأة (مطابق)", user_choice: "اختيار يدوي" };
 
@@ -28,6 +45,102 @@ async function init() {
   $("#btn-refresh-queue").onclick = (ev) => withBusy(ev.currentTarget, refreshQueue);
   $("#btn-end-call").onclick = () => { stopCall(); openResultPanel(); };
   $("#btn-result-from-call").onclick = () => { stopCall(); openResultPanel(); };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) Live.poll(); });
+}
+
+// ------------------------------------------------------------- shortcuts
+const hasLead = () => !!(S.manual || S.lead);
+const resultOpen = () => !$("#result-card").classList.contains("hidden");
+const nextVisible = () => !$("#next-card").classList.contains("hidden") && !!$("#btn-next");
+const clickIf = (sel) => { const b = $(sel); if (b && !b.disabled) b.click(); };
+Shortcuts.register([
+  { code: "KeyC", label: "C", title: "اتصال الآن", group: "العميل الحالي", when: hasLead, run: () => clickIf("#btn-call") },
+  { code: "KeyO", label: "O", title: "فتح العميل في Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => clickIf("#btn-open") },
+  { code: "KeyR", label: "R", shift: false, title: "تسجيل النتيجة", group: "العميل الحالي", when: () => hasLead() && !resultOpen(), run: () => { stopCall(); openResultPanel(); } },
+  { code: "KeyF", label: "F", title: "إعادة البحث في Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => searchOdoo() },
+  { code: "KeyU", label: "U", title: "تحديث بيانات العميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => clickIf("#btn-refresh") },
+  { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
+  { code: "KeyP", label: "P", title: "نسخ رقم الجوال", group: "العميل الحالي", when: hasLead, run: copyPhone },
+  { code: "KeyN", label: "N", title: "العميل التالي (بعد الحفظ)", group: "العميل الحالي", when: nextVisible, run: goNext },
+  { code: "KeyR", label: "R", shift: true, title: "تحديث القائمة من Google Sheet", group: "عام", run: () => $("#btn-refresh-queue").click() },
+  { code: "Slash", label: "/", shift: false, title: "البحث اليدوي في Odoo", group: "عام", run: () => { $("#manual-q").focus(); $("#manual-q").select(); } },
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ code: `Digit${n}`, label: String(n), title: n === 1 ? "اختيار النتيجة (1 … 6)" : "",
+    group: "لوحة النتيجة", when: () => resultOpen() && !!S.statuses[n - 1], run: () => selectResult(S.statuses[n - 1].code) })),
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ code: `Numpad${n}`, label: String(n),
+    when: () => resultOpen() && !!S.statuses[n - 1], run: () => selectResult(S.statuses[n - 1].code) })),
+  { code: "KeyT", label: "T", title: "الانتقال لحقل الملاحظة", group: "لوحة النتيجة", when: resultOpen, run: () => $("#r-note").focus() },
+  { code: "Enter", label: "Enter", ctrl: true, allowInInputs: true, title: "حفظ النتيجة", group: "لوحة النتيجة", when: resultOpen, run: () => clickIf("#r-save") },
+  { code: "Escape", label: "Esc", allowInInputs: true, title: "إلغاء لوحة النتيجة / إلغاء الانتقال التلقائي", group: "لوحة النتيجة",
+    when: () => resultOpen() || !!$("#btn-cancel-next"), run: () => { if ($("#btn-cancel-next")) $("#btn-cancel-next").click(); else $("#r-cancel").click(); } },
+]);
+
+async function copyPhone() {
+  const phone = S.manual ? (S.manual.phone || S.manual.mobile) : (S.lead && S.lead.phone);
+  if (!phone) return;
+  try { await navigator.clipboard.writeText(phone); toast("تم نسخ الرقم: " + phone, "info", 2500); }
+  catch (e) { toast("تعذر النسخ", "warn"); }
+}
+
+// ------------------------------------------------------------- live sync
+/** Polls Odoo for changes on the open lead; any edit made in Odoo shows up here within seconds. */
+const Live = {
+  target: null, sig: "", timer: null, inflight: false, state: "off", lastOk: null,
+  enabled() { return !!(S.settings && S.settings.live_sync_enabled); },
+  interval() { return Math.max(2, (S.settings && S.settings.live_sync_interval_seconds) || 5) * 1000; },
+  watch(target) {
+    const key = target ? `${target.kind}:${target.id}` : null;
+    if (key && this.target && `${this.target.kind}:${this.target.id}` === key) return;
+    this.stop();
+    if (!target) { this.pill("off", "غير مربوط"); return; }
+    if (!this.enabled()) { this.pill("off", "المزامنة المباشرة متوقفة"); return; }
+    this.target = target; this.sig = "";
+    this.pill("on", "مباشر");
+    this.poll();
+    this.timer = setInterval(() => this.poll(), this.interval());
+  },
+  stop() { clearInterval(this.timer); this.timer = null; this.target = null; this.sig = ""; },
+  pill(state, text) {
+    this.state = state;
+    const p = $("#live-pill"); if (!p) return;
+    p.className = "live-pill" + (state === "on" ? "" : state === "err" ? " err" : " off");
+    $(".t", p).textContent = text;
+    p.title = state === "on" ? "أي تعديل على العميل في Odoo (حقول، ملاحظات، أنشطة) يظهر هنا تلقائيًا." : "";
+  },
+  async poll() {
+    const t = this.target;
+    if (!t || this.inflight || document.hidden) return;
+    this.inflight = true;
+    const url = t.kind === "queue" ? `/api/lead/${t.id}/live` : `/api/manual/${t.id}/live`;
+    try {
+      const r = await api("GET", `${url}?since=${encodeURIComponent(this.sig)}`);
+      if (this.target !== t) return;  // user moved to another lead meanwhile
+      this.sig = r.signature || this.sig;
+      if (r.login_required) this.pill("err", "تسجيل الدخول مطلوب");
+      else if (r.error) this.pill("err", "تعذر الفحص");
+      else { this.lastOk = new Date(); this.pill("on", "مباشر"); }
+      if (r.changed) applyLiveUpdate(t, r);
+    } catch (e) { this.pill("err", "غير متصل"); }
+    finally { this.inflight = false; }
+  },
+};
+
+function applyLiveUpdate(target, r) {
+  if (target.kind === "queue") {
+    if (!r.lead || !S.lead || r.lead.fingerprint !== S.lead.fingerprint) return;
+    S.lead = r.lead;
+    if (S.payload) S.payload.lead = r.lead;
+    renderStats(r.stats);
+    if (!resultOpen() && !S.call.startedAt) renderLead(r.lead);
+    renderOdoo(r.lead.odoo);
+    renderChatter(r.lead.odoo, true);
+  } else {
+    if (!S.manual || !r.odoo || r.odoo.id !== S.manual.id) return;
+    S.manual = r.odoo;
+    renderOdoo(r.odoo);
+    renderChatter(r.odoo, true);
+  }
+  toast("تم تحديث بيانات العميل من Odoo تلقائيًا", "info", 3000);
+  ["#chatter-card", "#odoo-card"].forEach((sel) => { const el = $(sel); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); });
 }
 
 function askResume(sess) {
@@ -67,9 +180,11 @@ function render(payload) {
   renderSession(payload.session);
   $("#global-msg").innerHTML = (payload.warnings || []).map((w) => `<div class="alert warn">${esc(w)}</div>`).join("");
   $("#result-card").classList.add("hidden");
-  if (payload.done || !payload.lead) return renderDone();
+  if (payload.done || !payload.lead) { Live.watch(null); return renderDone(); }
   renderLead(payload.lead);
   renderOdoo(payload.lead.odoo);
+  renderChatter(payload.lead.odoo);
+  Live.watch(payload.lead.odoo_lead_id ? { kind: "queue", id: payload.lead.fingerprint, odoo: payload.lead.odoo_lead_id } : null);
   if (payload.lead.match_status === "unknown") searchOdoo();
 }
 
@@ -93,26 +208,42 @@ function renderSession(sess) {
 }
 
 function renderDone() {
-  $("#lead-card").innerHTML = `<div class="empty"><div class="big">لا يوجد عملاء بانتظار التواصل</div>
+  $("#lead-card").innerHTML = `<div class="empty"><div class="ill">${ICON.done}</div><div class="big">لا يوجد عملاء بانتظار التواصل</div>
     <div>تم الانتهاء من قائمة ${esc(S.settings.agent_owner)} الحالية، أو أن كل العملاء المتبقين تم تخطيهم مؤقتًا.</div>
     <div class="actions" style="justify-content:center;margin-top:16px"><button class="btn primary" id="btn-reload">تحديث القائمة</button>
     <a class="btn" href="/skipped">العملاء المتخطون</a></div></div>`;
   $("#btn-reload").onclick = (ev) => withBusy(ev.currentTarget, refreshQueue);
   renderOdoo(null);
+  renderChatter(null);
 }
 
 function statusBadge(status) {
   return status ? `<span class="badge indigo">${esc(status)}</span>` : '<span class="badge">فارغ</span>';
 }
 
+function initials(name) {
+  const w = String(name || "").replace(/^(شركة|مؤسسة|مكتب|مجموعة|مصنع)\s+/, "").trim();
+  return esc(w.charAt(0) || "؟");
+}
+
+function latestOdooNote(o) {
+  const n = ((o && o.chatter) || []).find((m) => (m.kind === "note" || m.kind === "message") && m.body);
+  if (n) return `${n.body}\n— ${n.author || ""}${n.date ? " · " + fmtDate(n.date) : ""}`;
+  return ((o && o.latest_notes) || [])[0] || "";
+}
+
 function renderLead(lead) {
   const o = lead.odoo || {};
   $("#lead-card").innerHTML = `
-    <div class="lead-head"><div>
-      <div class="row small"><span class="badge blue">صف ${lead.sheet_row} (مرجع فقط)</span>${statusBadge(lead.followup_status)}</div>
-      <h2 class="lead-name">${esc(lead.company_name || "(بدون اسم)")}</h2>
-      <div class="lead-phone"><span class="ltr">${esc(lead.phone)}</span></div></div>
-    </div>
+    <div class="lead-hero"><div class="lead-head">
+      <div class="lead-title"><div class="avatar">${initials(lead.company_name)}</div><div style="min-width:0">
+        <div class="row small" style="gap:6px"><span class="badge blue">صف ${lead.sheet_row} (مرجع فقط)</span>${statusBadge(lead.followup_status)}
+          ${o.stage ? `<span class="badge indigo">${esc(o.stage)}</span>` : ""}</div>
+        <h2 class="lead-name">${esc(lead.company_name || "(بدون اسم)")}</h2>
+        <div class="lead-phone"><span class="ltr">${esc(lead.phone)}</span>
+          <button class="icon-btn" id="btn-copy" title="نسخ الرقم (P)">${ICON.copy}</button></div></div></div>
+    </div></div>
+    <div class="lead-body">
     <div class="info-grid">
       <div class="info"><div class="k">المصدر في Google Sheet</div><div class="v">${orDash(lead.sheet_source)}</div></div>
       <div class="info"><div class="k">Source من Odoo</div><div class="v">${orDash(o.source)}</div></div>
@@ -120,21 +251,24 @@ function renderLead(lead) {
       <div class="info"><div class="k">Campaign</div><div class="v">${orDash(o.campaign)}</div></div>
       <div class="info"><div class="k">حالة المتابعة الحالية</div><div class="v">${orDash(lead.followup_status)}</div></div>
       <div class="info"><div class="k">ربط المصدر</div><div class="v">${sourceBadge(lead)}</div></div>
-      <div class="info wide"><div class="k">آخر ملاحظة</div><div class="v note-box">${orDash(lead.last_note)}</div></div>
+      <div class="info wide"><div class="k">آخر ملاحظة في Google Sheet</div><div class="v note-box">${orDash(lead.last_note)}</div></div>
+      ${lead.odoo ? `<div class="info wide"><div class="k">آخر ملاحظة في Odoo Chatter</div><div class="v note-box">${orDash(latestOdooNote(o))}</div></div>` : ""}
     </div>
     <div id="match-area"></div>
-    <div class="actions">
-      <button class="btn call" id="btn-call">${PHONE_ICON} اتصال الآن</button>
-      <button class="btn primary" id="btn-open">فتح في Odoo</button>
-      <button class="btn" id="btn-result">تسجيل النتيجة</button>
-      <button class="btn" id="btn-research">إعادة البحث</button>
-      <button class="btn" id="btn-refresh">تحديث البيانات</button>
-      <span class="spacer"></span>
-      <button class="btn" id="btn-skip">تخطي مؤقتًا</button>
+    <div id="lead-msg"></div>
     </div>
-    <div id="lead-msg" style="margin-top:12px"></div>`;
+    <div class="action-bar">
+      <button class="btn call" id="btn-call">${PHONE_ICON} اتصال الآن <kbd>C</kbd></button>
+      <button class="btn primary" id="btn-open">${ICON.open} فتح في Odoo <kbd>O</kbd></button>
+      <button class="btn" id="btn-result">${ICON.result} تسجيل النتيجة <kbd>R</kbd></button>
+      <button class="btn" id="btn-research">${ICON.search} إعادة البحث <kbd>F</kbd></button>
+      <button class="btn" id="btn-refresh">${ICON.refresh} تحديث <kbd>U</kbd></button>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="btn-skip">${ICON.skip} تخطي مؤقتًا <kbd>S</kbd></button>
+    </div>`;
   renderMatch(lead);
   const fp = lead.fingerprint;
+  $("#btn-copy").onclick = copyPhone;
   $("#btn-call").onclick = (ev) => startCall(ev.currentTarget);
   $("#btn-open").onclick = (ev) => withBusy(ev.currentTarget, () => leadAction(`/api/lead/${fp}/open`));
   $("#btn-research").onclick = () => searchOdoo();
@@ -207,10 +341,80 @@ function renderOdoo(o) {
     ["Source", o.source], ["Medium", o.medium], ["Campaign", o.campaign], ["UTM Source", o.utm_source],
     ["UTM Medium", o.utm_medium], ["UTM Campaign", o.utm_campaign], ["Service Type", o.service_type],
   ];
-  const notes = (o.latest_notes || []).map((n) => `<div class="info note-box" style="min-height:0;margin-top:6px">${esc(n)}</div>`).join("");
-  card.innerHTML = `<h2>بيانات Odoo <span class="badge blue small">#${o.id ?? "—"}</span></h2>
-    <div class="kv">${rows.map(([k, v]) => `<div class="k">${k}</div><div>${["Phone", "Mobile", "Email"].includes(k) ? `<span class="ltr">${orDash(v)}</span>` : orDash(v)}</div>`).join("")}</div>
-    <h3 style="margin-top:14px">آخر ملاحظات Chatter</h3>${notes || '<div class="muted">—</div>'}`;
+  let open = true;
+  try { open = localStorage.getItem("kla-odoo-open") !== "0"; } catch (e) { /* ignore */ }
+  card.innerHTML = `<details class="odoo-details" ${open ? "open" : ""}><summary><h2 style="margin:0">بيانات Odoo</h2>
+      <span class="badge indigo">#${o.id ?? "—"}</span><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary>
+    <div class="kv" style="margin-top:14px">${rows.map(([k, v]) => `<div class="k">${k}</div><div>${["Phone", "Mobile", "Email"].includes(k) ? `<span class="ltr">${orDash(v)}</span>` : orDash(v)}</div>`).join("")}</div></details>`;
+  $("details", card).addEventListener("toggle", (ev) => { try { localStorage.setItem("kla-odoo-open", ev.target.open ? "1" : "0"); } catch (e) { /* ignore */ } });
+}
+
+/** Odoo datetimes are UTC "YYYY-MM-DD HH:MM:SS"; show them in local time as dd/mm/yyyy HH:MM. */
+function parseOdooDate(v) {
+  if (!v) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/.exec(v);
+  if (!m) return null;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+}
+function fmtDate(v) {
+  const d = parseOdooDate(v);
+  if (!d) return v || "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fmtAgo(v) {
+  const d = parseOdooDate(v);
+  if (!d) return "";
+  const s = Math.round((Date.now() - d.getTime()) / 1000);
+  if (s < 60) return "الآن";
+  const m = Math.round(s / 60); if (m < 60) return `قبل ${m} د`;
+  const h = Math.round(m / 60); if (h < 24) return `قبل ${h} س`;
+  const days = Math.round(h / 24); if (days < 30) return days === 1 ? "أمس" : `قبل ${days} يوم`;
+  const mo = Math.round(days / 30); return mo < 12 ? `قبل ${mo} شهر` : `قبل ${Math.round(mo / 12)} سنة`;
+}
+function activityClass(date) {
+  if (!date) return "";
+  const today = new Date(); const p = (n) => String(n).padStart(2, "0");
+  const t = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`;
+  return date < t ? "overdue" : date === t ? "today" : "";
+}
+
+function chatterItem(m, isNew) {
+  const kind = KIND_LABEL[m.kind] ? m.kind : "system";
+  const changes = (m.tracking || []).map((t) => `<div class="tl-change">${t.field ? `<span class="muted">${esc(t.field)}:</span>` : ""}
+      ${t.old ? `<span class="old">${esc(t.old)}</span><span class="arrow">←</span>` : ""}<span class="new">${esc(t.new || "—")}</span></div>`).join("");
+  const long = (m.body || "").length > 320 || (m.body || "").split("\n").length > 5;
+  const body = m.body ? `<div class="tl-body ${long ? "clamp" : ""}">${esc(m.body)}</div>${long ? '<button class="tl-more" type="button">عرض المزيد</button>' : ""}` : "";
+  const subtype = m.subtype && !body && !changes ? `<div class="tl-body muted">${esc(m.subtype)}</div>` : "";
+  return `<li class="tl-item ${kind}${isNew ? " new" : ""}" data-kind="${kind}"><div class="tl-icon">${ICON[kind]}</div><div class="tl-card">
+    <div class="tl-meta"><b>${esc(m.author || "—")}</b><span class="badge">${KIND_LABEL[kind]}</span><span class="spacer"></span>
+      <span title="${esc(fmtDate(m.date))}">${esc(fmtAgo(m.date) || fmtDate(m.date))}</span></div>
+    ${body}${changes}${subtype}</div></li>`;
+}
+
+function renderChatter(o, live = false) {
+  const box = $("#chatter-body");
+  if (!o) { box.className = "muted"; box.innerHTML = "لم تتم المطابقة بعد."; S.seenChatter = { key: null, ids: new Set() }; return; }
+  box.className = "";
+  const items = o.chatter || [];
+  const acts = o.activities || [];
+  const key = String(o.id);
+  const prev = S.seenChatter.key === key ? S.seenChatter.ids : null;
+  const isNew = (m) => live && prev && !prev.has(m.id);
+  S.seenChatter = { key, ids: new Set(items.map((m) => m.id)) };
+  const count = (f) => items.filter((m) => f === "all" || m.kind === f || (f === "message" && m.kind === "email")).length;
+  const visible = items.filter((m) => S.chatterFilter === "all" || m.kind === S.chatterFilter || (S.chatterFilter === "message" && m.kind === "email"));
+  const actsHtml = acts.length ? `<h3 style="margin:4px 0 0">الأنشطة المجدولة</h3><div class="activity-list">${acts.map((a) => `
+      <div class="activity ${activityClass(a.date_deadline)}"><span class="when">${esc(a.date_deadline || "—")}</span>
+      <div style="min-width:0"><b>${esc(a.summary || a.type || "نشاط")}</b>${a.type && a.summary ? ` <span class="badge">${esc(a.type)}</span>` : ""}
+      <div class="small muted">${esc([a.user, a.note].filter(Boolean).join(" · "))}</div></div></div>`).join("")}</div>` : "";
+  box.innerHTML = `${actsHtml}
+    <div class="row" style="margin-top:${acts.length ? 16 : 0}px"><div class="seg" id="chatter-filter">${FILTERS.map(([f, l]) =>
+      `<button type="button" data-f="${f}" class="${S.chatterFilter === f ? "active" : ""}">${l}<span class="n">${count(f)}</span></button>`).join("")}</div></div>
+    ${visible.length ? `<ul class="timeline">${visible.map((m) => chatterItem(m, isNew(m))).join("")}</ul>`
+      : `<div class="empty" style="padding:26px 10px">${items.length ? "لا توجد عناصر من هذا النوع." : "لا يوجد سجل Chatter على هذا العميل بعد."}</div>`}`;
+  $$("#chatter-filter button", box).forEach((b) => b.onclick = () => { S.chatterFilter = b.dataset.f; renderChatter(S.manual || (S.lead && S.lead.odoo)); });
+  $$(".tl-more", box).forEach((b) => b.onclick = () => { const body = b.previousElementSibling; body.classList.toggle("clamp"); b.textContent = body.classList.contains("clamp") ? "عرض المزيد" : "عرض أقل"; });
 }
 
 // ----------------------------------------------------------- odoo actions
@@ -252,16 +456,27 @@ function candidateTable(cands, btnLabel) {
     ${cands.map((c, i) => `<tr><td><b>${esc(c.company_name || c.name)}</b>${c.company_name && c.name && c.name !== c.company_name ? `<div class="small muted">${esc(c.name)}</div>` : ""}</td>
       <td class="ltr">${orDash(c.phone)}</td><td class="ltr">${orDash(c.mobile)}</td><td>${orDash(c.salesperson)}</td>
       <td>${orDash([c.source, c.medium].filter(Boolean).join(" / "))}</td><td>${orDash(c.stage)}${c.active === false ? ' <span class="badge red">مؤرشف</span>' : ""}</td>
-      <td><button class="btn primary sm" data-i="${i}">${btnLabel}</button></td></tr>`).join("")}
+      <td><button class="btn primary sm" data-i="${i}">${btnLabel}${i < 9 ? ` <kbd>${i + 1}</kbd>` : ""}</button></td></tr>`).join("")}
     </tbody></table></div>`;
+}
+
+/** In a modal: digit N clicks the N-th [data-i] / [data-m] button. */
+function digitPicker(ev) {
+  const m = /^(?:Digit|Numpad)([1-9])$/.exec(ev.code);
+  if (!m || ev.ctrlKey || ev.altKey || ev.metaKey) return false;
+  const btns = $$("#modal-backdrop button[data-i], #modal-backdrop button[data-m]");
+  const b = btns[+m[1] - 1];
+  if (b) b.click();
+  return !!b;
 }
 
 function chooseCandidate(lead) {
   const cands = lead.candidates || [];
   Modal.open({
     title: "وجدنا أكثر من عميل", wide: true,
-    html: `<p class="muted">اختر الـLead الصحيح. لن يتم الاختيار تلقائيًا ولن يتم إنشاء Lead جديد.</p>${candidateTable(cands, "اختيار")}`,
+    html: `<p class="muted">اختر الـLead الصحيح. لن يتم الاختيار تلقائيًا ولن يتم إنشاء Lead جديد. <span class="small">(اضغط رقم الصف <kbd>1</kbd>…<kbd>9</kbd> للاختيار)</span></p>${candidateTable(cands, "اختيار")}`,
     buttons: [{ label: "إغلاق" }],
+    onKey: digitPicker,
     onOpen: (m) => $$("button[data-i]", m).forEach((b) => b.onclick = () => withBusy(b, async () => {
       const c = cands[+b.dataset.i];
       Modal.close();
@@ -276,8 +491,9 @@ function askSkip(fp) {
     title: "تخطي مؤقتًا",
     html: `<p class="muted">لن يتم تعديل Google Sheet. سيظهر العميل مرة أخرى لاحقًا.</p>
       <label class="field"><span>السبب (اختياري)</span><input type="text" id="skip-reason"></label>
-      <div class="actions">${modes.map(([m, l]) => `<button class="btn lg" data-m="${m}">${l}</button>`).join("")}</div>`,
+      <div class="actions">${modes.map(([m, l], i) => `<button class="btn lg" data-m="${m}">${l} <kbd>${i + 1}</kbd></button>`).join("")}</div>`,
     buttons: [{ label: "إلغاء" }],
+    onKey: digitPicker,
     onOpen: (m) => $$("button[data-m]", m).forEach((b) => b.onclick = async () => {
       const reason = $("#skip-reason").value;
       Modal.close();
@@ -336,9 +552,10 @@ async function openResultPanel() {
   const card = $("#result-card");
   const src = ctx.source || {};
   card.classList.remove("hidden");
-  card.innerHTML = `<h2>تسجيل النتيجة — ${esc(ctx.company)}</h2>
+  card.innerHTML = `<div class="card-head"><h2>تسجيل النتيجة — ${esc(ctx.company)}</h2><span class="spacer"></span>
+      <span class="small muted">اختر بالأرقام <kbd>1</kbd>…<kbd>${Math.min(S.statuses.length, 9)}</kbd> · <kbd>T</kbd> للملاحظة</span></div>
     ${ctx.odooId ? "" : '<div class="alert warn">العميل غير مربوط بـLead في Odoo؛ لن تتم إضافة Log Note.</div>'}
-    <div class="result-buttons">${S.statuses.map((s) => `<button type="button" class="result-btn" data-code="${s.code}">${esc(s.label)}</button>`).join("")}</div>
+    <div class="result-buttons">${S.statuses.map((s, i) => `<button type="button" class="result-btn" data-code="${s.code}">${i < 9 ? `<span class="num">${i + 1}</span>` : ""}${esc(s.label)}</button>`).join("")}</div>
     <div style="margin-top:16px">
       <label class="field"><span>ملاحظة حرة</span><textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
       <div id="r-followup" class="form-grid hidden">
@@ -359,9 +576,9 @@ async function openResultPanel() {
       ${ctx.manual ? '<div class="alert info small">وضع يدوي: العميل غير مربوط بصف مؤكد في Google Sheet، لذلك لن يتم تحديث Sheet.</div>' : ""}
       <div id="r-msg"></div>
       <div class="actions">
-        <button class="btn success lg" id="r-save">${S.settings.dry_run ? "حفظ (Dry Run – معاينة)" : "حفظ النتيجة"}</button>
+        <button class="btn success lg" id="r-save">${S.settings.dry_run ? "حفظ (Dry Run – معاينة)" : "حفظ النتيجة"} <kbd>Ctrl ↵</kbd></button>
         <button class="btn" id="r-preview">معاينة التغييرات</button>
-        <button class="btn ghost" id="r-cancel">إلغاء</button>
+        <button class="btn ghost" id="r-cancel">إلغاء <kbd>Esc</kbd></button>
       </div>
     </div>`;
   $$(".result-btn", card).forEach((b) => b.onclick = () => selectResult(b.dataset.code));
@@ -461,18 +678,20 @@ function afterSave(res) {
   const card = $("#next-card");
   card.classList.remove("hidden");
   if (res.next_delay === null || res.next_delay === undefined) {
-    card.innerHTML = `<div class="row between"><b>${esc(res.message)}</b><button class="btn primary" id="btn-next">العميل التالي</button></div>`;
+    card.innerHTML = `<div class="row between"><b>${esc(res.message)}</b><button class="btn primary" id="btn-next">العميل التالي <kbd>N</kbd></button></div>`;
     $("#btn-next").onclick = goNext;
     return;
   }
   let left = res.next_delay;
+  const total = Math.max(1, res.next_delay);
   const draw = () => {
     card.innerHTML = `<div class="countdown"><b>${esc(res.message)}</b><span class="spacer"></span>
+      <span class="ring" style="--p:${Math.round((left / total) * 100)}"><span>${left}</span></span>
       <span>الانتقال للعميل التالي خلال <b>${left}</b> ثوانٍ</span>
-      <button class="btn" id="btn-cancel-next">إلغاء الانتقال</button><button class="btn primary" id="btn-next">الانتقال الآن</button></div>`;
+      <button class="btn" id="btn-cancel-next">إلغاء الانتقال <kbd>Esc</kbd></button><button class="btn primary" id="btn-next">الانتقال الآن <kbd>N</kbd></button></div>`;
     $("#btn-cancel-next").onclick = () => {
       clearInterval(S.nextTimer);
-      card.innerHTML = `<div class="row between"><span>تم إلغاء الانتقال التلقائي.</span><button class="btn primary" id="btn-next">العميل التالي</button></div>`;
+      card.innerHTML = `<div class="row between"><span>تم إلغاء الانتقال التلقائي.</span><button class="btn primary" id="btn-next">العميل التالي <kbd>N</kbd></button></div>`;
       $("#btn-next").onclick = goNext;
     };
     $("#btn-next").onclick = goNext;
@@ -522,21 +741,29 @@ async function manualOpen(c) {
 function renderManual(o, warnings) {
   $("#result-card").classList.add("hidden");
   $("#lead-card").innerHTML = `
-    <div class="row small"><span class="badge amber">وضع البحث اليدوي</span></div>
-    <h2 class="lead-name">${esc(o.company_name || o.name)}</h2>
-    <div class="lead-phone"><span class="ltr">${esc(o.phone || o.mobile || "")}</span></div>
-    ${warnings.map((w) => `<div class="alert warn" style="margin-top:12px">${esc(w)}</div>`).join("")}
+    <div class="lead-hero"><div class="lead-title"><div class="avatar">${initials(o.company_name || o.name)}</div><div style="min-width:0">
+      <div class="row small"><span class="badge amber">وضع البحث اليدوي</span>${o.stage ? `<span class="badge indigo">${esc(o.stage)}</span>` : ""}</div>
+      <h2 class="lead-name">${esc(o.company_name || o.name)}</h2>
+      <div class="lead-phone"><span class="ltr">${esc(o.phone || o.mobile || "")}</span>
+        <button class="icon-btn" id="btn-copy" title="نسخ الرقم (P)">${ICON.copy}</button></div></div></div></div>
+    <div class="lead-body">
+    ${warnings.map((w) => `<div class="alert warn">${esc(w)}</div>`).join("")}
     <div class="info-grid">
       <div class="info"><div class="k">Source</div><div class="v">${orDash(o.source)}</div></div>
       <div class="info"><div class="k">Medium</div><div class="v">${orDash(o.medium)}</div></div>
       <div class="info"><div class="k">Campaign</div><div class="v">${orDash(o.campaign)}</div></div>
-    </div>
-    <div class="actions">
-      <button class="btn call" id="btn-call">${PHONE_ICON} اتصال الآن</button>
-      <button class="btn" id="btn-result">تسجيل النتيجة</button>
+      <div class="info wide"><div class="k">آخر ملاحظة في Odoo Chatter</div><div class="v note-box">${orDash(latestOdooNote(o))}</div></div>
+    </div><div id="lead-msg"></div></div>
+    <div class="action-bar">
+      <button class="btn call" id="btn-call">${PHONE_ICON} اتصال الآن <kbd>C</kbd></button>
+      <button class="btn" id="btn-result">${ICON.result} تسجيل النتيجة <kbd>R</kbd></button>
+      <span class="spacer"></span>
       <button class="btn ghost" id="btn-exit-manual">العودة لقائمة العمل</button>
-    </div><div id="lead-msg" style="margin-top:12px"></div>`;
+    </div>`;
   renderOdoo(o);
+  renderChatter(o);
+  Live.watch({ kind: "manual", id: o.id });
+  $("#btn-copy").onclick = copyPhone;
   $("#btn-call").onclick = (ev) => startCall(ev.currentTarget);
   $("#btn-result").onclick = () => openResultPanel();
   $("#btn-exit-manual").onclick = () => { stopCall(); loadCurrent(); };

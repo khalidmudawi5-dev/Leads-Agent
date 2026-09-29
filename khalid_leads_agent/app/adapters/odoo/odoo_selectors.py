@@ -115,6 +115,12 @@ CHATTER_MESSAGE = [
     ".o-mail-Message",
     ".o_Message_content",
 ]
+# Reading the chatter history from the page (fallback when the JSON-RPC read is unavailable).
+CHATTER_ITEM = [".o-mail-Message", ".o_Message"]
+CHATTER_AUTHOR = [".o-mail-Message-author", ".o_Message_authorName"]
+CHATTER_DATE = [".o-mail-Message-date", ".o_Message_date"]
+CHATTER_BODY = [".o-mail-Message-body", ".o_Message_content"]
+CHATTER_TRACKING = [".o-mail-Message-tracking", ".o_MessageTrackingValue", ".o_TrackingValue"]
 ACTIVITY_BUTTON = [
     "button.o-mail-Chatter-activity",
     "button.o_ChatterTopbar_buttonScheduleActivity",

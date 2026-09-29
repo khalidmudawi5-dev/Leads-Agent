@@ -212,3 +212,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   try { await loadSettings(); } catch (e) { toast(e.message, "error"); }
   if (hash) { const t = $(`.tab[data-tab="${hash}"]`); if (t) t.click(); }
 });
+
+Shortcuts.register([
+  { code: "KeyS", label: "S", ctrl: true, allowInInputs: true, title: "حفظ القسم الحالي في الإعدادات", group: "الإعدادات",
+    run: () => { const b = $(".tab-panel.active [data-save], .tab-panel.active .actions .btn.primary"); if (b) b.click(); } },
+]);

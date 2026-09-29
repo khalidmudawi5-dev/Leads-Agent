@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="stats" id="stats">
-  <div class="stat"><div class="label">عملاء {{ owner }} اليوم</div><div class="value" data-k="owner_total">–</div></div>
+  <div class="stat primary-stat"><div class="label">عملاء {{ owner }} اليوم</div><div class="value" data-k="owner_total">–</div></div>
   <div class="stat s-indigo"><div class="label">بانتظار التواصل</div><div class="value" data-k="pending">–</div></div>
   <div class="stat s-slate"><div class="label">تم التواصل</div><div class="value" data-k="contacted">–</div></div>
   <div class="stat s-amber"><div class="label">لم يتم الرد</div><div class="value" data-k="no_answer">–</div></div>
@@ -11,13 +11,20 @@
   <div class="stat s-rose"><div class="label">أخطاء المطابقة</div><div class="value" data-k="match_errors">–</div></div>
 </div>
 
-<form class="search-bar" id="manual-form" autocomplete="off">
-  <input type="search" id="manual-q" placeholder="بحث يدوي في Odoo: اكتب اسم عميل أو رقم جوال (حتى لو لم يكن ضمن القائمة)">
+<form class="toolbar" id="manual-form" autocomplete="off">
+  <div class="search-field">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input type="search" id="manual-q" placeholder="بحث يدوي في Odoo: اسم عميل أو رقم جوال (حتى لو لم يكن ضمن القائمة)">
+    <kbd>/</kbd>
+  </div>
   <button class="btn primary" type="submit">بحث في Odoo</button>
-  <button class="btn" type="button" id="btn-refresh-queue">تحديث القائمة من Google Sheet</button>
+  <button class="btn" type="button" id="btn-refresh-queue" title="تحديث القائمة من Google Sheet (Shift+R)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg>تحديث القائمة</button>
 </form>
 
-<div id="dry-ribbon" class="dryrun-ribbon hidden">وضع Dry Run مفعّل: لن يتم تعديل Odoo أو Google Sheet — الحفظ يعرض معاينة فقط</div>
+<div id="dry-ribbon" class="dryrun-ribbon hidden">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17v.5"/></svg>
+  وضع Dry Run مفعّل: لن يتم تعديل Odoo أو Google Sheet — الحفظ يعرض معاينة فقط</div>
 <div id="global-msg"></div>
 <div id="call-banner" class="call-banner hidden">
   <span class="pulse"></span>
@@ -26,16 +33,20 @@
   <span class="timer" id="call-timer">00:00</span>
   <span class="spacer"></span>
   <button class="btn" id="btn-end-call">إنهاء تسجيل المكالمة</button>
-  <button class="btn success" id="btn-result-from-call">تسجيل النتيجة</button>
+  <button class="btn success" id="btn-result-from-call">تسجيل النتيجة <kbd>R</kbd></button>
 </div>
 
 <div class="grid-2">
   <section>
-    <div class="card" id="lead-card"><div class="empty"><span class="spinner"></span> جاري تحميل العميل…</div></div>
+    <div class="card lead-card" id="lead-card"><div class="empty"><span class="spinner"></span> جاري تحميل العميل…</div></div>
     <div class="card hidden" id="result-card"></div>
     <div class="card hidden" id="next-card"></div>
   </section>
   <aside>
+    <div class="card" id="chatter-card">
+      <div class="card-head"><h2>سجل Odoo (Chatter)</h2><span class="spacer"></span><span class="live-pill off" id="live-pill"><span class="dot"></span><span class="t">غير مربوط</span></span></div>
+      <div id="chatter-body" class="muted">لم تتم المطابقة بعد.</div>
+    </div>
     <div class="card" id="odoo-card"><h2>بيانات Odoo</h2><div class="muted">—</div></div>
     <div class="card" id="session-card"><h2>الجلسة الحالية</h2><div class="muted">—</div></div>
   </aside>

@@ -41,9 +41,39 @@ log = logging.getLogger(__name__)
 
 WANTED_FIELDS = [
     "name", "partner_name", "partner_id", "contact_name", "phone", "mobile", "email_from", "user_id",
-    "stage_id", "source_id", "medium_id", "campaign_id", "type", "active",
+    "stage_id", "source_id", "medium_id", "campaign_id", "type", "active", "write_date",
 ]
+MESSAGE_FIELDS = [
+    "body", "date", "author_id", "email_from", "message_type", "subtype_id", "tracking_value_ids",
+    "is_internal", "write_date",
+]
+TRACKING_FIELDS = [
+    "field_id", "field", "field_desc", "old_value_char", "new_value_char", "old_value_datetime",
+    "new_value_datetime", "old_value_float", "new_value_float", "old_value_integer", "new_value_integer",
+]
+ACTIVITY_FIELDS = ["date_deadline", "summary", "activity_type_id", "user_id", "note", "state"]
+_NOTE_SUBTYPES = {"note", "notes", "ملاحظة", "ملاحظات"}
 _SERVICE_HINTS = ("service", "خدمة", "الخدمة")
+
+_DOM_CHATTER_JS = """
+(sel) => {
+  const pick = (root, list) => { for (const s of list) { const e = root.querySelector(s); if (e) return e; } return null; };
+  const items = [];
+  for (const s of sel.item) { const found = document.querySelectorAll(s); if (found.length) { items.push(...found); break; } }
+  return items.slice(0, sel.limit).map((m) => {
+    const date = pick(m, sel.date);
+    const body = pick(m, sel.body);
+    const tracking = pick(m, sel.tracking);
+    const author = pick(m, sel.author);
+    return {
+      author: author ? author.textContent.trim() : '',
+      date: date ? (date.getAttribute('title') || date.textContent || '').trim() : '',
+      body: body ? body.innerText.trim() : '',
+      tracking_text: tracking ? tracking.innerText.trim() : '',
+    };
+  });
+}
+"""
 
 _LABEL_LOOKUP_JS = """
 (label) => {
@@ -78,6 +108,15 @@ def _m2o(value: Any) -> str:
 
 def _val(value: Any) -> str:
     return "" if value in (False, None) else str(value)
+
+
+def _tracking_value(row: dict, side: str) -> str:
+    """First non-empty ``old_value_*`` / ``new_value_*`` of a mail.tracking.value row."""
+    for kind in ("char", "datetime", "float", "integer"):
+        v = row.get(f"{side}_value_{kind}")
+        if v not in (False, None, ""):
+            return str(v)
+    return ""
 
 
 def _stamp() -> str:
@@ -231,13 +270,21 @@ class BrowserOdooAdapter(OdooAdapter):
             {"model": model, "method": method, "args": args or [], "kwargs": kwargs or {}},
         )
 
-    async def _w_fields(self) -> dict[str, dict]:
-        key = self.base
+    async def _w_fields(self, model: str = "crm.lead") -> dict[str, dict]:
+        key = f"{self.base}|{model}"
         if key not in self._fields_cache:
             self._fields_cache[key] = await self._w_call_kw(
-                "crm.lead", "fields_get", [], {"attributes": ["string", "type", "relation", "selection"]}
+                model, "fields_get", [], {"attributes": ["string", "type", "relation", "selection"]}
             ) or {}
         return self._fields_cache[key]
+
+    async def _w_existing(self, model: str, wanted: list[str], required: list[str]) -> list[str]:
+        """Subset of ``wanted`` that exists on ``model`` in this Odoo version (``required`` if unknown)."""
+        try:
+            fields = await self._w_fields(model)
+        except OdooRpcError:
+            return required
+        return [f for f in wanted if f in fields] or required
 
     def _service_field(self, fields: dict[str, dict]) -> str | None:
         for name, meta in fields.items():
@@ -285,6 +332,7 @@ class BrowserOdooAdapter(OdooAdapter):
             service_type=service_val,
             lead_type=_val(rec.get("type")),
             active=bool(rec.get("active", True)),
+            write_date=_val(rec.get("write_date")),
             url=self.s.lead_url(lead_id),
         )
 
@@ -507,15 +555,113 @@ class BrowserOdooAdapter(OdooAdapter):
             raise AgentError("ODOO_LEAD_NOT_FOUND", "العميل غير موجود في Odoo أو لا تملك صلاحية عليه.")
         lead = self._record_to_lead(recs[0], fields)
         try:
-            msgs = await self._w_call_kw(
-                "mail.message", "search_read", [],
-                {"domain": [["model", "=", "crm.lead"], ["res_id", "=", lead_id], ["message_type", "=", "comment"]],
-                 "fields": ["body", "date"], "limit": 3, "order": "id desc"},
-            ) or []
-            lead.latest_notes = [html_to_text(m.get("body"))[:500] for m in msgs if m.get("body")]
+            lead.chatter = await self._w_chatter(lead_id)
         except OdooRpcError:
             log.info("Could not read chatter for lead %s", lead_id, exc_info=True)
+        lead.latest_notes = [m["body"][:500] for m in lead.chatter if m["kind"] in ("note", "message") and m["body"]][:3]
+        try:
+            lead.activities = await self._w_activities(lead_id)
+        except OdooRpcError:
+            log.info("Could not read activities for lead %s", lead_id, exc_info=True)
         return lead
+
+    # ------------------------------------------------------------- chatter
+    async def _w_tracking(self, ids: list[int]) -> dict[int, dict[str, str]]:
+        """Field changes (stage, salesperson...). Often admin-only: failures are ignored."""
+        if not ids:
+            return {}
+        try:
+            wanted = await self._w_existing("mail.tracking.value", TRACKING_FIELDS, ["field_desc"])
+            rows = await self._w_call_kw("mail.tracking.value", "read", [ids], {"fields": wanted}) or []
+        except (OdooRpcError, OdooRpcUnavailable):
+            log.debug("Tracking values not readable", exc_info=True)
+            return {}
+        out: dict[int, dict[str, str]] = {}
+        for r in rows:
+            label = _val(r.get("field_desc")) or _m2o(r.get("field_id")) or _val(r.get("field"))
+            label = re.sub(r"\s*\([\w.]+\)\s*$", "", label)
+
+            out[int(r["id"])] = {"field": label, "old": _tracking_value(r, "old"), "new": _tracking_value(r, "new")}
+        return out
+
+    async def _w_chatter(self, lead_id: int) -> list[dict[str, Any]]:
+        wanted = await self._w_existing("mail.message", MESSAGE_FIELDS, ["body", "date"])
+        msgs = await self._w_call_kw(
+            "mail.message", "search_read", [],
+            {"domain": [["model", "=", "crm.lead"], ["res_id", "=", lead_id]], "fields": wanted,
+             "limit": self.s.chatter_history_limit, "order": "id desc"},
+        ) or []
+        tracking = await self._w_tracking([t for m in msgs for t in (m.get("tracking_value_ids") or [])])
+        out: list[dict[str, Any]] = []
+        for m in msgs:
+            changes = [tracking[t] for t in (m.get("tracking_value_ids") or []) if t in tracking]
+            subtype = _m2o(m.get("subtype_id"))
+            mtype = _val(m.get("message_type"))
+            if mtype == "comment":
+                internal = m.get("is_internal") is True or subtype.strip().lower() in _NOTE_SUBTYPES
+                kind = "note" if internal else "message"
+            elif mtype in ("email", "email_outgoing"):
+                kind = "email"
+            elif changes or m.get("tracking_value_ids"):
+                kind = "tracking"
+            else:
+                kind = "system"
+            out.append({
+                "id": m.get("id"), "date": _val(m.get("date")), "author": _m2o(m.get("author_id")) or _val(m.get("email_from")),
+                "kind": kind, "subtype": subtype, "body": html_to_text(m.get("body"))[:4000], "tracking": changes,
+            })
+        return out
+
+    async def _w_activities(self, lead_id: int) -> list[dict[str, Any]]:
+        wanted = await self._w_existing("mail.activity", ACTIVITY_FIELDS, ["date_deadline", "summary"])
+        rows = await self._w_call_kw(
+            "mail.activity", "search_read", [],
+            {"domain": [["res_model", "=", "crm.lead"], ["res_id", "=", lead_id]], "fields": wanted,
+             "limit": 20, "order": "date_deadline asc"},
+        ) or []
+        return [{"id": r.get("id"), "date_deadline": _val(r.get("date_deadline")), "summary": _val(r.get("summary")),
+                 "type": _m2o(r.get("activity_type_id")), "user": _m2o(r.get("user_id")),
+                 "note": html_to_text(_val(r.get("note")))[:1000], "state": _val(r.get("state"))} for r in rows]
+
+    async def _w_dom_chatter(self, page) -> list[dict[str, Any]]:
+        try:
+            rows = await page.evaluate(_DOM_CHATTER_JS, {
+                "item": S.CHATTER_ITEM, "author": S.CHATTER_AUTHOR, "date": S.CHATTER_DATE, "body": S.CHATTER_BODY,
+                "tracking": S.CHATTER_TRACKING, "limit": self.s.chatter_history_limit,
+            })
+        except Exception:  # noqa: BLE001
+            log.debug("DOM chatter read failed", exc_info=True)
+            return []
+        out = []
+        for i, r in enumerate(rows or []):
+            tracking = [{"field": "", "old": "", "new": r["tracking_text"]}] if r.get("tracking_text") else []
+            kind = "note" if r.get("body") else ("tracking" if tracking else "system")
+            out.append({"id": -(i + 1), "date": r.get("date", ""), "author": r.get("author", ""), "kind": kind,
+                        "subtype": "", "body": (r.get("body") or "")[:4000], "tracking": tracking})
+        return out
+
+    async def _w_signature(self, lead_id: int) -> str | None:
+        if not self.browser_started:
+            return None  # never launch a browser just to poll
+        try:
+            recs = await self._w_call_kw("crm.lead", "read", [[lead_id]], {"fields": ["write_date"]}) or []
+            domain = [["model", "=", "crm.lead"], ["res_id", "=", lead_id]]
+            count = await self._w_call_kw("mail.message", "search_count", [domain])
+            last = await self._w_call_kw("mail.message", "search_read", [],
+                                         {"domain": domain, "fields": ["write_date"], "limit": 1,
+                                          "order": "write_date desc, id desc"}) or []
+            acts = await self._w_call_kw("mail.activity", "search_read", [],
+                                         {"domain": [["res_model", "=", "crm.lead"], ["res_id", "=", lead_id]],
+                                          "fields": ["write_date"], "order": "id asc"}) or []
+        except (OdooRpcUnavailable, OdooRpcError):
+            return None
+        lead_wd = _val(recs[0].get("write_date")) if recs else "missing"
+        msg = f"{last[0].get('id')}@{_val(last[0].get('write_date'))}" if last else "-"
+        act = ",".join(f"{a.get('id')}@{_val(a.get('write_date'))}" for a in acts)
+        return f"{lead_wd}|{count}|{msg}|{act}"
+
+    async def lead_signature(self, lead_id: int) -> str | None:
+        return await self._exec(self._w_signature, lead_id)
 
     async def get_lead(self, lead_id: int) -> OdooLead:
         return await self._exec(self._w_get_lead, lead_id)
@@ -562,6 +708,8 @@ class BrowserOdooAdapter(OdooAdapter):
             result.utm_source, result.utm_medium, result.utm_campaign = result.source, result.medium, result.campaign
         if not result.latest_notes:
             result.latest_notes = json.loads(dom.get("notes") or "[]")
+        if not result.chatter:
+            result.chatter = await self._w_dom_chatter(page)
         result.url = page.url
         return result
 
