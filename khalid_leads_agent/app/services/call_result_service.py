@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -41,6 +42,17 @@ log = logging.getLogger(__name__)
 class _SafeDict(dict):
     def __missing__(self, key: str) -> str:
         return "{" + key + "}"
+
+
+def clean_note(body: str) -> str:
+    """Drop lines whose value is empty ("الملاحظات: -")."""
+    return "\n".join(line for line in body.split("\n") if not re.fullmatch(r"[^:\n]+:\s*-?\s*", line)).strip()
+
+
+def note_signature(body: str) -> str:
+    """Lines used to find an already-posted note (instead of a visible reference code)."""
+    lines = [ln.strip() for ln in body.split("\n") if ln.strip() and not re.search(r"[&<>\"']", ln)]
+    return "\n".join(lines[:6])
 
 
 def render_note(template: str, **values: str) -> str:
@@ -155,8 +167,10 @@ class ResultService:
         )
         if inp.trial_registered.strip():
             odoo_body += f"\nالتسجيل بالنسخة التجريبية: {inp.trial_registered.strip()}"
+        odoo_body = clean_note(odoo_body)
         if "{ref}" not in s.odoo_note_template:
-            odoo_body += f"\n{ref}"  # the ref is required for de-duplication
+            # No visible reference: the note's own lines (result + notes + date/time) identify it.
+            ref = note_signature(odoo_body)
 
         sheet_changes: dict[str, str] = {"followup_status": status_value}
         if source_value:

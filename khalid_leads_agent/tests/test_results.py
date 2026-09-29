@@ -29,7 +29,8 @@ def test_real_save_updates_odoo_and_sheet_then_next(container, sheet, odoo):
     assert res["message"] == "تم حفظ النتيجة في Odoo وGoogle Sheet"
     assert len(odoo.notes) == 1
     body = odoo.notes[0]["body"]
-    assert "متابعة آلية بواسطة Khalid Leads Agent" in body and "نتيجة التواصل: مهتم" in body and "KLA-" in body
+    assert body.startswith("نتيجة التواصل: مهتم\nالملاحظات: العميل مهتم")
+    assert "التاريخ:" in body and "متابعة آلية" not in body and "المصدر" not in body and "KLA-" not in body
     row = sheet.sheets["Leads"][1]
     assert row[3] == "مهتم" and row[5] == "Meta || Leads" and "العميل مهتم" in row[9]
     nxt = asyncio.run(container.workflow.next())
@@ -212,3 +213,28 @@ def test_trial_registered_empty_means_no_change(container, sheet):
     res = save(container, idempotency_key="key-trial-02", fingerprint=lead["fingerprint"], result_code="NO_ANSWER")
     assert "trial_registered" not in {c["key"] for c in res["preview"]["sheet"]}
     assert sheet.sheets["Leads"][1][6] == "لا"
+
+
+
+def test_clean_note_is_not_posted_twice_on_retry(container, odoo):
+    lead = prepare(container)
+    odoo.fail_note = True  # Odoo step fails first → partial
+    res = save(container, idempotency_key="key-clean-01", fingerprint=lead["fingerprint"], result_code="NO_ANSWER")
+    assert res["odoo_note_status"] == "failed"
+    odoo.fail_note = False
+    body = res["preview"]["odoo_note"]
+    assert "الملاحظات" not in body  # empty value line dropped
+    odoo.notes.append({"lead_id": 1, "body": body})  # it was actually posted before the error
+    again = asyncio.run(container.results.retry(res["result_id"]))
+    assert again["odoo_note_status"] == "existing" or len(odoo.notes) == 1
+
+
+def test_legacy_note_template_migrated(env, sheet, odoo):
+    from app.config import DEFAULT_NOTE_TEMPLATE, LEGACY_NOTE_TEMPLATE
+    from app.models import SettingEntry
+    c = make_container(env, sheet, odoo, odoo_note_template=LEGACY_NOTE_TEMPLATE)
+    with c.db.session() as s:  # simulate a database from before 1.7
+        s.query(SettingEntry).filter_by(key="note_template_v17").delete()
+    c.settings.seed()
+    c.settings.invalidate()
+    assert c.settings.get().odoo_note_template == DEFAULT_NOTE_TEMPLATE

@@ -67,7 +67,7 @@
         <option value="windows_handler">فتح العميل في Odoo وقراءة رابط Call ثم تسليمه لـWindows</option></select></label>
       <label class="check"><input type="checkbox" data-key="call_check_phone"> فحص رقم الجوال قبل الاتصال (إيقاف الاتصال إذا كان الرقم خاطئًا)</label>
       <label class="check"><input type="checkbox" data-key="call_fallback_windows_handler"> إذا لم يوجد زر الاتصال: استخدم رابط tel: في Windows مباشرة</label>
-      <label class="field full"><span>نص Log Note (المتغيرات: {result} {notes} {date} {source} {ref} {owner} {company} {phone})</span>
+      <label class="field full"><span>نص Log Note (المتغيرات: {result} {notes} {date} {source} {owner} {company} {phone} — السطور الفارغة تُحذف تلقائيًا)</span>
         <textarea data-key="odoo_note_template" rows="7"></textarea></label>
     </div>
     <div class="actions"><button class="btn primary" data-save="odoo">حفظ</button>

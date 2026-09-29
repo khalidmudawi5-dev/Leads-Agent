@@ -59,7 +59,7 @@ def test_full_workflow_real_browser(env):
             assert res["status"] == "done", res
             assert res["odoo_note_status"] == "success" and res["odoo_activity_status"] == "success"
             assert res["sheet_status"] == "success"
-            agent_notes = [m for m in fake.state.messages if "KLA-" in m["body"]]
+            agent_notes = [m for m in fake.state.messages if "نتيجة التواصل" in m["body"]]
             assert len(agent_notes) == 1 and "نتيجة التواصل: متابعة لاحقًا" in agent_notes[0]["body"]
             assert fake.state.activities[0]["date_deadline"] == "2026-10-01"
             row = sheet.sheets["Leads"][1]

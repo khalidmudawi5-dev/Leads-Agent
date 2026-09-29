@@ -20,7 +20,7 @@ from app.utils.logging import setup_logging
 
 log = logging.getLogger("app")
 APP_DIR = PROJECT_ROOT / "app"
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 CSRF_HEADER = "x-kla"
 _QUIET_CODES = {"CONFIG_INCOMPLETE", "QUERY_TOO_SHORT", "FOLLOWUP_DATE_REQUIRED", "STATUS_FILTER_EMPTY", "PHONE_INVALID"}
 

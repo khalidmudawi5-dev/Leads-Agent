@@ -167,6 +167,17 @@ function setTheme(theme) {
   const label = $("#theme-label");
   if (label) label.textContent = document.documentElement.dataset.theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن";
 }
+const PALETTES = ["indigo", "blue", "stc"];
+function setPalette(p) {
+  if (!PALETTES.includes(p)) p = "indigo";
+  if (p === "indigo") delete document.documentElement.dataset.palette; else document.documentElement.dataset.palette = p;
+  try { localStorage.setItem("kla-palette", p); } catch (e) { /* private mode */ }
+  $$(".swatch").forEach((b) => b.classList.toggle("on", b.dataset.p === p));
+}
+function cyclePalette() {
+  const cur = document.documentElement.dataset.palette || "indigo";
+  setPalette(PALETTES[(PALETTES.indexOf(cur) + 1) % PALETTES.length]);
+}
 function toggleTheme() { setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"); }
 
 const PAGES = ["/", "/history", "/skipped", "/errors", "/settings", "/diagnostics"];
@@ -174,6 +185,7 @@ const PAGE_TITLES = ["الرئيسية", "سجل المتابعات", "العم�
 Shortcuts.register([
   { code: "Slash", label: "?", shift: true, title: "عرض الاختصارات", group: "عام", run: () => Shortcuts.help() },
   { code: "KeyD", label: "D", alt: true, title: "تبديل الوضع الداكن / الفاتح", group: "عام", allowInInputs: true, run: toggleTheme },
+  { code: "KeyT", label: "T", alt: true, title: "تبديل نمط الألوان (الأصلي / أزرق وأبيض / stc)", group: "عام", allowInInputs: true, run: cyclePalette },
   ...PAGES.map((url, i) => ({ code: `Digit${i + 1}`, label: String(i + 1), alt: true, title: `الانتقال إلى ${PAGE_TITLES[i]}`,
     group: "التنقل", allowInInputs: true, run: () => { if (location.pathname !== url) location.href = url; } })),
 ]);
@@ -232,6 +244,8 @@ async function refreshStatus() {
 document.addEventListener("DOMContentLoaded", () => {
   setTheme(document.documentElement.dataset.theme || "");
   const th = $("#btn-theme"); if (th) th.onclick = toggleTheme;
+  setPalette(document.documentElement.dataset.palette || "indigo");
+  $$(".swatch").forEach((b) => b.onclick = () => setPalette(b.dataset.p));
   const sh = $("#btn-shortcuts"); if (sh) sh.onclick = () => Shortcuts.help();
   refreshStatus();
   setInterval(refreshStatus, 20000);

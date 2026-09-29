@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }} · Khalid Leads Agent</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <script>try { var t = localStorage.getItem("kla-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+  <script>try { var t = localStorage.getItem("kla-theme"); if (t) document.documentElement.dataset.theme = t;
+    var p = localStorage.getItem("kla-palette"); if (p) document.documentElement.dataset.palette = p; } catch (e) {}</script>
   <link rel="preload" href="/static/fonts/tajawal-arabic-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/tajawal-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
@@ -35,6 +36,10 @@
     </ul>
     <div class="foot">
       <button type="button" class="side-btn" id="btn-shortcuts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>الاختصارات<kbd>?</kbd></button>
+      <div class="palette-row"><span class="lbl">النمط <kbd>Alt T</kbd></span>
+        <button type="button" class="swatch" data-p="indigo" title="الأصلي (بنفسجي نيلي)"></button>
+        <button type="button" class="swatch" data-p="blue" title="أزرق وأبيض"></button>
+        <button type="button" class="swatch" data-p="stc" title="مستوحى من stc (بنفسجي ومرجاني)"></button></div>
       <button type="button" class="side-btn" id="btn-theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span id="theme-label">الوضع الداكن</span><kbd>Alt D</kbd></button>
       <div class="ver">الإصدار {{ version }} · يعمل محليًا فقط</div>
     </div>

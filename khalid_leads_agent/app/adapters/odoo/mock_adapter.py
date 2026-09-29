@@ -87,7 +87,8 @@ class MockOdooAdapter(OdooAdapter):
 
     async def post_log_note(self, lead_id: int, body: str, ref: str) -> ActionOutcome:
         self._check()
-        if any(n["lead_id"] == lead_id and ref in n["body"] for n in self.notes):
+        snippets = [x for x in ref.split("\n") if x.strip()]
+        if snippets and any(n["lead_id"] == lead_id and all(x in n["body"] for x in snippets) for n in self.notes):
             return ActionOutcome(True, "existing", already_done=True)
         if self.fail_note:
             return ActionOutcome(False, "none", "mock failure")

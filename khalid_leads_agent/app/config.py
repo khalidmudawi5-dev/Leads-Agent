@@ -89,13 +89,19 @@ COLUMN_LABELS_AR: dict[str, str] = {
 
 EMPTY_TOKEN = "(فارغ)"
 
-DEFAULT_NOTE_TEMPLATE = (
+# Before 1.7 the note carried an agent header, the source and a "KLA-…" reference line.
+LEGACY_NOTE_TEMPLATE = (
     "متابعة آلية بواسطة Khalid Leads Agent\n"
     "نتيجة التواصل: {result}\n"
     "الملاحظات: {notes}\n"
     "التاريخ: {date}\n"
     "المصدر: {source}\n"
     "المرجع: {ref}"
+)
+DEFAULT_NOTE_TEMPLATE = (
+    "نتيجة التواصل: {result}\n"
+    "الملاحظات: {notes}\n"
+    "التاريخ: {date}"
 )
 
 

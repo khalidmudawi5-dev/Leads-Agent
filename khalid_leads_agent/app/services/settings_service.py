@@ -4,7 +4,7 @@ from __future__ import annotations
 import threading
 from typing import Any
 
-from app.config import AppSettings, EnvSettings, defaults_from_env
+from app.config import DEFAULT_NOTE_TEMPLATE, LEGACY_NOTE_TEMPLATE, AppSettings, EnvSettings, defaults_from_env
 from app.db import Database
 from app.repositories.mapping_repo import MappingRepository
 from app.repositories.settings_repo import SettingsRepository
@@ -39,6 +39,11 @@ class SettingsService:
                 if stored.get("call_launch_mode") == "odoo_click":
                     srepo.set_many({"call_launch_mode": "fast"})
                 srepo.set_many({"call_mode_v13": True})
+            # 1.7: a clean Log note by default (no agent header / source / reference lines).
+            if "note_template_v17" not in stored:
+                if stored.get("odoo_note_template") == LEGACY_NOTE_TEMPLATE:
+                    srepo.set_many({"odoo_note_template": DEFAULT_NOTE_TEMPLATE})
+                srepo.set_many({"note_template_v17": True})
         self._cache = None
         with self.db.session() as s:
             repo = MappingRepository(s)

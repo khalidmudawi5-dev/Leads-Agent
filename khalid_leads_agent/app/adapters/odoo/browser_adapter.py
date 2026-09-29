@@ -769,17 +769,27 @@ class BrowserOdooAdapter(OdooAdapter):
         os.startfile(uri)  # type: ignore[attr-defined]
 
     # ------------------------------------------------------------ log note
+    @staticmethod
+    def _snippets(ref: str) -> list[str]:
+        """A ref is one code ("KLA-…") or several note lines separated by newlines (all must match)."""
+        return [x.strip() for x in (ref or "").split("\n") if x.strip()]
+
     async def _w_note_exists(self, lead_id: int, ref: str) -> bool:
+        snippets = self._snippets(ref)
+        if not snippets:
+            return False
         try:
             count = await self._w_call_kw(
                 "mail.message", "search_count",
-                [[["model", "=", "crm.lead"], ["res_id", "=", lead_id], ["body", "ilike", ref]]],
+                [[["model", "=", "crm.lead"], ["res_id", "=", lead_id]] + [["body", "ilike", x] for x in snippets]],
             )
             return bool(count)
         except (OdooRpcUnavailable, OdooRpcError):
             page = await self._w_page()
             if self._page_shows_lead(page, lead_id):
-                msgs = page.locator(", ".join(S.CHATTER_MESSAGE)).filter(has_text=ref)
+                msgs = page.locator(", ".join(S.CHATTER_MESSAGE))
+                for x in snippets:
+                    msgs = msgs.filter(has_text=x)
                 return await msgs.count() > 0
             return False
 
@@ -804,9 +814,10 @@ class BrowserOdooAdapter(OdooAdapter):
         if label in ("send", "إرسال", "ارسال"):
             raise AutomationError("ODOO_COMPOSER_WRONG_MODE", "مربع الكتابة في وضع إرسال رسالة وليس Log note؛ تم الإلغاء.")
         await send.click()
-        await page.locator(", ".join(S.CHATTER_MESSAGE)).filter(has_text=ref).first.wait_for(
-            state="visible", timeout=self.s.action_timeout_ms
-        )
+        posted = page.locator(", ".join(S.CHATTER_MESSAGE))
+        for x in self._snippets(ref)[:2]:
+            posted = posted.filter(has_text=x)
+        await posted.first.wait_for(state="visible", timeout=self.s.action_timeout_ms)
 
     async def _w_rpc_log_note(self, lead_id: int, body: str) -> None:
         await self._w_call_kw(
