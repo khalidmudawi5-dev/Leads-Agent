@@ -79,6 +79,12 @@ class MockOdooAdapter(OdooAdapter):
         self.calls.append({"lead_id": lead_id, "field": phone_field, "phone": normalize_phone(phone)})
         return ActionOutcome(True, "mock")
 
+    async def launch_tel(self, tel_uri: str) -> ActionOutcome:
+        if self.fail_call:
+            raise AutomationError("CALL_LAUNCH_FAILED", "تعذر تشغيل الاتصال عبر Windows.")
+        self.calls.append({"lead_id": None, "field": "tel", "phone": normalize_phone(tel_uri), "tel": tel_uri})
+        return ActionOutcome(True, "fast_tel", tel_uri)
+
     async def post_log_note(self, lead_id: int, body: str, ref: str) -> ActionOutcome:
         self._check()
         if any(n["lead_id"] == lead_id and ref in n["body"] for n in self.notes):

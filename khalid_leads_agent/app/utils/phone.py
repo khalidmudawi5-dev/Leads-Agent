@@ -113,3 +113,75 @@ def to_tel(raw: str | None) -> str:
     """E.164-like representation used for ``tel:`` links."""
     norm = normalize_phone(raw)
     return f"+{norm}" if norm else ""
+
+
+# --------------------------------------------------------------- validation
+_LETTERS_RE = re.compile(r"[A-Za-z؀-ٟٮ-ۯۺ-ۿ]")
+
+
+def check_phone(raw: str | None) -> dict:
+    """Deterministic sanity check of a phone value (Saudi-aware) before calling it.
+
+    Returns ``{"raw", "norm", "tel", "valid", "severity", "kind", "issues"}`` where
+    ``severity`` is ``ok`` | ``warning`` (callable, but look) | ``error`` (do not call as-is)
+    and ``kind`` is ``mobile`` | ``landline`` | ``unified`` | ``international`` | ``invalid`` | ``empty``.
+    """
+    raw = (raw or "").strip()
+    out = {"raw": raw, "norm": "", "tel": "", "valid": False, "severity": "error", "kind": "invalid", "issues": []}
+    issues: list[str] = out["issues"]
+    if not raw:
+        out["kind"] = "empty"
+        issues.append("لا يوجد رقم")
+        return out
+    text = to_ascii_digits(raw)
+    parts = [p for p in _SPLIT_RE.split(text) if p and re.sub(r"\D", "", p)]
+    warn: list[str] = []
+    if len(parts) > 1:
+        warn.append(f"الحقل يحتوي على أكثر من رقم ({len(parts)})؛ سيتم استخدام الأول")
+        text = parts[0]
+    if _LETTERS_RE.search(text):
+        issues.append("الرقم يحتوي على حروف")
+        return out
+    digits = re.sub(r"\D", "", text)
+    if digits.startswith("00"):
+        digits = digits[2:]
+    if digits.startswith("9660"):
+        digits = "966" + digits[4:]
+    # Unified / toll-free numbers (9200XXXXX, 800XXXXXXX)
+    if (digits.startswith("9200") and len(digits) == 9) or (digits.startswith("800") and len(digits) == 10):
+        out.update(norm=digits, tel=digits, valid=True, kind="unified")
+    else:
+        if digits.startswith("966"):
+            sub = digits[3:]
+        elif digits.startswith("0"):
+            sub = digits[1:]
+        elif digits.startswith("5") and len(digits) <= 10:
+            sub = digits
+        elif 8 <= len(digits) <= 15:
+            out.update(norm=digits, tel="+" + digits, valid=True, kind="international")
+            warn.append("رقم دولي (ليس سعوديًا)")
+            sub = None
+        else:
+            issues.append(f"صيغة الرقم غير معروفة ({len(digits)} رقم)")
+            return out
+        if sub is not None:
+            is_mobile = sub.startswith("5")
+            if len(sub) == 9 and (is_mobile or sub[0] in "134679"):
+                out.update(norm="966" + sub, tel="+966" + sub, valid=True, kind="mobile" if is_mobile else "landline")
+            else:
+                expected = 10  # 05XXXXXXXX / 01XXXXXXXX
+                local_len = len(sub) + 1
+                label = "رقم الجوال" if is_mobile else "الرقم"
+                if local_len < expected:
+                    issues.append(f"{label} ناقص {expected - local_len} رقم (المفترض {expected} أرقام مثل 05XXXXXXXX)")
+                elif local_len > expected:
+                    issues.append(f"{label} زائد {local_len - expected} رقم (المفترض {expected} أرقام مثل 05XXXXXXXX)")
+                else:
+                    issues.append("بداية الرقم غير صحيحة لرقم سعودي")
+                return out
+    sub9 = out["norm"][-9:]
+    if out["kind"] in ("mobile", "landline") and (len(set(sub9[1:])) == 1 or sub9[1:] in ("12345678", "87654321")):
+        warn.append("الرقم يبدو وهميًا أو تجريبيًا")
+    issues.extend(warn)
+    out["severity"] = "warning" if warn else "ok"
+    return out

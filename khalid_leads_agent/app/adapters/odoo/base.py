@@ -12,6 +12,8 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from app.errors import AgentError
+
 
 @dataclass
 class OdooLead:
@@ -127,6 +129,10 @@ class OdooAdapter(ABC):
 
     @abstractmethod
     async def capture_dom(self, name: str) -> str: ...
+
+    async def launch_tel(self, tel_uri: str) -> ActionOutcome:
+        """Fast path: hand a ``tel:`` URI straight to the OS (Windows → Phone Link). No browser involved."""
+        raise AgentError("CALL_MODE_UNSUPPORTED", "الاتصال السريع غير مدعوم في هذا الوضع.")
 
     async def lead_signature(self, lead_id: int) -> str | None:
         """Cheap fingerprint of the lead's current state in Odoo (fields + chatter + activities).

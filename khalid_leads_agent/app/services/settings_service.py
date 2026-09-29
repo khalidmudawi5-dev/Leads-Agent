@@ -32,6 +32,15 @@ class SettingsService:
     def seed(self) -> None:
         """Insert default status mappings on first run (never overwrites user edits)."""
         with self.db.session() as s:
+            srepo = SettingsRepository(s)
+            # 1.3: the fast call mode became the default; switch once (the old default was never a choice).
+            stored = srepo.all()
+            if "call_mode_v13" not in stored:
+                if stored.get("call_launch_mode") == "odoo_click":
+                    srepo.set_many({"call_launch_mode": "fast"})
+                srepo.set_many({"call_mode_v13": True})
+        self._cache = None
+        with self.db.session() as s:
             repo = MappingRepository(s)
             existing = {m.code for m in repo.statuses()}
             for order, (code, label, value) in enumerate(RESULT_CODES):

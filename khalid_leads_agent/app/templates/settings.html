@@ -62,8 +62,10 @@
         <option value="ui_first">واجهة Odoo أولًا ثم جلسة المتصفح (RPC)</option><option value="rpc_first">جلسة المتصفح (RPC) أولًا ثم الواجهة</option></select></label>
       <label class="field"><span>نوع Activity (XML ID)</span><input type="text" data-key="odoo_activity_type_xmlid" class="ltr"></label>
       <label class="field"><span>طريقة تشغيل الاتصال</span><select data-key="call_launch_mode">
-        <option value="odoo_click">الضغط على زر Call الموجود في Odoo (افتراضي)</option>
-        <option value="windows_handler">قراءة رابط Call من Odoo وتسليمه لـWindows/Phone Link مباشرة</option></select></label>
+        <option value="fast">سريع: إرسال رقم Odoo مباشرة إلى Windows/Phone Link (افتراضي)</option>
+        <option value="odoo_click">فتح العميل في Odoo والضغط على زر Call الموجود فيه</option>
+        <option value="windows_handler">فتح العميل في Odoo وقراءة رابط Call ثم تسليمه لـWindows</option></select></label>
+      <label class="check"><input type="checkbox" data-key="call_check_phone"> فحص رقم الجوال قبل الاتصال (إيقاف الاتصال إذا كان الرقم خاطئًا)</label>
       <label class="check"><input type="checkbox" data-key="call_fallback_windows_handler"> إذا لم يوجد زر الاتصال: استخدم رابط tel: في Windows مباشرة</label>
       <label class="field full"><span>نص Log Note (المتغيرات: {result} {notes} {date} {source} {ref} {owner} {company} {phone})</span>
         <textarea data-key="odoo_note_template" rows="7"></textarea></label>

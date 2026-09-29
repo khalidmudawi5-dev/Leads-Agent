@@ -19,11 +19,47 @@ from app.services.mapping_service import MappingService
 from app.services.odoo_service import MatchResult, OdooService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
-from app.utils.phone import normalize_phone, phones_match, to_ascii_digits
+from app.utils.phone import check_phone, normalize_phone, phones_match, to_ascii_digits
 from app.utils.text import normalize_company, normalize_text
 from app.utils.timeutils import end_of_local_day_utc, start_of_local_day_utc, utcnow
 
 log = logging.getLogger(__name__)
+
+
+FIELD_LABEL = {"phone": "Phone", "mobile": "Mobile", "sheet": "Google Sheet"}
+
+
+def phone_report(sheet_raw: str, odoo: OdooLead | None) -> dict:
+    """Which number to call and what is wrong with the numbers (deterministic, no guessing)."""
+    sheet = check_phone(sheet_raw)
+    fields: list[dict] = []
+    if odoo is not None:
+        for name in ("phone", "mobile"):
+            value = getattr(odoo, name) or ""
+            if value.strip():
+                chk = check_phone(value)
+                chk.update(field=name, matches_sheet=bool(sheet["valid"] and chk["valid"] and chk["norm"] == sheet["norm"]))
+                fields.append(chk)
+    # Target: the Odoo number equal to the sheet number, else the first valid one, else the first one.
+    target = (next((f for f in fields if f["matches_sheet"]), None)
+              or next((f for f in fields if f["severity"] != "error"), None)
+              or (fields[0] if fields else None))
+    problems: list[str] = []
+    for f in fields:
+        for issue in f["issues"]:
+            problems.append(f"رقم {FIELD_LABEL[f['field']]} في Odoo ({f['raw']}): {issue}")
+    if odoo is not None and not fields:
+        problems.append("لا يوجد رقم هاتف أو جوال على العميل في Odoo")
+    if sheet["valid"] and fields and not any(f["matches_sheet"] for f in fields):
+        problems.append(f"رقم Odoo يختلف عن رقم Google Sheet ({sheet['raw']})")
+    if target is None or target["severity"] == "error":
+        status = "error"
+    elif problems:
+        status = "warning"
+    else:
+        status = "ok"
+    return {"status": status, "problems": problems, "sheet": sheet, "fields": fields,
+            "target": {k: target[k] for k in ("field", "raw", "tel", "severity", "kind", "issues")} if target else None}
 
 
 def last_note(notes: str) -> str:
@@ -70,6 +106,7 @@ class LeadWorkflowService:
             "last_note": last_note(c.notes), "odoo_lead_id": c.odoo_lead_id, "odoo": c.odoo_data,
             "match_status": c.match_status, "candidates": c.match_candidates or [],
             "source": {**resolution.to_dict(), "prefill": prefill, "sheet_current": c.sheet_source},
+            "phone_check": phone_report(c.phone_raw, odoo) if odoo else None,
         }
 
     def stats(self) -> dict:
@@ -218,33 +255,65 @@ class LeadWorkflowService:
     async def open_crm(self) -> None:
         await self.odoo.adapter.open_url(self.settings.get().crm_url)
 
-    async def call(self, fingerprint: str | None = None, odoo_id: int | None = None) -> dict:
-        """Open the right lead and click Odoo's own call link. Phone Link takes over from Windows."""
+    async def call(self, fingerprint: str | None = None, odoo_id: int | None = None, *, target: str = "auto",
+                   force: bool = False) -> dict:
+        """Start the call; Phone Link takes over from Windows.
+
+        ``target``: auto | phone | mobile | sheet. The chosen number is checked first; a number
+        that is clearly wrong is not called unless ``force`` (the user chose "call anyway").
+        Fast mode hands the number to Windows directly (no browser round-trip).
+        """
         sheet_phone = ""
         if fingerprint:
             c = self._cache(fingerprint)
             if not c.odoo_lead_id or not c.odoo_data:
                 raise AgentError("NOT_MATCHED", "اربط العميل بـLead في Odoo أولًا (إعادة البحث).", actions=["retry"])
-            lead = OdooLead.from_dict(c.odoo_data)
-            sheet_phone = c.phone_norm
+            lead = OdooLead.from_dict(c.odoo_data)  # already loaded: no Odoo round-trip
+            sheet_phone = c.phone_raw
         elif odoo_id:
             lead = await self.odoo.adapter.get_lead(odoo_id)
         else:
             raise AgentError("NOT_MATCHED", "لا يوجد عميل محدد للاتصال.")
         assert lead.id is not None
-        if sheet_phone and phones_match(lead.phone, sheet_phone):
-            field, number = "phone", lead.phone
-        elif sheet_phone and phones_match(lead.mobile, sheet_phone):
-            field, number = "mobile", lead.mobile
-        elif lead.phone:
-            field, number = "phone", lead.phone
-        elif lead.mobile:
-            field, number = "mobile", lead.mobile
+        report = phone_report(sheet_phone, lead)
+        if target == "sheet":
+            if not sheet_phone:
+                raise AgentError("NO_SHEET_PHONE", "لا يوجد رقم في Google Sheet لهذا العميل.")
+            chosen = {**check_phone(sheet_phone), "field": "sheet"}
+        elif target in ("phone", "mobile"):
+            value = getattr(lead, target) or ""
+            chosen = {**check_phone(value), "field": target}
         else:
-            raise AgentError("NO_PHONE_IN_ODOO", "لا يوجد رقم هاتف على العميل في Odoo.", actions=["open_odoo", "skip"])
-        outcome = await self.odoo.adapter.click_call(lead.id, field, number)
-        return {"call_started_at": utcnow().isoformat() + "Z", "phone_field": field, "phone": number,
-                "method": outcome.method}
+            chosen = report["target"]
+        if chosen is None or chosen.get("kind") == "empty":
+            raise AgentError("NO_PHONE_IN_ODOO", "لا يوجد رقم هاتف على العميل في Odoo.",
+                             actions=["call_sheet", "open_odoo", "skip"] if report["sheet"]["valid"] else ["open_odoo", "skip"],
+                             details={"phone_check": report})
+        s = self.settings.get()
+        if chosen["severity"] == "error" and s.call_check_phone and not force:
+            label = FIELD_LABEL.get(chosen["field"], chosen["field"])
+            actions = ["call_anyway", "open_odoo"]
+            if chosen["field"] != "sheet" and report["sheet"]["valid"]:
+                actions.insert(0, "call_sheet")
+            raise AgentError(
+                "PHONE_INVALID",
+                f"رقم {label} ({chosen['raw']}) غير صحيح: " + "، ".join(chosen["issues"]),
+                actions=actions, status_code=409,
+                details={"phone_check": report, "number": chosen["raw"], "field": chosen["field"],
+                         "issues": chosen["issues"], "sheet_phone": report["sheet"]["raw"] if report["sheet"]["valid"] else ""},
+            )
+        if chosen["tel"]:
+            tel = chosen["tel"]
+        else:  # "call anyway" on a number that failed the check: dial the digits exactly as written
+            digits = re.sub(r"\D", "", to_ascii_digits(chosen["raw"]))
+            tel = digits if digits.startswith("0") else "+" + digits
+        if s.call_launch_mode == "fast" or chosen["field"] == "sheet":
+            outcome = await self.odoo.adapter.launch_tel(f"tel:{tel}")
+        else:
+            outcome = await self.odoo.adapter.click_call(lead.id, chosen["field"], chosen["raw"])
+        warnings = [p for p in report["problems"] if chosen["field"] != "sheet"] if report["status"] != "ok" else []
+        return {"call_started_at": utcnow().isoformat() + "Z", "phone_field": chosen["field"], "phone": chosen["raw"],
+                "tel": tel, "method": outcome.method, "warnings": warnings}
 
     async def refresh_lead(self, fingerprint: str) -> dict:
         warnings = await self._refresh(strict=False)

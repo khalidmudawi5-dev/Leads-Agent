@@ -80,3 +80,11 @@ class StatusFilterIn(BaseModel):
     """Follow-up statuses the queue should look for ("" = empty cell)."""
 
     values: list[str] = Field(default_factory=list, max_length=100)
+
+
+class CallIn(BaseModel):
+    """Which number to call (auto | phone | mobile | sheet) and whether to skip the phone check."""
+
+    target: Literal["auto", "phone", "mobile", "sheet"] = "auto"
+    force: bool = False
+    odoo_id: int | None = None

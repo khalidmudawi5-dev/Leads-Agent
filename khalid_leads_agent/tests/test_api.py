@@ -77,6 +77,7 @@ def test_errors_are_arabic_without_stack_trace(client, odoo):
 
 def test_call_button_missing_error(client, odoo):
     odoo.fail_call = True
+    client.put("/api/settings", json={"call_launch_mode": "odoo_click"}, headers=H)
     client.post("/api/session/start", json={"resume": True}, headers=H)
     fp = client.get("/api/lead/current").json()["lead"]["fingerprint"]
     client.post(f"/api/lead/{fp}/search", json={"query": ""}, headers=H)
@@ -170,3 +171,44 @@ def test_status_filter_choose_what_the_queue_looks_for(client, sheet):
     bad = client.put("/api/queue/filter", json={"values": []}, headers=H)
     assert bad.status_code == 400 and bad.json()["error"]["message"] == "اختر حالة متابعة واحدة على الأقل."
     assert client.get("/api/errors").json()["items"] == []
+
+
+
+def _matched_lead(client):
+    client.post("/api/session/start", json={"resume": True}, headers=H)
+    fp = client.get("/api/lead/current").json()["lead"]["fingerprint"]
+    return client.post(f"/api/lead/{fp}/search", json={"query": ""}, headers=H).json()["lead"]
+
+
+def test_fast_call_is_default_and_skips_the_browser(client, odoo):
+    assert client.get("/api/settings").json()["settings"]["call_launch_mode"] == "fast"
+    lead = _matched_lead(client)
+    assert lead["phone_check"]["status"] == "ok" and lead["phone_check"]["target"]["field"] == "phone"
+    opened_before = list(odoo.opened)
+    r = client.post(f"/api/lead/{lead['fingerprint']}/call", headers=H).json()
+    assert r["method"] == "fast_tel" and r["tel"] == "+966561234567" and r["warnings"] == []
+    assert odoo.calls[-1]["tel"] == "tel:+966561234567" and odoo.opened == opened_before  # no page navigation
+
+
+def test_wrong_odoo_number_is_reported_and_blocked(client, odoo):
+    odoo.leads[1].phone = "056123456"  # one digit missing in Odoo (sheet has 0561234567)
+    client.post("/api/session/start", json={"resume": True}, headers=H)
+    fp = client.get("/api/lead/current").json()["lead"]["fingerprint"]
+    client.post(f"/api/lead/{fp}/search", json={"query": "0561234567"}, headers=H)
+    client.post(f"/api/lead/{fp}/select", json={"odoo_id": 1}, headers=H)
+    lead = client.get("/api/lead/current").json()["lead"]
+    pc = lead["phone_check"]
+    assert pc["status"] == "error" and any("ناقص 1 رقم" in p for p in pc["problems"])
+    assert any("يختلف عن رقم Google Sheet" in p for p in pc["problems"])
+
+    r = client.post(f"/api/lead/{fp}/call", headers=H)
+    err = r.json()["error"]
+    assert r.status_code == 409 and err["code"] == "PHONE_INVALID" and "ناقص 1 رقم" in err["message"]
+    assert err["actions"] == ["call_sheet", "call_anyway", "open_odoo"] and err["details"]["sheet_phone"] == "0561234567"
+    assert odoo.calls == []  # nothing dialed
+    assert client.get("/api/errors").json()["items"] == []  # a data warning, not a system error
+
+    r = client.post(f"/api/lead/{fp}/call", json={"target": "sheet"}, headers=H).json()
+    assert r["phone_field"] == "sheet" and odoo.calls[-1]["tel"] == "tel:+966561234567"
+    r = client.post(f"/api/lead/{fp}/call", json={"force": True}, headers=H).json()
+    assert r["phone_field"] == "phone" and odoo.calls[-1]["tel"] == "tel:056123456"

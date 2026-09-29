@@ -755,6 +755,12 @@ class BrowserOdooAdapter(OdooAdapter):
     async def click_call(self, lead_id: int, phone_field: str, phone: str) -> ActionOutcome:
         return await self._exec(self._w_click_call, lead_id, phone_field, phone)
 
+    async def launch_tel(self, tel_uri: str) -> ActionOutcome:
+        # No browser round-trip: this is what makes the fast call mode instant.
+        self._launch_tel(tel_uri)
+        log.info("Launched %s via Windows handler (fast mode)", tel_uri)
+        return ActionOutcome(True, "fast_tel", tel_uri)
+
     @staticmethod
     def _launch_tel(uri: str) -> None:
         """Hand a tel: URI to the OS (Windows → Phone Link). Never dials/ends calls itself."""

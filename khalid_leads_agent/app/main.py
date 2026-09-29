@@ -20,9 +20,9 @@ from app.utils.logging import setup_logging
 
 log = logging.getLogger("app")
 APP_DIR = PROJECT_ROOT / "app"
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 CSRF_HEADER = "x-kla"
-_QUIET_CODES = {"CONFIG_INCOMPLETE", "QUERY_TOO_SHORT", "FOLLOWUP_DATE_REQUIRED", "STATUS_FILTER_EMPTY"}
+_QUIET_CODES = {"CONFIG_INCOMPLETE", "QUERY_TOO_SHORT", "FOLLOWUP_DATE_REQUIRED", "STATUS_FILTER_EMPTY", "PHONE_INVALID"}
 
 
 def _record_error(c: AppContainer, code: str, message: str, path: str, technical: str = "", screenshot: str = "") -> None:

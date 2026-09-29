@@ -122,7 +122,11 @@ class AppSettings(BaseModel):
     odoo_note_template: str = DEFAULT_NOTE_TEMPLATE
     odoo_write_method: Literal["ui_first", "rpc_first"] = "ui_first"
     odoo_activity_type_xmlid: str = "mail.mail_activity_data_todo"
-    call_launch_mode: Literal["odoo_click", "windows_handler"] = "odoo_click"
+    # fast: hand the Odoo number straight to Windows/Phone Link (instant, no browser);
+    # odoo_click: open the lead and click Odoo's own Call link; windows_handler: read that link, then Windows.
+    call_launch_mode: Literal["fast", "odoo_click", "windows_handler"] = "fast"
+    # Block calling a number that fails the phone check (the user can still choose "call anyway").
+    call_check_phone: bool = True
     call_fallback_windows_handler: bool = False
     # Automation
     auto_load_next: bool = True

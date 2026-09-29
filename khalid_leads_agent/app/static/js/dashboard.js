@@ -287,7 +287,7 @@ function renderLead(lead) {
           ${o.stage ? `<span class="badge indigo">${esc(o.stage)}</span>` : ""}</div>
         <h2 class="lead-name">${esc(lead.company_name || "(بدون اسم)")}</h2>
         <div class="lead-phone"><span class="ltr">${esc(lead.phone)}</span>
-          <button class="icon-btn" id="btn-copy" title="نسخ الرقم (P)">${ICON.copy}</button></div></div></div>
+          <button class="icon-btn" id="btn-copy" title="نسخ الرقم (P)">${ICON.copy}</button>${phoneBadge(lead.phone_check)}</div></div></div>
     </div></div>
     <div class="lead-body">
     <div class="info-grid">
@@ -300,6 +300,7 @@ function renderLead(lead) {
       <div class="info wide"><div class="k">آخر ملاحظة في Google Sheet</div><div class="v note-box">${orDash(lead.last_note)}</div></div>
       ${lead.odoo ? `<div class="info wide"><div class="k">آخر ملاحظة في Odoo Chatter</div><div class="v note-box">${orDash(latestOdooNote(o))}</div></div>` : ""}
     </div>
+    ${phoneProblems(lead.phone_check)}
     <div id="match-area"></div>
     <div id="lead-msg"></div>
     </div>
@@ -314,6 +315,7 @@ function renderLead(lead) {
     </div>`;
   renderMatch(lead);
   const fp = lead.fingerprint;
+  bindPhoneProblemButtons();
   $("#btn-copy").onclick = copyPhone;
   $("#btn-call").onclick = (ev) => startCall(ev.currentTarget);
   $("#btn-open").onclick = (ev) => withBusy(ev.currentTarget, () => leadAction(`/api/lead/${fp}/open`));
@@ -551,23 +553,89 @@ function askSkip(fp) {
 }
 
 // -------------------------------------------------------------------- call
-async function startCall(btn) {
+const KIND_AR = { mobile: "جوال", landline: "هاتف ثابت", unified: "رقم موحد", international: "رقم دولي" };
+const FIELD_AR = { phone: "Phone", mobile: "Mobile", sheet: "Google Sheet" };
+
+function phoneBadge(pc) {
+  if (!pc || !pc.target) return "";
+  const t = pc.target;
+  const label = `${FIELD_AR[t.field] || t.field} في Odoo`;
+  if (pc.status === "ok") return `<span class="badge green" title="سيتم الاتصال بـ ${esc(t.tel)}">✓ ${label} صحيح (${KIND_AR[t.kind] || ""})</span>`;
+  if (pc.status === "warning") return `<span class="badge amber">⚠ راجع رقم Odoo</span>`;
+  return `<span class="badge red">✗ رقم Odoo غير صحيح</span>`;
+}
+
+function phoneProblems(pc) {
+  if (!pc || !pc.problems || !pc.problems.length) return "";
+  const canSheet = pc.sheet && pc.sheet.valid && !(pc.fields || []).some((f) => f.matches_sheet);
+  return `<div class="alert ${pc.status === "error" ? "error" : "warn"}" id="phone-problems"><b>${pc.status === "error" ? "خطأ في رقم العميل في Odoo" : "تنبيه على رقم العميل"}</b>
+    <ul style="margin:6px 0 0;padding-inline-start:20px">${pc.problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+    <div class="actions">${canSheet ? `<button class="btn sm success" data-call="sheet">${PHONE_ICON} اتصال برقم الـSheet: <span class="ltr">${esc(pc.sheet.raw)}</span></button>` : ""}
+      <button class="btn sm" data-fix="odoo">${ICON.open} فتح Odoo لتصحيح الرقم</button></div></div>`;
+}
+
+function bindPhoneProblemButtons() {
+  $$("#phone-problems [data-call]").forEach((b) => b.onclick = () => startCall($("#btn-call"), { target: b.dataset.call }));
+  $$("#phone-problems [data-fix]").forEach((b) => b.onclick = (ev) => withBusy(ev.currentTarget, () => leadAction(`/api/lead/${S.lead.fingerprint}/open`)));
+}
+
+function showPhoneInvalid(e, btn) {
+  const d = e.details || {};
+  const acts = e.actions || [];
+  const buttons = [];
+  if (acts.includes("call_sheet") && d.sheet_phone) {
+    buttons.push({ label: `اتصال برقم الـSheet (${d.sheet_phone})`, cls: "success", onClick: () => { Modal.close(); startCall(btn, { target: "sheet" }); } });
+  }
+  if (acts.includes("call_anyway")) {
+    buttons.push({ label: "اتصال على أي حال", onClick: () => { Modal.close(); startCall(btn, { force: true }); } });
+  }
+  if (!S.manual && S.lead) {
+    buttons.push({ label: "فتح Odoo لتصحيح الرقم", cls: "primary", onClick: () => { Modal.close(); leadAction(`/api/lead/${S.lead.fingerprint}/open`); } });
+  }
+  buttons.push({ label: "إلغاء" });
+  Modal.open({
+    title: "تنبيه: رقم العميل في Odoo غير صحيح",
+    html: `<div class="alert error"><b>${esc(e.message)}</b></div>
+      ${d.number ? `<div class="kv"><div class="k">الرقم في Odoo</div><div><span class="ltr">${esc(d.number)}</span></div>
+      ${d.sheet_phone ? `<div class="k">الرقم في Google Sheet</div><div><span class="ltr">${esc(d.sheet_phone)}</span></div>` : ""}</div>` : ""}
+      <p class="muted small" style="margin-top:12px">لم يتم الاتصال. صحّح الرقم في Odoo (سيظهر التصحيح هنا تلقائيًا) أو اختر رقمًا آخر.</p>`,
+    buttons,
+  });
+}
+
+async function startCall(btn, opts = {}) {
   const manual = S.manual;
   if (!manual && (!S.lead || !S.lead.odoo_lead_id)) {
     toast("اربط العميل بـLead في Odoo أولًا (إعادة البحث).", "warn"); return;
   }
-  await withBusy(btn, async () => {
-    try {
-      const r = manual ? await api("POST", "/api/manual/call", { odoo_id: manual.id })
-                       : await api("POST", `/api/lead/${S.lead.fingerprint}/call`);
-      S.call.startedAt = new Date(); S.call.endedAt = null;
-      $("#call-banner").classList.remove("hidden");
-      clearInterval(S.call.timer);
-      S.call.timer = setInterval(() => { $("#call-timer").textContent = fmtDuration((Date.now() - S.call.startedAt) / 1000); }, 500);
-      $("#call-timer").textContent = "00:00";
-      toast(`تم تشغيل الاتصال من Odoo (${r.phone_field === "mobile" ? "Mobile" : "Phone"}). أكمل المكالمة من Phone Link.`, "success", 6000);
-    } catch (e) { handleOdooError(e, () => startCall(btn)); }
-  });
+  if (S.calling) return;  // no double dial
+  S.calling = true;
+  try {
+    await withBusy(btn, async () => {
+      try {
+        const body = { target: opts.target || "auto", force: !!opts.force };
+        const r = manual ? await api("POST", "/api/manual/call", { ...body, odoo_id: manual.id })
+                         : await api("POST", `/api/lead/${S.lead.fingerprint}/call`, body);
+        S.call.startedAt = new Date(); S.call.endedAt = null;
+        $("#call-banner").classList.remove("hidden");
+        clearInterval(S.call.timer);
+        S.call.timer = setInterval(() => { $("#call-timer").textContent = fmtDuration((Date.now() - S.call.startedAt) / 1000); }, 500);
+        $("#call-timer").textContent = "00:00";
+        const via = r.method === "fast_tel" ? "مباشرة إلى Phone Link" : "من Odoo";
+        toast(`جاري الاتصال بـ ${r.tel || r.phone} (${FIELD_AR[r.phone_field] || r.phone_field}) ${via}. أكمل المكالمة من الجوال.`, "success", 6000);
+        (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
+      } catch (e) {
+        if (e.code === "NO_PHONE_IN_ODOO" && (e.actions || []).includes("call_sheet")) {
+          const pc = (e.details || {}).phone_check || {};
+          e.details = { ...(e.details || {}), sheet_phone: pc.sheet ? pc.sheet.raw : "" };
+          e.actions = ["call_sheet"];
+          showPhoneInvalid(e, btn);
+        } else if (e.code === "PHONE_INVALID") {
+          showPhoneInvalid(e, btn);
+        } else handleOdooError(e, () => startCall(btn, opts));
+      }
+    });
+  } finally { S.calling = false; }
 }
 function stopCall() {
   if (S.call.startedAt && !S.call.endedAt) S.call.endedAt = new Date();

@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import container
 from app.container import AppContainer
-from app.schemas.api import ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
+from app.errors import AgentError
+from app.schemas.api import CallIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
 
 router = APIRouter(prefix="/api")
 
@@ -88,8 +89,9 @@ async def lead_open(fingerprint: str, c: AppContainer = Depends(container)) -> d
 
 
 @router.post("/lead/{fingerprint}/call")
-async def lead_call(fingerprint: str, c: AppContainer = Depends(container)) -> dict:
-    return await c.workflow.call(fingerprint=fingerprint)
+async def lead_call(fingerprint: str, body: CallIn | None = None, c: AppContainer = Depends(container)) -> dict:
+    body = body or CallIn()
+    return await c.workflow.call(fingerprint=fingerprint, target=body.target, force=body.force)
 
 
 @router.post("/lead/{fingerprint}/refresh")
@@ -142,5 +144,7 @@ async def manual_live(odoo_id: int, since: str = "", c: AppContainer = Depends(c
 
 
 @router.post("/manual/call")
-async def manual_call(body: ManualOpenIn, c: AppContainer = Depends(container)) -> dict:
-    return await c.workflow.call(odoo_id=body.odoo_id)
+async def manual_call(body: CallIn, c: AppContainer = Depends(container)) -> dict:
+    if not body.odoo_id:
+        raise AgentError("NOT_MATCHED", "لا يوجد عميل محدد للاتصال.")
+    return await c.workflow.call(odoo_id=body.odoo_id, target=body.target, force=body.force)

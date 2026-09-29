@@ -1,5 +1,14 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 1.3.0 (2026-09-29): fast, smart call button
+
+**Result:** ✅ **108 passed, 0 failed**.
+
+- `check_phone()` (13 parametrized cases in `test_phone.py`): mobile / landline / unified / international; missing or extra digit, letters, empty, unknown format (error); fake-looking, several numbers in one field, international (warning).
+- `test_api.py::test_fast_call_is_default_and_skips_the_browser`: fast mode is the default, the `tel:` URI goes straight to the OS handler, no Odoo page navigation.
+- `test_api.py::test_wrong_odoo_number_is_reported_and_blocked`: the lead card reports the Odoo number is one digit short and differs from the sheet; the call is refused (409 `PHONE_INVALID`, nothing dialed, not logged as a system error) with actions call the sheet number / call anyway / open Odoo; both alternatives dial the right URI.
+- Browser check (mocks): red badge + problem list on the card, `C` opens the warning dialog, "call the sheet number" starts the call; 0 JS errors.
+
 ## Update 1.2.1 (2026-09-29): sheet header robustness
 
 **Result:** ✅ **93 passed, 0 failed**.

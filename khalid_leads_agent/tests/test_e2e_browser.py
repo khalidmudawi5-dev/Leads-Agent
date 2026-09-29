@@ -23,6 +23,7 @@ def test_full_workflow_real_browser(env):
 
         c = build_container(env, sheets_client_factory=lambda _s: sheet, odoo_adapter=None)
         c.settings.update({"spreadsheet_id": "T", "sheet_name": "Leads", "setup_completed": True, "dry_run": False,
+                           "call_launch_mode": "odoo_click",
                            "odoo_base_url": fake.url, "browser_headless": True, "browser_executable_path": EXE,
                            "navigation_timeout_ms": 8000, "action_timeout_ms": 4000})
         adapter = BrowserOdooAdapter(c.settings.get, env.data_path / "browser-profile", env.logs_path / "screenshots",
