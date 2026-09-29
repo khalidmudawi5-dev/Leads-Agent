@@ -28,7 +28,8 @@ from app.db import Database
 from app.errors import AgentError, ConfigIncomplete, GoogleNotConnected, OwnerChanged, RowNotFound
 from app.repositories.log_repo import LogRepository
 from app.services.settings_service import SettingsService
-from app.utils.a1 import cell_ref, quote_sheet
+from app.repositories.settings_repo import SettingsRepository
+from app.utils.a1 import cell_ref, col_letter, quote_sheet
 from app.utils.phone import extract_phones, phones_match
 from app.utils.text import make_fingerprint, normalize_arabic_letters, normalize_company, normalize_text, same_person
 
@@ -303,6 +304,14 @@ class SheetService:
         if req_missing:
             names = "، ".join(COLUMN_LABELS_AR[k] for k in req_missing)
             found = "، ".join(f"«{h}»" for h in header if h) or "(فارغ)"
+            changed = self._overwritten_headers(header, req_missing)
+            if changed:
+                raise ConfigIncomplete(
+                    "تم تغيير عنوان عمود في صف العناوين في Google Sheet (غالبًا كتابة فوق الخلية بالخطأ): "
+                    + "؛ ".join(changed)
+                    + f". أعد كتابة العنوان في الصف {hidx + 1} ثم اضغط «إعادة المحاولة». "
+                    "راجع أيضًا (File > Version history) للتأكد أن العمود لم يُرتَّب وحده."
+                )
             log.error("Required columns %s not found. Header row %s = %r; mapping = %r",
                       req_missing, s.header_row, header, s.column_mapping)
             raise ConfigIncomplete(
@@ -310,6 +319,7 @@ class SheetService:
                 f"العناوين الموجودة في الصف {s.header_row}: {found}. عدّل Column Mapping أو رقم صف العناوين."
             )
         self.header_row_used = hidx + 1
+        self._remember_header(header, s.column_mapping, columns)
         leads: list[SheetLead] = []
         seen: dict[str, int] = {}
         for offset, row in enumerate(rows[hidx + 1:]):
@@ -338,6 +348,35 @@ class SheetService:
         snap = SheetSnapshot(header=header, columns=columns, missing=missing, leads=leads)
         self.last_snapshot = snap
         return snap
+
+    # Last header row that resolved every required column: lets us explain a header cell that was
+    # later overwritten (e.g. a customer name typed over «اسم المنشأة»).
+    _HEADER_KEY = "_last_good_header"
+
+    def _remember_header(self, header: list[str], mapping: dict[str, str], columns: dict[str, int]) -> None:
+        good = {k: [i, header[i]] for k, i in columns.items() if i < len(header)}
+        try:
+            with self.db.session() as db:
+                repo = SettingsRepository(db)
+                if repo.all().get(self._HEADER_KEY) != good:
+                    repo.set_many({self._HEADER_KEY: good})
+        except Exception:  # noqa: BLE001 - diagnostics only
+            log.debug("Could not store last good header", exc_info=True)
+
+    def _overwritten_headers(self, header: list[str], missing: list[str]) -> list[str]:
+        try:
+            with self.db.session() as db:
+                good = SettingsRepository(db).all().get(self._HEADER_KEY) or {}
+        except Exception:  # noqa: BLE001
+            return []
+        out = []
+        for key in missing:
+            if key not in good:
+                continue
+            idx, old_title = good[key]
+            now = header[idx] if idx < len(header) and header[idx] else "(فارغ)"
+            out.append(f"العمود {col_letter(idx)} كان «{old_title}» وأصبح «{now}»")
+        return out
 
     def owner_leads(self, snap: SheetSnapshot) -> list[SheetLead]:
         owner = self.settings.get().agent_owner

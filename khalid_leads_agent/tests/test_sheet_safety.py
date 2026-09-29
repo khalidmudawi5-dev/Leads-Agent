@@ -203,3 +203,15 @@ def test_missing_column_error_lists_found_headers(container, sheet):
         container.sheets.load()
     msg = exc.value.message_ar
     assert "اسم المنشأة" in msg and "«العميل»" in msg and "«رقم الجوال»" in msg
+
+
+def test_overwritten_header_cell_is_explained(container, sheet):
+    container.sheets.load()  # a good header is remembered
+    sheet.sheets["Leads"][0][2] = "Ibrahim Saleh"  # a customer name typed over «اسم المنشأة»
+    with pytest.raises(AgentError) as exc:
+        container.sheets.load()
+    msg = exc.value.message_ar
+    assert "العمود C كان «اسم المنشأة» وأصبح «Ibrahim Saleh»" in msg and "إعادة المحاولة" in msg
+    assert sheet.write_calls == []
+    sheet.sheets["Leads"][0][2] = "اسم المنشأة"  # fixed in the sheet → works again
+    assert container.sheets.load().columns["company_name"] == 2
