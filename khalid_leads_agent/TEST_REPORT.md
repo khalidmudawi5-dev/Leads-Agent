@@ -1,5 +1,14 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 1.2.1 (2026-09-29): sheet header robustness
+
+**Result:** ✅ **93 passed, 0 failed**.
+
+Field report: Odoo note saved, sheet update failed with "column اسم المنشأة not found" although the queue had been read. The fresh read before each write looked for the header only in the configured row.
+- The header is now also searched in the first 15 rows when the configured row does not contain all required columns (rows inserted above the header by a teammate); row numbers are computed from the header actually found (`test_rows_inserted_above_header_between_read_and_write`).
+- Header matching ignores invisible RTL/LTR marks and أ/ا ة/ه ى/ي variants (`test_header_with_invisible_marks_and_letter_variants`).
+- The error now lists the headers actually found, and the full header row is logged (`test_missing_column_error_lists_found_headers`).
+
 ## Update 1.2.0 (2026-09-29): saving clarity and source auto-match
 
 **Result:** ✅ **90 passed, 0 failed**.

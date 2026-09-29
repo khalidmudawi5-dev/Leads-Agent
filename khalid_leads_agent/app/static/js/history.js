@@ -17,10 +17,10 @@ async function loadHistory() {
       <td class="nowrap">${esc(i.time)}${i.dry_run ? ' <span class="badge amber">Dry Run</span>' : ""}${i.manual ? ' <span class="badge">يدوي</span>' : ""}</td>
       <td><b>${esc(i.company)}</b>${i.followup_at ? `<div class="small muted">متابعة: ${esc(i.followup_at)}</div>` : ""}</td>
       <td class="ltr">${esc(i.phone)}</td><td>${esc(i.result)}</td>
-      <td class="pre small" style="max-width:320px">${orDash(i.note)}</td>
+      <td class="pre small" style="min-width:180px;max-width:320px">${orDash(i.note)}</td>
       <td>${stepBadge(i.odoo)}${i.activity && i.activity !== "skipped" ? `<div class="small">Activity: ${stepBadge(i.activity)}</div>` : ""}</td>
       <td>${stepBadge(i.google)}</td><td class="ltr">${fmtDuration(i.duration)}</td>
-      <td class="small" style="max-width:260px">${[...i.errors, ...i.warnings].map((e) => `<div>${esc(e)}</div>`).join("") || "—"}</td>
+      <td class="small" style="min-width:280px;max-width:420px">${[...i.errors, ...i.warnings].map((e) => `<div style="color:var(--danger)">${esc(e)}</div>`).join("") || "—"}</td>
       <td class="nowrap"><button class="btn sm" data-d="${i.id}">تفاصيل</button>
         ${i.can_retry ? `<button class="btn sm primary" data-r="${i.id}">إعادة المحاولة</button>` : ""}</td></tr>`).join("");
     $$("button[data-r]").forEach((b) => b.onclick = () => withBusy(b, async () => {

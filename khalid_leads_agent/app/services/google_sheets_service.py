@@ -30,7 +30,7 @@ from app.repositories.log_repo import LogRepository
 from app.services.settings_service import SettingsService
 from app.utils.a1 import cell_ref, quote_sheet
 from app.utils.phone import extract_phones, phones_match
-from app.utils.text import make_fingerprint, normalize_company, normalize_text, same_person
+from app.utils.text import make_fingerprint, normalize_arabic_letters, normalize_company, normalize_text, same_person
 
 log = logging.getLogger(__name__)
 
@@ -110,6 +110,14 @@ def normalize_tab_title(title: str) -> str:
     return " ".join(_BIDI_MARKS.sub("", unicodedata.normalize("NFKC", title or "")).split()).casefold()
 
 
+def normalize_header(title: str) -> str:
+    """Header comparison ignoring case, extra spaces, invisible RTL/LTR marks and أ/ا ة/ه ى/ي variants."""
+    return normalize_arabic_letters(normalize_tab_title(normalize_text(title)))
+
+
+HEADER_SCAN_ROWS = 15
+
+
 def format_note_entry(note: str, owner: str, when: datetime, stamp_format: str) -> str:
     stamp = stamp_format.format(date=when.strftime("%d/%m/%Y %H:%M"), owner=owner)
     return f"{stamp}\n{note.strip()}"
@@ -137,6 +145,7 @@ class SheetService:
         self._lock = threading.RLock()
         self._options_cache: dict[tuple[str, str, str], tuple[float, list[str]]] = {}
         self.last_snapshot: SheetSnapshot | None = None
+        self.header_row_used: int | None = None
         self.last_error: str = ""
         self._titles: dict[tuple[str, str], str] = {}
 
@@ -249,11 +258,11 @@ class SheetService:
     @staticmethod
     def resolve_columns(header: list[str], mapping: dict[str, str]) -> tuple[dict[str, int], list[str]]:
         """Locate mapped columns by header text (exact normalized, then unique 'contains')."""
-        norm_header = [normalize_text(h) for h in header]
+        norm_header = [normalize_header(h) for h in header]
         columns: dict[str, int] = {}
         missing: list[str] = []
         for key, wanted in mapping.items():
-            target = normalize_text(wanted)
+            target = normalize_header(wanted)
             if not target:
                 if key in REQUIRED_COLUMNS:
                     missing.append(key)
@@ -274,17 +283,37 @@ class SheetService:
         rows = self.read_rows()
         hidx = s.header_row - 1
         header = [h.strip() for h in rows[hidx]] if len(rows) > hidx else []
-        if not header:
-            raise AgentError("SHEET_EMPTY", "لم يتم العثور على صف العناوين في الـTab المحدد.", actions=["open_settings"])
         columns, missing = self.resolve_columns(header, s.column_mapping)
         req_missing = [k for k in missing if k in REQUIRED_COLUMNS]
         if req_missing:
+            # The sheet is shared: someone may have inserted rows above the header. Look for the
+            # header in the first rows; it must contain *all* required columns to be accepted.
+            for i, row in enumerate(rows[:HEADER_SCAN_ROWS]):
+                if i == hidx:
+                    continue
+                cand = [h.strip() for h in row]
+                cols, miss = self.resolve_columns(cand, s.column_mapping)
+                if not [k for k in miss if k in REQUIRED_COLUMNS]:
+                    log.warning("Header not found in row %s; using row %s instead (rows inserted above?)",
+                                s.header_row, i + 1)
+                    hidx, header, columns, missing, req_missing = i, cand, cols, miss, []
+                    break
+        if not any(header):
+            raise AgentError("SHEET_EMPTY", "لم يتم العثور على صف العناوين في الـTab المحدد.", actions=["open_settings"])
+        if req_missing:
             names = "، ".join(COLUMN_LABELS_AR[k] for k in req_missing)
-            raise ConfigIncomplete(f"لم يتم العثور على الأعمدة التالية في Google Sheet: {names}. عدّل Column Mapping.")
+            found = "، ".join(f"«{h}»" for h in header if h) or "(فارغ)"
+            log.error("Required columns %s not found. Header row %s = %r; mapping = %r",
+                      req_missing, s.header_row, header, s.column_mapping)
+            raise ConfigIncomplete(
+                f"لم يتم العثور على الأعمدة التالية في Google Sheet: {names}. "
+                f"العناوين الموجودة في الصف {s.header_row}: {found}. عدّل Column Mapping أو رقم صف العناوين."
+            )
+        self.header_row_used = hidx + 1
         leads: list[SheetLead] = []
         seen: dict[str, int] = {}
         for offset, row in enumerate(rows[hidx + 1:]):
-            row_number = s.header_row + 1 + offset
+            row_number = hidx + 2 + offset
             values = {key: (row[i].strip() if i < len(row) else "") for key, i in columns.items()}
             if not any(values.get(k) for k in ("company_name", "phone")):
                 continue
@@ -327,7 +356,8 @@ class SheetService:
             return []
         options: list[str] = []
         try:
-            options = self._call(self.client().dropdown_options, s.spreadsheet_id, self.tab_title(), col, s.header_row)
+            options = self._call(self.client().dropdown_options, s.spreadsheet_id, self.tab_title(), col,
+                                 self.header_row_used or s.header_row)
         except AgentError:
             log.warning("Could not read data validation for %s", key)
         if not options:

@@ -174,3 +174,32 @@ def test_unknown_tab_lists_existing_tabs(container):
     with pytest.raises(AgentError) as exc:
         container.sheets.load()
     assert exc.value.code == "SHEET_TAB_NOT_FOUND" and "Leads" in exc.value.message_ar
+
+
+def test_rows_inserted_above_header_between_read_and_write(container, sheet):
+    """A teammate inserts rows above the header: the header is found again and the right cell is written."""
+    lead, ref = ref_for(container, "مكتب التقنية")
+    rows = sheet.sheets["Leads"]
+    rows.insert(0, ["ملاحظة للفريق: لا تعدلوا العناوين"])
+    rows.insert(0, [""])
+    plan = container.sheets.plan_update(ref, {"followup_status": "مهتم"}, "")
+    assert container.sheets.header_row_used == 3 and plan.lead.sheet_row == ref.sheet_row + 2
+    container.sheets.apply(plan, dry_run=False)
+    assert rows[plan.lead.sheet_row - 1][2] == "مكتب التقنية" and rows[plan.lead.sheet_row - 1][3] == "مهتم"
+    assert [u.range for u in sheet.write_calls[0]] == [f"'Leads'!D{ref.sheet_row + 2}"]
+
+
+def test_header_with_invisible_marks_and_letter_variants(container, sheet):
+    header = sheet.sheets["Leads"][0]
+    header[2] = "‏اسم المنشاه "   # RTL mark + ا/أ and ه/ة variants + trailing space
+    header[1] = "المسؤول  الحالي‎"
+    snap = container.sheets.load()
+    assert snap.columns["company_name"] == 2 and snap.columns["owner"] == 1
+
+
+def test_missing_column_error_lists_found_headers(container, sheet):
+    sheet.sheets["Leads"][0][2] = "العميل"
+    with pytest.raises(AgentError) as exc:
+        container.sheets.load()
+    msg = exc.value.message_ar
+    assert "اسم المنشأة" in msg and "«العميل»" in msg and "«رقم الجوال»" in msg
