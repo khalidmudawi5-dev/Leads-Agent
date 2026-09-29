@@ -10,7 +10,8 @@ from app.repositories.lead_repo import SkipRepository
 from app.repositories.log_repo import LogRepository
 from app.repositories.result_repo import CallResultRepository
 from app.services.settings_service import RESULT_LABELS
-from app.utils.phone import normalize_phone
+from app.repositories.lead_repo import LeadCacheRepository
+from app.utils.phone import format_phone, normalize_phone
 from app.utils.timeutils import fmt_local, start_of_local_day_utc, start_of_local_week_utc, utcnow
 
 router = APIRouter(prefix="/api")
@@ -29,8 +30,18 @@ def history(period: str = "", name: str = "", phone: str = "", result: str = "",
             since=since, name=name.strip(), phone_norm=normalize_phone(phone) if phone.strip() else "",
             result_code=result, odoo_ok=_bool(odoo_ok), sheet_ok=_bool(sheet_ok),
         )
+        # Older rows saved without a sheet number: show the lead's Odoo number instead.
+        phones: dict[int, str] = {}
+        leads = LeadCacheRepository(s)
+        for r in rows:
+            phone = r.phone or ""
+            if not phone.strip() and r.fingerprint:
+                cache = leads.get(r.fingerprint)
+                odoo = (cache.odoo_data or {}) if cache else {}
+                phone = (cache.phone_raw if cache else "") or odoo.get("phone") or odoo.get("mobile") or ""
+            phones[r.id] = format_phone(phone)
     return {"items": [{
-        "id": r.id, "time": fmt_local(r.created_at), "company": r.company_name, "phone": r.phone,
+        "id": r.id, "time": fmt_local(r.created_at), "company": r.company_name, "phone": phones[r.id],
         "result": RESULT_LABELS.get(r.result_code, r.result_code), "result_code": r.result_code, "note": r.note,
         "odoo": r.odoo_note_status, "activity": r.odoo_activity_status, "google": r.sheet_status,
         "duration": r.duration_seconds, "errors": r.errors or [], "warnings": r.warnings or [],

@@ -19,7 +19,7 @@ from app.services.mapping_service import MappingService
 from app.services.odoo_service import MatchResult, OdooService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
-from app.utils.phone import check_phone, normalize_phone, phones_match, to_ascii_digits
+from app.utils.phone import check_phone, format_phone, normalize_phone, phones_match, to_ascii_digits
 from app.utils.text import normalize_company, normalize_text
 from app.utils.timeutils import end_of_local_day_utc, start_of_local_day_utc, utcnow
 
@@ -328,6 +328,38 @@ class LeadWorkflowService:
                     raise
                 warnings.append(exc.message_ar)
         return self._payload(fingerprint, warnings)
+
+    # ------------------------------------------------------ queue list
+    async def queue_list(self, kind: str) -> dict:
+        """Leads behind a dashboard card: pending | all | match_errors."""
+        if not self.queue.loaded:
+            await self._refresh(strict=False)
+        pending_fps = {lead.fingerprint for lead in self.queue.queue()}
+        current = self.sessions.ensure().current_fingerprint
+        with self.db.session() as s:
+            repo = LeadCacheRepository(s)
+            cache = {lead.fingerprint: repo.get(lead.fingerprint) for lead in self.queue.owner_leads}
+            match = {fp: (c.match_status if c else "unknown") for fp, c in cache.items()}
+        if kind == "pending":
+            leads = [lead for lead in self.queue.queue()]
+        elif kind == "match_errors":
+            leads = [lead for lead in self.queue.owner_leads if match.get(lead.fingerprint) in ("not_found", "error")]
+        else:
+            leads = list(self.queue.owner_leads)
+        return {"kind": kind, "items": [{
+            "fingerprint": lead.fingerprint, "company": lead.company_name, "phone": format_phone(lead.phone_raw),
+            "status": lead.followup_status, "row": lead.sheet_row, "match": match.get(lead.fingerprint, "unknown"),
+            "pending": lead.fingerprint in pending_fps, "current": lead.fingerprint == current,
+        } for lead in leads]}
+
+    async def goto(self, fingerprint: str) -> dict:
+        """Open a specific lead of the owner (from the dashboard card lists)."""
+        lead = self.queue.find(fingerprint)
+        if lead is None:
+            raise AgentError("LEAD_NOT_IN_QUEUE", "العميل غير موجود في قائمة العمل. حدّث القائمة.", actions=["retry"])
+        self.sessions.unskip(fingerprint)
+        self.sessions.set_current(fingerprint, lead.sheet_row)
+        return self._payload(fingerprint)
 
     # ------------------------------------------------------ status filter
     def _status_options(self) -> list[str]:

@@ -37,7 +37,7 @@ async function loadPendingChips() {
     const sel = current().map((v) => v.trim());
     box.innerHTML = options.map((o, i) => `<button type="button" class="fchip ${sel.includes(o.value) ? "on" : ""} ${o.empty ? "empty-status" : ""}" data-i="${i}">
       <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6L9 17l-5-5"/></svg></span>
-      ${o.empty ? "فارغة (بدون حالة)" : esc(o.value)}<span class="n">${o.count}</span></button>`).join("");
+      <span class="t">${o.empty ? "فارغة (بدون حالة)" : esc(o.value)}</span><span class="n">${o.count}</span></button>`).join("");
     $$(".fchip", box).forEach((b) => b.onclick = () => {
       const v = options[+b.dataset.i].value;
       const list = current();

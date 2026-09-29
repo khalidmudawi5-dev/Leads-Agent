@@ -4,31 +4,73 @@ const STEP = {
   skipped: ['', 'تخطي'], nochange: ['', 'بدون تغيير'], pending: ['', '…'],
 };
 function stepBadge(s) { const [c, l] = STEP[s] || ['', s]; return `<span class="badge ${c}">${l}</span>`; }
+let LABELS = null;
+
+/** Filters come from the form, and on first load from the URL (dashboard cards link here). */
+function applyUrlFilters() {
+  const q = new URLSearchParams(location.search);
+  const form = $("#filters");
+  for (const [k, v] of q.entries()) {
+    const el = form.elements[k];
+    if (!el) continue;
+    if (el.tagName === "SELECT" && ![...el.options].some((o) => o.value === v)) el.add(new Option(v, v));
+    el.value = v;
+  }
+}
+
+function syncUrl(params) {
+  const clean = new URLSearchParams([...params.entries()].filter(([, v]) => v !== ""));
+  history.replaceState(null, "", "/history" + (clean.toString() ? "?" + clean : ""));
+}
+
+function renderSummary(items) {
+  const counts = {};
+  items.forEach((i) => { counts[i.result_code] = (counts[i.result_code] || 0) + 1; });
+  const current = $("#f-result").value;
+  $("#summary").innerHTML = `<span class="pill ${current ? "" : "active"}" data-r="">الكل: ${items.length}</span>` +
+    Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([code, n]) =>
+      `<span class="pill r-${esc(code)} ${current === code ? "active" : ""}" data-r="${esc(code)}">${esc((LABELS || {})[code] || code)}: ${n}</span>`).join("");
+  $$("#summary .pill").forEach((p) => p.onclick = () => { $("#f-result").value = p.dataset.r; loadHistory(); });
+}
 
 async function loadHistory() {
   const params = new URLSearchParams(new FormData($("#filters")));
+  syncUrl(params);
   const tbody = $("#rows");
   try {
     const r = await api("GET", "/api/history?" + params.toString());
+    LABELS = r.result_labels;
     const sel = $("#f-result");
-    if (sel.options.length === 1) Object.entries(r.result_labels).forEach(([k, v]) => sel.add(new Option(v, k)));
-    if (!r.items.length) { tbody.innerHTML = '<tr><td colspan="10" class="empty">لا توجد سجلات.</td></tr>'; return; }
+    if (sel.options.length <= 2) {  // fill once (a URL value may already be there)
+      const keep = sel.value;
+      [...sel.options].slice(1).forEach((o) => o.remove());
+      Object.entries(r.result_labels).forEach(([k, v]) => sel.add(new Option(v, k)));
+      sel.value = keep;
+    }
+    if (!params.get("result")) renderSummary(r.items); else $("#summary").innerHTML =
+      `<span class="pill r-${esc(params.get("result"))} active">${esc(r.result_labels[params.get("result")] || params.get("result"))}: ${r.items.length}</span>
+       <span class="pill" data-r="">عرض الكل</span>`;
+    $$("#summary .pill[data-r]").forEach((p) => p.onclick = () => { $("#f-result").value = p.dataset.r; loadHistory(); });
+    if (!r.items.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">لا توجد سجلات.</td></tr>'; return; }
     tbody.innerHTML = r.items.map((i) => `<tr>
-      <td class="nowrap">${esc(i.time)}${i.dry_run ? ' <span class="badge amber">Dry Run</span>' : ""}${i.manual ? ' <span class="badge">يدوي</span>' : ""}</td>
-      <td><b>${esc(i.company)}</b>${i.followup_at ? `<div class="small muted">متابعة: ${esc(i.followup_at)}</div>` : ""}</td>
-      <td class="ltr">${esc(i.phone)}</td><td>${esc(i.result)}</td>
-      <td class="pre small" style="min-width:180px;max-width:320px">${orDash(i.note)}</td>
-      <td>${stepBadge(i.odoo)}${i.activity && i.activity !== "skipped" ? `<div class="small">Activity: ${stepBadge(i.activity)}</div>` : ""}</td>
-      <td>${stepBadge(i.google)}</td><td class="ltr">${fmtDuration(i.duration)}</td>
-      <td class="small" style="min-width:280px;max-width:420px">${[...i.errors, ...i.warnings].map((e) => `<div style="color:var(--danger)">${esc(e)}</div>`).join("") || "—"}</td>
+      <td class="who"><b>${esc(i.company)}</b><div class="meta"><span>${esc(i.time)}</span>
+        ${i.dry_run ? '<span class="badge amber">Dry Run</span>' : ""}${i.manual ? '<span class="badge">يدوي</span>' : ""}
+        ${i.followup_at ? `<span>· متابعة: ${esc(i.followup_at)}</span>` : ""}</div></td>
+      <td><span class="phone">${orDash(i.phone)}</span></td>
+      <td><span class="pill r-${esc(i.result_code)}">${esc(i.result)}</span></td>
+      <td><div class="note">${orDash(i.note)}</div></td>
+      <td>${stepBadge(i.odoo)}${i.activity && i.activity !== "skipped" ? `<div class="small" style="margin-top:4px">Activity: ${stepBadge(i.activity)}</div>` : ""}</td>
+      <td>${stepBadge(i.google)}</td>
+      <td class="ltr nowrap">${fmtDuration(i.duration)}</td>
+      <td><div class="warn-list">${[...i.errors, ...i.warnings].map((e) => `<div>${esc(e)}</div>`).join("") || '<span class="muted">—</span>'}</div></td>
       <td class="nowrap"><button class="btn sm" data-d="${i.id}">تفاصيل</button>
-        ${i.can_retry ? `<button class="btn sm primary" data-r="${i.id}">إعادة المحاولة</button>` : ""}</td></tr>`).join("");
-    $$("button[data-r]").forEach((b) => b.onclick = () => withBusy(b, async () => {
-      try { const res = await api("POST", `/api/history/${b.dataset.r}/retry`); toast(res.message, res.status === "done" ? "success" : "warn"); loadHistory(); }
+        ${i.can_retry ? `<button class="btn sm primary" data-rt="${i.id}">إعادة المحاولة</button>` : ""}</td></tr>`).join("");
+    $$("button[data-rt]").forEach((b) => b.onclick = () => withBusy(b, async () => {
+      try { const res = await api("POST", `/api/history/${b.dataset.rt}/retry`); toast(res.message, res.status === "done" ? "success" : "warn"); loadHistory(); }
       catch (e) { toast(e.message, "error", 7000); }
     }));
     $$("button[data-d]").forEach((b) => b.onclick = () => showDetails(b.dataset.d));
-  } catch (e) { tbody.innerHTML = `<tr><td colspan="10"><div class="alert error">${esc(e.message)}</div></td></tr>`; }
+  } catch (e) { tbody.innerHTML = `<tr><td colspan="9"><div class="alert error">${esc(e.message)}</div></td></tr>`; }
 }
 
 async function showDetails(id) {
@@ -49,5 +91,7 @@ async function showDetails(id) {
 
 document.addEventListener("DOMContentLoaded", () => {
   $("#filters").onsubmit = (ev) => { ev.preventDefault(); loadHistory(); };
+  $("#btn-clear").onclick = () => { $("#filters").reset(); $("#f-result").value = ""; loadHistory(); };
+  applyUrlFilters();
   loadHistory();
 });

@@ -212,3 +212,31 @@ def test_wrong_odoo_number_is_reported_and_blocked(client, odoo):
     assert r["phone_field"] == "sheet" and odoo.calls[-1]["tel"] == "tel:+966561234567"
     r = client.post(f"/api/lead/{fp}/call", json={"force": True}, headers=H).json()
     assert r["phone_field"] == "phone" and odoo.calls[-1]["tel"] == "tel:056123456"
+
+
+def test_card_lists_and_goto_lead(client):
+    client.post("/api/session/start", json={"resume": True}, headers=H)
+    first = client.get("/api/lead/current").json()["lead"]
+    pend = client.get("/api/queue/list", params={"kind": "pending"}).json()["items"]
+    everyone = client.get("/api/queue/list", params={"kind": "all"}).json()["items"]
+    assert len(pend) == 3 and len(everyone) == 4 and pend[0]["current"]
+    assert pend[0]["phone"] == "+966 56 123 4567"  # uniform display
+    target = pend[-1]
+    r = client.post(f"/api/lead/{target['fingerprint']}/goto", headers=H).json()
+    assert r["lead"]["fingerprint"] == target["fingerprint"] != first["fingerprint"]
+    assert client.get("/api/lead/current").json()["lead"]["fingerprint"] == target["fingerprint"]
+    assert client.get("/api/queue/list", params={"kind": "bad"}).status_code == 400
+
+
+def test_history_shows_odoo_phone_when_sheet_has_none(client, sheet, odoo):
+    sheet.sheets["Leads"][5][4] = ""  # «مكتب التقنية»: no number in the sheet
+    client.put("/api/queue/filter", json={"values": ["متابعة"]}, headers=H)
+    client.post("/api/session/start", json={"resume": True}, headers=H)
+    lead = client.get("/api/lead/current").json()["lead"]
+    assert lead["company_name"] == "مكتب التقنية" and lead["phone"] == ""
+    client.post(f"/api/lead/{lead['fingerprint']}/search", json={"query": "مكتب التقنية"}, headers=H)
+    client.post(f"/api/lead/{lead['fingerprint']}/select", json={"odoo_id": 3}, headers=H)
+    client.post("/api/result", json={"idempotency_key": "hist-phone-1", "fingerprint": lead["fingerprint"],
+                                     "result_code": "NO_ANSWER"}, headers=H)
+    item = client.get("/api/history?period=today").json()["items"][0]
+    assert item["phone"] == "+966 56 555 5555"

@@ -120,6 +120,9 @@ class ResultService:
         company = cache.company_name if cache else inp.manual_company
         phone = cache.phone_raw if cache else inp.manual_phone
         phone_norm = cache.phone_norm if cache else normalize_phone(inp.manual_phone)
+        if cache and not phone.strip() and cache.odoo_data:
+            # No number in the sheet row: keep the Odoo number in the history instead of an empty cell.
+            phone = cache.odoo_data.get("phone") or cache.odoo_data.get("mobile") or ""
         odoo_id = inp.odoo_lead_id or (cache.odoo_lead_id if cache else None)
         dry_run = s.dry_run or inp.preview_only
         update_sheet = inp.update_sheet and not manual  # manual mode never writes the sheet

@@ -58,6 +58,18 @@ async def queue_refresh(c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.current()
 
 
+@router.get("/queue/list")
+async def queue_list(kind: str = "pending", c: AppContainer = Depends(container)) -> dict:
+    if kind not in ("pending", "all", "match_errors"):
+        raise AgentError("BAD_KIND", "نوع قائمة غير معروف.")
+    return await c.workflow.queue_list(kind)
+
+
+@router.post("/lead/{fingerprint}/goto")
+async def lead_goto(fingerprint: str, c: AppContainer = Depends(container)) -> dict:
+    return await c.workflow.goto(fingerprint)
+
+
 @router.get("/queue/filter")
 async def queue_filter(c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.status_filter()

@@ -185,3 +185,13 @@ def check_phone(raw: str | None) -> dict:
     issues.extend(warn)
     out["severity"] = "warning" if warn else "ok"
     return out
+
+
+def format_phone(raw: str | None) -> str:
+    """Readable, uniform display: Saudi numbers as ``+966 5X XXX XXXX``; anything else unchanged."""
+    raw = (raw or "").strip()
+    norm = normalize_phone(raw)
+    if norm.startswith(SAUDI_CC) and len(norm) == 12:
+        sub = norm[3:]
+        return f"+966 {sub[:2]} {sub[2:5]} {sub[5:]}"
+    return raw

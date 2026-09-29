@@ -37,7 +37,21 @@ document.addEventListener("dry-run-changed", (e) => {
   updateWriteSummary();
 });
 
+let handlersBound = false;
+function bindPageHandlers() {
+  // Bound once and before any early return (e.g. the "resume session?" dialog).
+  if (handlersBound) return;
+  handlersBound = true;
+  $("#manual-form").onsubmit = (ev) => { ev.preventDefault(); manualSearch(); };
+  $$("#stats .stat").forEach((b) => b.onclick = () => openCard(b.dataset.go));
+  $("#btn-refresh-queue").onclick = (ev) => withBusy(ev.currentTarget, refreshQueue);
+  $("#btn-end-call").onclick = () => { stopCall(); openResultPanel(); };
+  $("#btn-result-from-call").onclick = () => { stopCall(); openResultPanel(); };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) Live.poll(); });
+}
+
 async function init() {
+  bindPageHandlers();
   try {
     const [st, cfg] = await Promise.all([api("GET", "/api/settings/status-mapping"), api("GET", "/api/settings")]);
     S.statuses = st.items; S.settings = cfg.settings;
@@ -48,11 +62,6 @@ async function init() {
     await loadCurrent();
     loadFilter();
   } catch (e) { showError(e, $("#lead-card"), { retry: init }); }
-  $("#manual-form").onsubmit = (ev) => { ev.preventDefault(); manualSearch(); };
-  $("#btn-refresh-queue").onclick = (ev) => withBusy(ev.currentTarget, refreshQueue);
-  $("#btn-end-call").onclick = () => { stopCall(); openResultPanel(); };
-  $("#btn-result-from-call").onclick = () => { stopCall(); openResultPanel(); };
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) Live.poll(); });
 }
 
 // ------------------------------------------------------------- shortcuts
@@ -185,12 +194,56 @@ async function loadFilter() {
 }
 
 function renderFilter(options) {
-  S.filter.options = options || [];
-  $("#fb-chips").innerHTML = S.filter.options.map((o, i) => `<button type="button" class="fchip ${o.selected ? "on" : ""} ${o.empty ? "empty-status" : ""}" data-i="${i}"
+  // Stable, aligned order: «فارغة» first, then by number of leads (most first).
+  const list = (options || []).map((o, i) => ({ ...o, _i: i }));
+  list.sort((a, b) => (b.empty - a.empty) || (b.count - a.count) || (a._i - b._i));
+  S.filter.options = list;
+  const sel = list.filter((o) => o.selected);
+  const sum = $("#fb-sum");
+  if (sum) sum.textContent = sel.length ? `(${sel.length} حالة مختارة · ${sel.reduce((n, o) => n + o.count, 0)} عميل)` : "";
+  $("#fb-chips").innerHTML = list.map((o, i) => `<button type="button" class="fchip ${o.selected ? "on" : ""} ${o.empty ? "empty-status" : ""}" data-i="${i}"
       title="${o.empty ? "الصفوف التي خلية «حالة المتابعة» فيها فارغة" : esc(o.value)}"><span class="box">${CHECK}</span>
-      ${o.empty ? "فارغة (بدون حالة)" : esc(o.value)}<span class="n">${o.count}</span></button>`).join("")
+      <span class="t">${o.empty ? "فارغة (بدون حالة)" : esc(o.value)}</span><span class="n">${o.count}</span></button>`).join("")
     || '<span class="small muted">لا توجد حالات بعد. حدّث القائمة من Google Sheet.</span>';
   $$("#fb-chips .fchip").forEach((b) => b.onclick = () => toggleFilter(+b.dataset.i));
+}
+
+// ------------------------------------------------------------ stat cards
+const LIST_TITLES = { pending: "العملاء بانتظار التواصل", all: "كل العملاء المسندين إليك", match_errors: "عملاء لم تتم مطابقتهم في Odoo" };
+const MATCH_AR = { matched: ["green", "مطابق"], multiple: ["amber", "أكثر من نتيجة"], not_found: ["red", "غير موجود"], error: ["red", "خطأ"], unknown: ["", "لم يُبحث"] };
+
+function openCard(go) {
+  const [type, arg] = (go || "").split(":");
+  if (type === "hist") { location.href = "/history?period=today" + (arg ? `&result=${encodeURIComponent(arg)}` : ""); return; }
+  if (type === "list") showLeadList(arg);
+}
+
+async function showLeadList(kind) {
+  let r;
+  try { r = await api("GET", `/api/queue/list?kind=${kind}`); } catch (e) { toast(e.message, "error"); return; }
+  const items = r.items || [];
+  Modal.open({
+    title: `${LIST_TITLES[kind] || "العملاء"} (${items.length})`, wide: true,
+    html: items.length ? `<input type="search" id="ll-q" placeholder="بحث بالاسم أو الرقم…" style="margin-bottom:12px">
+      <div class="table-wrap"><table class="table hist"><thead><tr><th>#</th><th>العميل</th><th>الهاتف</th><th>حالة المتابعة</th><th>Odoo</th><th></th></tr></thead><tbody>
+      ${items.map((i, n) => { const [mc, ml] = MATCH_AR[i.match] || MATCH_AR.unknown; return `<tr data-s="${esc((i.company + " " + i.phone).toLowerCase())}">
+        <td class="muted">${i.row}</td><td><b>${esc(i.company || "—")}</b>${i.current ? ' <span class="badge indigo">الحالي</span>' : ""}${!i.pending && kind !== "pending" ? ' <span class="badge">خارج الفلتر/تم</span>' : ""}</td>
+        <td><span class="phone">${orDash(i.phone)}</span></td><td>${i.status ? `<span class="pill">${esc(i.status)}</span>` : '<span class="muted">فارغة</span>'}</td>
+        <td><span class="badge ${mc}">${ml}</span></td><td><button class="btn sm primary" data-i="${n}">فتح</button></td></tr>`; }).join("")}
+      </tbody></table></div>` : '<div class="empty">لا يوجد عملاء في هذه القائمة.</div>',
+    buttons: [{ label: "إغلاق" }],
+    onOpen: (m) => {
+      const q = $("#ll-q", m);
+      if (q) q.oninput = () => { const v = q.value.trim().toLowerCase(); $$("tbody tr", m).forEach((tr) => { tr.style.display = !v || tr.dataset.s.includes(v) ? "" : "none"; }); };
+      $$("button[data-i]", m).forEach((b) => b.onclick = () => withBusy(b, async () => {
+        try {
+          const payload = await api("POST", `/api/lead/${items[+b.dataset.i].fingerprint}/goto`);
+          Modal.close(); stopCall(); S.manual = null; render(payload);
+          $("#lead-card").scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch (e) { toast(e.message, "error"); }
+      }));
+    },
+  });
 }
 
 async function toggleFilter(i) {
