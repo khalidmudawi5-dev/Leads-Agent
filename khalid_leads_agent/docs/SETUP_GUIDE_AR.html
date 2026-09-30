@@ -4,13 +4,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one reading column; phases are a vertical tree (rail + nodes), each step a checkable row. */
+/* Layout: one reading column; phases are a vertical tree (rail + nodes); each step = do / why / what you'll see. */
 :root {
   --bg: #f5f6fb;
   --surface: #ffffff;
   --surface-2: #eef0f8;
   --fg: #1c1f33;
-  --fg-2: #4a4f6a;
+  --fg-2: #464b66;
   --muted: #767b96;
   --line: #dde0ee;
   --accent: #4f46e5;
@@ -42,22 +42,23 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.75; }
-.wrap { max-width: 860px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; direction: rtl; }
-h1, h2, h3 { text-wrap: balance; line-height: 1.35; margin: 0; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16.5px; line-height: 1.8; }
+.wrap { max-width: 880px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; direction: rtl; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.4; margin: 0; }
 h1 { font-size: 1.9rem; font-weight: 800; }
 h2 { font-size: 1.3rem; font-weight: 800; }
-h3 { font-size: 1.02rem; font-weight: 700; }
+h3 { font-size: 1.05rem; font-weight: 700; }
 p { margin: 0; }
-code, .mono { font-family: var(--font-mono); font-size: .88em; direction: ltr; unicode-bidi: isolate; }
+code, .mono { font-family: var(--font-mono); font-size: .86em; direction: ltr; unicode-bidi: isolate; }
 code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; }
 a { color: var(--accent); }
-.lead { color: var(--fg-2); max-width: 62ch; margin-top: 8px; }
+kbd { font-family: var(--font-mono); font-size: .8em; background: var(--surface); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; direction: ltr; unicode-bidi: isolate; }
+.btnlike { display: inline-block; font-weight: 700; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; font-size: .92em; }
+.lead { color: var(--fg-2); max-width: 64ch; margin-top: 8px; }
 
-/* header */
-.head { display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
+.head { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
 .eyebrow { font-size: .8rem; font-weight: 700; letter-spacing: .04em; color: var(--accent); }
-.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .9rem; color: var(--fg-2); align-items: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .92rem; color: var(--fg-2); align-items: center; }
 .who { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
 .who.k { background: var(--khalid-soft); color: var(--khalid); }
 .who.c { background: var(--accent-soft); color: var(--accent); }
@@ -65,25 +66,27 @@ a { color: var(--accent); }
 .path span { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-weight: 600; }
 .path i { color: var(--muted); font-style: normal; }
 
-/* progress */
-.progress { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; margin-bottom: 8px; display: flex; gap: 12px; align-items: center; font-size: .9rem; }
+.progress { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; margin-bottom: 4px; display: flex; gap: 12px; align-items: center; font-size: .9rem; }
 .bar { flex: 1; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bar > b { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .3s ease; }
 .progress .n { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 .reset { background: none; border: 0; color: var(--muted); font: inherit; font-size: .82rem; cursor: pointer; text-decoration: underline; }
 
-/* callouts */
 .note { border-radius: 12px; padding: 12px 16px; font-size: .95rem; display: flex; flex-direction: column; gap: 4px; }
-.note.danger { background: var(--danger-soft); color: var(--fg); border-inline-start: 4px solid var(--danger); }
+.note.danger { background: var(--danger-soft); border-inline-start: 4px solid var(--danger); }
 .note.danger b.t { color: var(--danger); }
 .note.warn { background: var(--warn-soft); border-inline-start: 4px solid var(--warn); }
 .note.warn b.t { color: var(--warn); }
 .note.ok { background: var(--ok-soft); border-inline-start: 4px solid var(--ok); }
 .note.ok b.t { color: var(--ok); }
 
-/* tree */
+.glossary { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.glossary div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: .92rem; color: var(--fg-2); min-width: 0; }
+.glossary b { color: var(--fg); display: block; }
+
 .phase { position: relative; margin-top: 30px; }
-.phase-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.phase-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.phase-intro { color: var(--fg-2); font-size: .95rem; margin: 0 0 12px; max-width: 70ch; }
 .letter { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center; font-weight: 800; font-size: 1.15rem; background: var(--accent); color: var(--surface); }
 .phase.k .letter { background: var(--khalid); }
 .phase-head .meta { font-size: .85rem; color: var(--muted); }
@@ -91,31 +94,31 @@ a { color: var(--accent); }
 .step { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-inline-start: 14px; min-width: 0; }
 .step::before { content: ""; position: absolute; top: 22px; inset-inline-start: -30px; width: 28px; height: 2px; background: var(--line); }
 .step > label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
-.step input[type=checkbox] { width: 20px; height: 20px; margin-top: 4px; accent-color: var(--accent); flex-shrink: 0; }
+.step input[type=checkbox] { width: 20px; height: 20px; margin-top: 5px; accent-color: var(--accent); flex-shrink: 0; }
 .step input:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
-.step .num { font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 2.2em; }
+.step .num { font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 2.4em; }
 .step.done { background: var(--surface-2); }
 .step.done h3 { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
-.step .body { margin-top: 6px; margin-inline-start: 30px; color: var(--fg-2); font-size: .95rem; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.sub { margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 4px; }
-.sub li::marker { color: var(--muted); }
-.check-it { font-size: .88rem; color: var(--ok); font-weight: 600; }
-.check-it::before { content: "✓ "; }
+.step .body { margin-top: 6px; margin-inline-start: 30px; color: var(--fg-2); font-size: .96rem; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sub { margin: 0; padding-inline-start: 22px; display: flex; flex-direction: column; gap: 6px; }
+.sub li::marker { color: var(--accent); font-weight: 700; }
+.why, .see { font-size: .92rem; padding: 6px 10px; border-radius: 8px; }
+.why { background: var(--surface-2); color: var(--fg-2); }
+.why::before { content: "ليش؟ "; font-weight: 800; color: var(--accent); }
+.see { background: var(--ok-soft); color: var(--fg); }
+.see::before { content: "وش بتشوف: "; font-weight: 800; color: var(--ok); }
 
-/* copy blocks */
-.copy { display: flex; align-items: stretch; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; direction: ltr; max-width: 100%; }
+.copy { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; direction: ltr; max-width: 100%; }
 .copy pre { margin: 0; padding: 8px 12px; background: var(--surface-2); flex: 1; min-width: 0; overflow-x: auto; font-family: var(--font-mono); font-size: .86rem; line-height: 1.6; color: var(--fg); }
 .copy button { border: 0; border-left: 1px solid var(--line); background: var(--surface); color: var(--accent); font: inherit; font-size: .8rem; font-weight: 700; padding: 0 12px; cursor: pointer; }
 .copy button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-/* table */
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { background: var(--surface-2); color: var(--fg-2); font-size: .82rem; }
 tr:last-child td { border-bottom: 0; }
 td:first-child { font-weight: 600; min-width: 11em; }
-
 footer { margin-top: 36px; color: var(--muted); font-size: .85rem; }
 @media (max-width: 520px) {
   h1 { font-size: 1.5rem; }
@@ -131,20 +134,28 @@ footer { margin-top: 36px; color: var(--muted); font-size: .85rem; }
   <header class="head">
     <div class="eyebrow">KHALID LEADS AGENT · الإصدار 2.0</div>
     <h1>تشغيل الـAgent على جهاز زميل</h1>
-    <p class="lead">كل زميل يشغّل نسخته الخاصة على جهازه، بحسابه في Google وOdoo، ويرى صفوفه فقط في الـSheet (الصفوف التي فيها «المسؤول الحالي» = اسمه). الوقت المتوقع: 30 إلى 45 دقيقة.</p>
-    <div class="legend">
-      <span>من يقوم بالخطوة:</span>
-      <span class="who k">خالد</span>
-      <span class="who c">الزميل</span>
-    </div>
-    <div class="path" aria-label="مسار العمل">
-      <span>تجهيز من خالد</span><i>←</i><span>تثبيت</span><i>←</i><span>معالج الإعداد</span><i>←</i><span>تجربة آمنة</span><i>←</i><span>تشغيل فعلي</span>
+    <p class="lead">هذا الدليل مكتوب لشخص يطبّق لأول مرة. امشِ على الخطوات بالترتيب، وعلّم ✓ على كل خطوة تخلصها. كل خطوة فيها: <b>وش تسوي</b>، و<b>ليش</b>، و<b>وش بتشوف</b> عشان تتأكد إنك ماشي صح. الوقت الكلي تقريبًا 45 دقيقة.</p>
+    <div class="legend"><span>كل مرحلة عليها اسم الشخص اللي ينفذها:</span><span class="who k">خالد</span><span class="who c">الزميل</span></div>
+    <div class="path" aria-label="المراحل بالترتيب">
+      <span>أ · تجهيز من خالد</span><i>←</i><span>ب · التثبيت</span><i>←</i><span>ج · معالج الإعداد</span><i>←</i><span>د · التجربة ثم التشغيل</span><i>←</i><span>هـ · الجوال (اختياري)</span>
     </div>
     <div class="note danger">
-      <b class="t">لا تنسخ مجلد <code>data</code> ولا ملف <code>.env</code> من جهاز خالد</b>
-      <span>فيهما جلسة Odoo وربط Google الخاصين بخالد. إذا نُسخا سيعمل الـAgent عند الزميل باسم خالد ويكتب في Odoo باسمه. الزميل يبدأ دائمًا بمجلد نظيف.</span>
+      <b class="t">أهم قاعدة: لا تنسخ مجلد <code>data</code> ولا ملف <code>.env</code> من جهاز خالد</b>
+      <span>فيهما دخول خالد إلى Odoo وGoogle. لو نُسخا، سيعمل البرنامج عند الزميل <b>باسم خالد</b> ويكتب في Odoo باسمه. الزميل يبدأ دائمًا بنسخة نظيفة ويسجّل دخوله بحساباته هو.</span>
     </div>
   </header>
+
+  <section class="phase" aria-labelledby="gl">
+    <h2 id="gl" style="margin-bottom:10px">كلمات بتمر عليك</h2>
+    <div class="glossary">
+      <div><b>الـAgent</b>برنامج يشتغل على جهازك ويفتح في المتصفح. يجيب عملاءك من الـSheet، ويلقاهم في Odoo، وتتصل وتسجّل النتيجة منه.</div>
+      <div><b>ملف ZIP</b>ملف مضغوط فيه مجلد كامل. تفك ضغطه بالزر الأيمن ← <span class="btnlike">Extract All</span>.</div>
+      <div><b>ملف ‎.bat</b>ملف تشغيل. تضغط عليه ضغطتين فيسوي المهمة المكتوبة فيه (تثبيت، تشغيل، إيقاف).</div>
+      <div><b>Dry Run</b>وضع تجربة آمن: البرنامج يعرض وش كان بيكتب في Odoo والـSheet بدون ما يكتب شي فعلًا.</div>
+      <div><b>المسؤول الحالي</b>عمود في الـSheet فيه اسم الموظف. البرنامج يعرض لك الصفوف اللي فيها اسمك فقط.</div>
+      <div><b>Phone Link</b>برنامج في Windows يربط الكمبيوتر بجوالك، فتتصل من الكمبيوتر والمكالمة تطلع من الجوال.</div>
+    </div>
+  </section>
 
   <div class="progress" aria-live="polite">
     <span class="bar"><b id="bar"></b></span>
@@ -152,188 +163,305 @@ footer { margin-top: 36px; color: var(--muted); font-size: .85rem; }
     <button class="reset" id="reset" type="button">مسح العلامات</button>
   </div>
 
-  <!-- ============ A ============ -->
+  <!-- ================= A ================= -->
   <section class="phase k">
     <div class="phase-head">
       <span class="letter">أ</span>
-      <div><h2>تجهيز من خالد</h2><div class="meta">مرة واحدة لكل زميل · 10 دقائق</div></div>
+      <div><h2>تجهيز من خالد</h2><div class="meta">قبل ما يبدأ الزميل · مرة واحدة لكل زميل · 10 دقائق</div></div>
       <span class="who k">خالد</span>
     </div>
+    <p class="phase-intro">الزميل ما يقدر يبدأ قبل هذي الخطوات: يحتاج صلاحية على الملف، وإذن من Google، وملفات البرنامج.</p>
     <ol class="steps">
       <li class="step" data-id="a1"><label><input type="checkbox" id="a1"><span class="num">أ-1</span><h3>أعطِ الزميل صلاحية تعديل على Google Sheet</h3></label>
         <div class="body">
-          <ol class="sub"><li>افتح الـSheet ← زر <b>Share</b> ← أضف بريد الزميل ← اختر <b>Editor</b>.</li>
-          <li>تأكد أن اسمه مكتوب في عمود <b>«المسؤول الحالي»</b> بنفس الطريقة في كل صفوفه (مثلًا <b>سارة</b> وليس «أ. سارة»).</li></ol>
+          <ol class="sub">
+            <li>افتح ملف الـSheet في المتصفح.</li>
+            <li>اضغط زر <span class="btnlike">Share</span> (مشاركة) فوق على اليمين.</li>
+            <li>اكتب بريد الزميل (نفس البريد اللي بيسجّل فيه دخول Google).</li>
+            <li>من القائمة جنب البريد اختر <span class="btnlike">Editor</span> ← <span class="btnlike">Send</span>.</li>
+            <li>تأكد أن اسم الزميل مكتوب في عمود «المسؤول الحالي» <b>بنفس الشكل في كل صفوفه</b> (مثلًا دائمًا «سارة»، مو مرة «سارة» ومرة «أ. سارة»).</li>
+          </ol>
+          <p class="why">البرنامج يقرأ الملف ويكتب فيه بحساب الزميل، ويعرف صفوفه من الاسم في عمود «المسؤول الحالي».</p>
+          <p class="see">بريد الزميل ظاهر في قائمة المشاركة بصلاحية Editor.</p>
         </div></li>
-      <li class="step" data-id="a2"><label><input type="checkbox" id="a2"><span class="num">أ-2</span><h3>أضف بريد الزميل في Google Cloud</h3></label>
+      <li class="step" data-id="a2"><label><input type="checkbox" id="a2"><span class="num">أ-2</span><h3>أضف بريد الزميل في Google Cloud كمستخدم مسموح</h3></label>
         <div class="body">
-          <p>ربط Google يستخدم مشروع Google Cloud الذي أنشأته أنت. ما دام التطبيق في وضع الاختبار، لا يستطيع أحد الدخول إلا من تضيفه:</p>
-          <ol class="sub"><li>افتح <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> واختر مشروع الـAgent.</li>
-          <li><b>APIs &amp; Services</b> ← <b>OAuth consent screen</b> ← <b>Test users</b> ← <b>Add users</b> ← بريد الزميل ← <b>Save</b>.</li></ol>
-          <p class="check-it">إذا كان حسابكم Google Workspace والتطبيق من نوع Internal، تخطَّ هذه الخطوة.</p>
+          <ol class="sub">
+            <li>افتح <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> بحسابك.</li>
+            <li>من أعلى الصفحة تأكد أن المشروع المختار هو مشروع الـAgent (اللي أنشأته أول مرة).</li>
+            <li>من القائمة ☰ اختر <span class="btnlike">APIs &amp; Services</span> ← <span class="btnlike">OAuth consent screen</span>.
+              <br><span style="font-size:.88rem">في الشكل الجديد لـGoogle اسمها <span class="btnlike">Google Auth Platform</span> ← <span class="btnlike">Audience</span>.</span></li>
+            <li>انزل لقسم <span class="btnlike">Test users</span> ← <span class="btnlike">Add users</span> ← اكتب بريد الزميل ← <span class="btnlike">Save</span>.</li>
+          </ol>
+          <p class="why">ربط Google يمر عبر «تطبيق» أنشأته أنت في Google Cloud وهو في وضع الاختبار؛ Google يمنع أي حساب غير مضاف هنا.</p>
+          <p class="see">بريد الزميل في قائمة Test users.</p>
+          <div class="note ok"><b class="t">تخطَّ الخطوة إذا</b><span>كان حسابكم Google Workspace للشركة والتطبيق من نوع <b>Internal</b>.</span></div>
         </div></li>
-      <li class="step" data-id="a3"><label><input type="checkbox" id="a3"><span class="num">أ-3</span><h3>أرسل للزميل ملف ربط Google فقط</h3></label>
+      <li class="step" data-id="a3"><label><input type="checkbox" id="a3"><span class="num">أ-3</span><h3>أرسل للزميل ملف ربط Google (ملف واحد فقط)</h3></label>
         <div class="body">
-          <p>من مجلد الـAgent عندك انسخ هذا الملف وحده وأرسله للزميل بشكل خاص (بريد العمل أو Teams):</p>
+          <ol class="sub">
+            <li>افتح مجلد الـAgent عندك ← مجلد <code>data</code> ← مجلد <code>credentials</code>.</li>
+            <li>انسخ الملف <code>client_secret.json</code> وأرسله للزميل بشكل خاص (بريد العمل أو Teams).</li>
+          </ol>
           <div class="copy"><pre>data\credentials\client_secret.json</pre><button type="button" data-copy>نسخ</button></div>
-          <div class="note warn"><b class="t">لا ترسل <code>token.json</code></b><span>هذا مفتاح حسابك أنت. الزميل ينشئ مفتاحه الخاص عند الضغط على Connect Google.</span></div>
+          <p class="why">هذا الملف يعرّف «تطبيق» الـAgent عند Google. كل موظف يستخدمه ثم يسجّل دخوله بحسابه هو.</p>
+          <div class="note warn"><b class="t">لا ترسل <code>token.json</code> اللي في نفس المجلد</b><span>هذا مفتاح دخول حسابك أنت.</span></div>
         </div></li>
       <li class="step" data-id="a4"><label><input type="checkbox" id="a4"><span class="num">أ-4</span><h3>أرسل ملفات البرنامج (نسخة نظيفة)</h3></label>
         <div class="body">
-          <ol class="sub"><li>افتح <a href="https://github.com/khalidmudawi5-dev/Leads-Agent" target="_blank" rel="noopener">صفحة المشروع على GitHub</a> ← الزر الأخضر <b>Code</b> ← <b>Download ZIP</b>.</li>
-          <li>أرسل ملف الـZIP للزميل. هذه النسخة لا تحتوي أي بيانات أو جلسات.</li></ol>
+          <ol class="sub">
+            <li>افتح <a href="https://github.com/khalidmudawi5-dev/Leads-Agent" target="_blank" rel="noopener">صفحة المشروع على GitHub</a> (وأنت مسجّل دخول).</li>
+            <li>اضغط الزر الأخضر <span class="btnlike">Code</span> ← <span class="btnlike">Download ZIP</span>.</li>
+            <li>أرسل الملف المحمّل (اسمه تقريبًا <code>Leads-Agent-main.zip</code>) للزميل.</li>
+          </ol>
+          <p class="why">المشروع على GitHub خاص؛ الزميل ما يقدر يحمّله بنفسه. والنسخة من GitHub نظيفة ما فيها أي بيانات أو دخول.</p>
+          <p class="see">الزميل استلم ملفين: <code>Leads-Agent-main.zip</code> و<code>client_secret.json</code>.</p>
         </div></li>
     </ol>
   </section>
 
-  <!-- ============ B ============ -->
+  <!-- ================= B ================= -->
   <section class="phase">
     <div class="phase-head">
       <span class="letter">ب</span>
-      <div><h2>التثبيت على جهاز الزميل</h2><div class="meta">Windows 10 أو 11 · 10 دقائق · يحتاج إنترنت</div></div>
+      <div><h2>التثبيت على جهاز الزميل</h2><div class="meta">Windows 10 أو 11 · 15 دقيقة · يحتاج إنترنت</div></div>
       <span class="who c">الزميل</span>
     </div>
+    <p class="phase-intro">هنا نجهّز الجهاز: نثبت Python (اللغة اللي البرنامج مكتوب فيها)، ونفك ملفات البرنامج، ونشغّل ملف التثبيت.</p>
     <ol class="steps">
-      <li class="step" data-id="b1"><label><input type="checkbox" id="b1"><span class="num">ب-1</span><h3>ثبّت Python 3.12 أو أحدث</h3></label>
+      <li class="step" data-id="b1"><label><input type="checkbox" id="b1"><span class="num">ب-1</span><h3>ثبّت Python</h3></label>
         <div class="body">
-          <ol class="sub"><li>نزّله من <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org/downloads</a>.</li>
-          <li>في أول شاشة للتثبيت فعّل <b>Add python.exe to PATH</b> ثم <b>Install Now</b>.</li></ol>
-          <p class="check-it">إذا كان مثبتًا من قبل (3.12 أو أحدث) تخطَّ الخطوة.</p>
+          <ol class="sub">
+            <li>افتح <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org/downloads</a> واضغط الزر الأصفر <span class="btnlike">Download Python</span>.</li>
+            <li>افتح الملف المحمّل من مجلد <b>Downloads</b>.</li>
+            <li><b>أهم شي:</b> في أول شاشة، تحت، علّم ✓ على <span class="btnlike">Add python.exe to PATH</span>.</li>
+            <li>اضغط <span class="btnlike">Install Now</span>، وانتظر، ثم <span class="btnlike">Close</span>.</li>
+          </ol>
+          <p class="why">البرنامج مكتوب بلغة Python ويحتاجها عشان يشتغل. خيار PATH يخلي ملف التثبيت يلقاها.</p>
+          <p class="see">رسالة <span class="mono">Setup was successful</span>.</p>
         </div></li>
-      <li class="step" data-id="b2"><label><input type="checkbox" id="b2"><span class="num">ب-2</span><h3>فك ضغط الملفات في مكان ثابت</h3></label>
+      <li class="step" data-id="b2"><label><input type="checkbox" id="b2"><span class="num">ب-2</span><h3>فك ضغط ملفات البرنامج</h3></label>
         <div class="body">
-          <ol class="sub"><li>فك ضغط الـZIP، وانسخ المجلد <code>khalid_leads_agent</code> الذي بداخله إلى مكان مثل:</li></ol>
+          <ol class="sub">
+            <li>اضغط بالزر الأيمن على <code>Leads-Agent-main.zip</code> ← <span class="btnlike">Extract All</span> ← <span class="btnlike">Extract</span>.</li>
+            <li>افتح المجلد الناتج. بداخله مجلد اسمه <code>khalid_leads_agent</code>.</li>
+            <li>انسخ مجلد <code>khalid_leads_agent</code> والصقه في القرص <b>C:</b> وسمّه مثلًا <code>LeadsAgent</code>:</li>
+          </ol>
           <div class="copy"><pre>C:\LeadsAgent</pre><button type="button" data-copy>نسخ</button></div>
-          <p>المجلد الصحيح هو الذي تجد فيه الملف <code>01_install.bat</code> مباشرة.</p>
+          <p class="why">مكان ثابت وقصير، ما يتحرك ولا ينحذف مع ملفات التحميل.</p>
+          <p class="see">لما تفتح <code>C:\LeadsAgent</code> تشوف مباشرة ملفات مثل <code>01_install.bat</code> و<code>02_start_agent.bat</code>.</p>
         </div></li>
-      <li class="step" data-id="b3"><label><input type="checkbox" id="b3"><span class="num">ب-3</span><h3>شغّل <code>01_install.bat</code></h3></label>
+      <li class="step" data-id="b3"><label><input type="checkbox" id="b3"><span class="num">ب-3</span><h3>شغّل ملف التثبيت <code>01_install.bat</code></h3></label>
         <div class="body">
-          <p>ضغطة مزدوجة على الملف، وانتظر من 3 إلى 5 دقائق. يثبّت المكتبات ومتصفح Odoo الخاص بالـAgent.</p>
-          <p class="check-it">في النهاية تظهر رسالة <span class="mono">Installation completed successfully</span></p>
+          <ol class="sub">
+            <li>داخل <code>C:\LeadsAgent</code> اضغط ضغطتين على <code>01_install.bat</code>.</li>
+            <li>إذا طلعت شاشة زرقاء «Windows protected your PC»: اضغط <span class="btnlike">More info</span> ← <span class="btnlike">Run anyway</span>.</li>
+            <li>تنفتح نافذة سوداء وتكتب أسطر كثيرة. <b>لا تسكّرها</b>، انتظر 3 إلى 5 دقائق.</li>
+            <li>لما تخلص اضغط أي زر في الكيبورد عشان تتسكّر.</li>
+          </ol>
+          <p class="why">يثبت كل المكتبات اللي يحتاجها البرنامج، ومتصفح خاص يفتح فيه Odoo.</p>
+          <p class="see">آخر سطر: <span class="mono">Installation completed successfully</span>. إذا طلعت كلمة <span class="mono">ERROR</span> شوف جدول المشاكل تحت.</p>
         </div></li>
-      <li class="step" data-id="b4"><label><input type="checkbox" id="b4"><span class="num">ب-4</span><h3>ضع ملف ربط Google في مكانه</h3></label>
+      <li class="step" data-id="b4"><label><input type="checkbox" id="b4"><span class="num">ب-4</span><h3>احفظ ملف <code>client_secret.json</code> في مكان واضح</h3></label>
         <div class="body">
-          <p>احفظ ملف <code>client_secret.json</code> الذي أرسله خالد على سطح المكتب؛ سترفعه من داخل الـAgent في الخطوة ج-2.</p>
+          <p>احفظ الملف اللي أرسله خالد على <b>سطح المكتب</b>. بترفعه من داخل البرنامج في الخطوة ج-2.</p>
         </div></li>
-      <li class="step" data-id="b5"><label><input type="checkbox" id="b5"><span class="num">ب-5</span><h3>شغّل <code>02_start_agent.bat</code></h3></label>
+      <li class="step" data-id="b5"><label><input type="checkbox" id="b5"><span class="num">ب-5</span><h3>شغّل البرنامج <code>02_start_agent.bat</code></h3></label>
         <div class="body">
-          <p>يفتح المتصفح على العنوان التالي، وتظهر شاشة <b>معالج الإعداد</b> تلقائيًا:</p>
+          <ol class="sub">
+            <li>اضغط ضغطتين على <code>02_start_agent.bat</code> (وإذا طلع تحذير Windows: More info ← Run anyway).</li>
+            <li>ينفتح المتصفح تلقائيًا. إذا ما انفتح، افتح Chrome واكتب هذا العنوان:</li>
+          </ol>
           <div class="copy"><pre>http://127.0.0.1:8765</pre><button type="button" data-copy>نسخ</button></div>
-          <p>تبقى نافذة سوداء صغيرة مصغّرة في شريط المهام باسم <b>Khalid Leads Agent</b>: لا تغلقها أثناء العمل.</p>
+          <p class="why">هذا العنوان يعني «البرنامج اللي على جهازي». ما يطلع على الإنترنت ولا أحد غيرك يشوفه.</p>
+          <p class="see">صفحة <b>معالج الإعداد</b> فيها 9 خطوات. وفي شريط المهام نافذة مصغّرة اسمها <b>Khalid Leads Agent</b>: <b>لا تسكّرها</b> أثناء الشغل.</p>
         </div></li>
     </ol>
   </section>
 
-  <!-- ============ C ============ -->
+  <!-- ================= C ================= -->
   <section class="phase">
     <div class="phase-head">
       <span class="letter">ج</span>
-      <div><h2>معالج الإعداد (9 خطوات)</h2><div class="meta">داخل الـAgent · 10 دقائق · كل خطوة تُحفظ فورًا</div></div>
+      <div><h2>معالج الإعداد (9 خطوات داخل البرنامج)</h2><div class="meta">15 دقيقة · كل خطوة تنحفظ لحالها · ولا شي يُكتب في Odoo أو الـSheet هنا</div></div>
       <span class="who c">الزميل</span>
     </div>
+    <p class="phase-intro">المعالج يربط البرنامج بحساباتك: الـSheet، وGoogle، وOdoo. بعد كل خطوة اضغط <span class="btnlike">التالي</span>.</p>
     <ol class="steps">
       <li class="step" data-id="c1"><label><input type="checkbox" id="c1"><span class="num">ج-1</span><h3>اسم المستخدم</h3></label>
-        <div class="body"><p>اكتب اسمك <b>كما هو حرفيًا</b> في عمود «المسؤول الحالي» في الـSheet. هذا ما يحدد أي الصفوف تظهر لك وأيها يُسمح بتعديله.</p></div></li>
+        <div class="body">
+          <p>اكتب اسمك <b>حرفيًا كما هو في عمود «المسؤول الحالي»</b> في الـSheet (نفس الحروف والمسافات).</p>
+          <p class="why">البرنامج يعرض ويعدّل فقط الصفوف اللي فيها هذا الاسم؛ أي اختلاف بسيط يخليه ما يلقى عملاءك.</p>
+        </div></li>
       <li class="step" data-id="c2"><label><input type="checkbox" id="c2"><span class="num">ج-2</span><h3>ربط Google Sheet</h3></label>
         <div class="body">
-          <ol class="sub"><li>اضغط <b>رفع ملف OAuth</b> واختر <code>client_secret.json</code>.</li>
-          <li>اضغط <b>Connect Google</b> ← سجّل الدخول ببريدك (الذي أضافه خالد) ← وافق على الصلاحيات.</li>
-          <li>إذا ظهرت شاشة «Google hasn't verified this app»: اضغط <b>Continue</b>.</li></ol>
-          <p class="check-it">تظهر الحالة Connected</p>
+          <ol class="sub">
+            <li>اضغط <span class="btnlike">رفع ملف OAuth</span> واختر <code>client_secret.json</code> من سطح المكتب.</li>
+            <li>اضغط <span class="btnlike">Connect Google</span> ← تنفتح صفحة Google ← اختر بريدك (اللي أضافه خالد).</li>
+            <li>إذا طلعت «Google hasn't verified this app»: اضغط <span class="btnlike">Continue</span> (هذا تطبيق الشركة الداخلي).</li>
+            <li>في شاشة الصلاحيات علّم ✓ على صلاحية Google Sheets ← <span class="btnlike">Continue</span>.</li>
+            <li>تطلع رسالة إن الربط اكتمل: سكّر هذي الصفحة وارجع لصفحة البرنامج.</li>
+          </ol>
+          <p class="see">كلمة <b>Connected</b> في صفحة المعالج.</p>
         </div></li>
       <li class="step" data-id="c3"><label><input type="checkbox" id="c3"><span class="num">ج-3</span><h3>تحديد الملف والـTab</h3></label>
-        <div class="body"><p>الصق رابط الـSheet كاملًا (يستخرج الـAgent المعرّف منه) ← <b>تحميل التابات</b> ← اختر نفس التاب الذي يعمل عليه خالد.</p></div></li>
-      <li class="step" data-id="c4"><label><input type="checkbox" id="c4"><span class="num">ج-4</span><h3>Column Mapping</h3></label>
-        <div class="body"><p>الربط يتم تلقائيًا من عناوين الأعمدة. تأكد فقط أن كل حقل مربوط بالعمود الصحيح (اسم المنشأة، رقم الجوال، المسؤول الحالي، حالة المتابعة…) ثم احفظ.</p></div></li>
-      <li class="step" data-id="c5"><label><input type="checkbox" id="c5"><span class="num">ج-5</span><h3>رابط Odoo</h3></label>
-        <div class="body"><div class="copy"><pre>https://worldofss.odoo.com</pre><button type="button" data-copy>نسخ</button></div></div></li>
-      <li class="step" data-id="c6"><label><input type="checkbox" id="c6"><span class="num">ج-6</span><h3>تسجيل الدخول إلى Odoo</h3></label>
         <div class="body">
-          <ol class="sub"><li><b>فتح Odoo لتسجيل الدخول</b> ← تفتح نافذة متصفح خاصة بالـAgent ← سجّل الدخول <b>بحسابك أنت</b> في Odoo.</li>
-          <li>ارجع للمعالج ← <b>تحقق من تسجيل الدخول</b>.</li></ol>
-          <p>كلمة المرور لا تُحفظ في الـAgent؛ الجلسة تبقى في المتصفح الخاص به.</p>
+          <ol class="sub">
+            <li>افتح الـSheet في تبويب ثاني، وانسخ الرابط كامل من شريط العنوان (<kbd>Ctrl</kbd>+<kbd>L</kbd> ثم <kbd>Ctrl</kbd>+<kbd>C</kbd>).</li>
+            <li>الصقه في البرنامج ← اضغط <span class="btnlike">تحميل التابات</span>.</li>
+            <li>اختر اسم الورقة (Tab) اللي فيها العملاء، نفس اللي يشتغل عليها خالد.</li>
+          </ol>
+          <p class="see">اسم الملف مكتوب بالأخضر، واسم الـTab مختار.</p>
+        </div></li>
+      <li class="step" data-id="c4"><label><input type="checkbox" id="c4"><span class="num">ج-4</span><h3>ربط الأعمدة (Column Mapping)</h3></label>
+        <div class="body">
+          <p>البرنامج يربط الأعمدة تلقائيًا من عناوينها. راجع بس: اسم المنشأة، رقم الجوال، المسؤول الحالي، حالة المتابعة، مصدر العميل، الملاحظات… كل واحد جنبه العمود الصحيح. ثم احفظ.</p>
+          <p class="why">البرنامج يعتمد على عنوان العمود مو على مكانه، فلو أحد حرّك عمود ما يتأثر.</p>
+        </div></li>
+      <li class="step" data-id="c5"><label><input type="checkbox" id="c5"><span class="num">ج-5</span><h3>رابط Odoo</h3></label>
+        <div class="body"><p>يكون مكتوب مسبقًا. تأكد إنه:</p><div class="copy"><pre>https://worldofss.odoo.com</pre><button type="button" data-copy>نسخ</button></div></div></li>
+      <li class="step" data-id="c6"><label><input type="checkbox" id="c6"><span class="num">ج-6</span><h3>تسجيل الدخول إلى Odoo بحسابك</h3></label>
+        <div class="body">
+          <ol class="sub">
+            <li>اضغط <span class="btnlike">فتح Odoo لتسجيل الدخول</span> ← تنفتح <b>نافذة متصفح جديدة</b> خاصة بالبرنامج.</li>
+            <li>سجّل دخول Odoo <b>بإيميلك وكلمة مرورك أنت</b>.</li>
+            <li>ارجع لصفحة البرنامج (<kbd>Alt</kbd>+<kbd>Tab</kbd>) ← اضغط <span class="btnlike">تحقق من تسجيل الدخول</span>.</li>
+          </ol>
+          <p class="why">كل ملاحظة ونتيجة تُكتب في Odoo باسم الشخص المسجّل. كلمة المرور ما يحفظها البرنامج؛ يحفظ الدخول بس مثل أي متصفح.</p>
+          <p class="see">رسالة نجاح فيها اسمك في Odoo.</p>
         </div></li>
       <li class="step" data-id="c7"><label><input type="checkbox" id="c7"><span class="num">ج-7</span><h3>اختبار البحث في Odoo</h3></label>
-        <div class="body"><p>اكتب اسم عميل أو رقم جوال تعرفه ← <b>بحث</b>. يجب أن يظهر العميل من Odoo.</p></div></li>
-      <li class="step" data-id="c8"><label><input type="checkbox" id="c8"><span class="num">ج-8</span><h3>Dry Run Test</h3></label>
-        <div class="body"><p><b>تشغيل Dry Run Test</b> ← يعرض أول عميل من صفوفك وما <b>كان سيتم</b> كتابته، بدون كتابة أي شيء في Odoo أو الـSheet.</p></div></li>
+        <div class="body"><p>اكتب اسم عميل أو رقم جوال تعرف إنه موجود في Odoo ← <span class="btnlike">بحث</span>.</p><p class="see">العميل يطلع في النتائج.</p></div></li>
+      <li class="step" data-id="c8"><label><input type="checkbox" id="c8"><span class="num">ج-8</span><h3>تجربة Dry Run</h3></label>
+        <div class="body"><p>اضغط <span class="btnlike">تشغيل Dry Run Test</span>.</p><p class="see">أول عميل من صفوفك، وتحته «كان سيتم…» يعني وش بيكتب البرنامج، <b>بدون ما يكتب شي فعلًا</b>.</p></div></li>
       <li class="step" data-id="c9"><label><input type="checkbox" id="c9"><span class="num">ج-9</span><h3>جاهز</h3></label>
-        <div class="body"><p>تنتقل للصفحة الرئيسية. أسفل القائمة الجانبية يظهر <b>الإصدار 2.0.0</b>.</p></div></li>
+        <div class="body"><p>اضغط الزر الأخير لتنتقل للصفحة الرئيسية.</p><p class="see">عملاءك، وأعلى الصفحة شريط أصفر «وضع Dry Run مفعّل»، وأسفل القائمة الجانبية «الإصدار 2.0.0».</p></div></li>
     </ol>
   </section>
 
-  <!-- ============ D ============ -->
+  <!-- ================= D ================= -->
   <section class="phase">
     <div class="phase-head">
       <span class="letter">د</span>
       <div><h2>التجربة الآمنة ثم التشغيل الفعلي</h2><div class="meta">أول يوم عمل</div></div>
       <span class="who c">الزميل</span>
     </div>
+    <p class="phase-intro">جرّب على عملاء قليلين وأنت في وضع التجربة، ولما تطمئن للنتائج شغّل الحفظ الفعلي.</p>
     <ol class="steps">
-      <li class="step" data-id="d1"><label><input type="checkbox" id="d1"><span class="num">د-1</span><h3>جرّب عميلين أو ثلاثة في وضع Dry Run</h3></label>
+      <li class="step" data-id="d1"><label><input type="checkbox" id="d1"><span class="num">د-1</span><h3>اربط جوالك بالكمبيوتر (Phone Link)</h3></label>
         <div class="body">
-          <p>Dry Run مفعّل افتراضيًا (شريط أصفر أعلى الصفحة). اتصل وسجّل نتيجة، وراجع المعاينة: الحالة الجديدة في الـSheet ونص الملاحظة في Odoo.</p>
-          <p>أول مرة تضغط «اتصال الآن» قد يسأل Windows عن التطبيق: اختر <b>Phone Link</b> وفعّل <b>Always</b>.</p>
+          <ol class="sub">
+            <li>في Windows افتح قائمة ابدأ واكتب <b>Phone Link</b> وافتحه.</li>
+            <li>اختر نوع جوالك (Android أو iPhone) واتبع التعليمات: تمسح رمز QR من الجوال.</li>
+            <li>على الجوال اسمح بالصلاحيات (المكالمات، جهات الاتصال).</li>
+          </ol>
+          <p class="why">البرنامج يرسل الرقم لـWindows، وPhone Link يطلع المكالمة من جوالك.</p>
+          <p class="see">في Phone Link تبويب <b>Calls</b> وجوالك متصل.</p>
         </div></li>
-      <li class="step" data-id="d2"><label><input type="checkbox" id="d2"><span class="num">د-2</span><h3>راجع ربط الحالات والمصادر</h3></label>
-        <div class="body"><p><b>الإعدادات</b> ← <b>Status Mapping</b>: كل نتيجة مربوطة بقيمة القائمة المنسدلة في الـSheet. ثم <b>Source Mapping</b> إن احتجت.</p></div></li>
-      <li class="step" data-id="d3"><label><input type="checkbox" id="d3"><span class="num">د-3</span><h3>أوقف Dry Run</h3></label>
+      <li class="step" data-id="d2"><label><input type="checkbox" id="d2"><span class="num">د-2</span><h3>جرّب عميلين أو ثلاثة وأنت في Dry Run</h3></label>
         <div class="body">
-          <p><b>الإعدادات</b> ← <b>Automation</b> ← ألغِ تحديد <b>Dry Run Mode</b> ← حفظ. من هنا يبدأ الحفظ الفعلي في Odoo والـSheet.</p>
-          <p class="check-it">يختفي الشريط الأصفر، ويظهر أعلى الصفحة Dry Run: OFF</p>
+          <ol class="sub">
+            <li>اضغط <span class="btnlike">اتصال الآن</span>. أول مرة يسألك Windows «How do you want to open this?»: اختر <b>Phone Link</b> وعلّم <b>Always</b>.</li>
+            <li>بعد المكالمة اضغط <span class="btnlike">تسجيل النتيجة</span>، اختر النتيجة (مهتم، لم يتم الرد…) واكتب ملاحظة، ثم <span class="btnlike">حفظ</span>.</li>
+            <li>راجع المعاينة: هل الحالة والملاحظة صحيحة؟</li>
+          </ol>
+          <p class="see">نافذة «Dry Run — لم يتم تعديل أي نظام» فيها وش كان بيتكتب في الـSheet وفي Odoo.</p>
         </div></li>
-      <li class="step" data-id="d4"><label><input type="checkbox" id="d4"><span class="num">د-4</span><h3>خصّص أدوات المتابعة</h3></label>
-        <div class="body"><p><b>الإعدادات</b> ← <b>واتساب والمتابعة</b>: اكتب قوالب رسائل واتساب بأسلوبك، وحدد هدف المكالمات اليومي، وساعات رجوع «لم يتم الرد».</p></div></li>
+      <li class="step" data-id="d3"><label><input type="checkbox" id="d3"><span class="num">د-3</span><h3>راجع ربط الحالات</h3></label>
+        <div class="body">
+          <p>من القائمة الجانبية: <span class="btnlike">الإعدادات</span> ← تبويب <span class="btnlike">Status Mapping</span>. كل نتيجة (مهتم، غير مهتم…) لازم تكون مربوطة بنفس الكلمة الموجودة في القائمة المنسدلة في عمود «حالة المتابعة». عادة تكون صحيحة تلقائيًا.</p>
+        </div></li>
+      <li class="step" data-id="d4"><label><input type="checkbox" id="d4"><span class="num">د-4</span><h3>أوقف Dry Run وابدأ الشغل الفعلي</h3></label>
+        <div class="body">
+          <ol class="sub"><li><span class="btnlike">الإعدادات</span> ← تبويب <span class="btnlike">Automation</span>.</li>
+          <li>شيل علامة ✓ من <span class="btnlike">Dry Run Mode</span> ← <span class="btnlike">حفظ</span>.</li></ol>
+          <p class="why">من هنا كل نتيجة تحفظها تنكتب فعلًا في Odoo والـSheet.</p>
+          <p class="see">الشريط الأصفر اختفى، وأعلى الصفحة مكتوب <span class="mono">Dry Run: OFF</span>.</p>
+        </div></li>
+      <li class="step" data-id="d5"><label><input type="checkbox" id="d5"><span class="num">د-5</span><h3>خصّص أدوات المتابعة</h3></label>
+        <div class="body"><p><span class="btnlike">الإعدادات</span> ← تبويب <span class="btnlike">واتساب والمتابعة</span>: عدّل قوالب رسائل واتساب بأسلوبك واسمك، وحدد هدفك اليومي من المكالمات، ثم <span class="btnlike">حفظ</span>.</p></div></li>
     </ol>
   </section>
 
-  <!-- ============ E ============ -->
+  <!-- ================= E ================= -->
   <section class="phase">
     <div class="phase-head">
       <span class="letter">هـ</span>
-      <div><h2>اختياري: فتح الـAgent من الجوال</h2><div class="meta">عبر Tailscale · 10 دقائق</div></div>
+      <div><h2>اختياري: فتح البرنامج من الجوال</h2><div class="meta">عبر Tailscale · 15 دقيقة · الكمبيوتر لازم يكون شغّال</div></div>
       <span class="who c">الزميل</span>
     </div>
+    <p class="phase-intro">البرنامج يظل على الكمبيوتر، والجوال يفتحه عن بُعد من خلال شبكة خاصة آمنة بين أجهزتك فقط.</p>
     <ol class="steps">
-      <li class="step" data-id="e1"><label><input type="checkbox" id="e1"><span class="num">هـ-1</span><h3>Tailscale على الجهاز والجوال بحساب الزميل نفسه</h3></label>
-        <div class="body"><p>من <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a> على Windows، ومن المتجر على الجوال، بنفس الحساب في الاثنين (حساب الزميل، وليس حساب خالد).</p></div></li>
-      <li class="step" data-id="e2"><label><input type="checkbox" id="e2"><span class="num">هـ-2</span><h3>فعّل الميزة في ملف <code>.env</code></h3></label>
+      <li class="step" data-id="e1"><label><input type="checkbox" id="e1"><span class="num">هـ-1</span><h3>ثبّت Tailscale على الكمبيوتر والجوال</h3></label>
         <div class="body">
-          <p>افتح <code>.env</code> في مجلد الـAgent بـNotepad وأضف في آخره (اختر رمزًا خاصًا من 6 أرقام أو أكثر):</p>
+          <ol class="sub"><li>الكمبيوتر: من <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a> ← ثبّت ← سجّل الدخول (مثلًا بحساب Google).</li>
+          <li>الجوال: من المتجر ثبّت <b>Tailscale</b> ← سجّل الدخول <b>بنفس الحساب</b> ← فعّل الزر.</li></ol>
+          <p class="see">في تطبيق الجوال تشوف اسم جهاز الكمبيوتر في القائمة.</p>
+        </div></li>
+      <li class="step" data-id="e2"><label><input type="checkbox" id="e2"><span class="num">هـ-2</span><h3>فعّل الميزة واختر رمز دخول</h3></label>
+        <div class="body">
+          <ol class="sub"><li>في <code>C:\LeadsAgent</code> اضغط بالزر الأيمن على ملف <code>.env</code> ← <span class="btnlike">Open with</span> ← <span class="btnlike">Notepad</span>.</li>
+          <li>انزل لآخر الملف والصق السطرين، ثم امسح <span class="mono">ضع_رمزك_هنا</span> واكتب مكانه رمزًا تختاره (6 أرقام أو أكثر):</li></ol>
           <div class="copy"><pre>REMOTE_ACCESS=true
 ACCESS_PIN=ضع_رمزك_هنا</pre><button type="button" data-copy>نسخ</button></div>
+          <p>احفظ بـ<kbd>Ctrl</kbd>+<kbd>S</kbd> وسكّر Notepad.</p>
+          <p class="why">الرمز يمنع أي أحد يفتح البرنامج حتى لو وصل للرابط. إذا نسيت تغيّره تبقى الميزة مطفية.</p>
         </div></li>
-      <li class="step" data-id="e3"><label><input type="checkbox" id="e3"><span class="num">هـ-3</span><h3>شغّل <code>05_allow_phone_access.bat</code> مرة واحدة</h3></label>
-        <div class="body"><p>يطلب صلاحية المدير ← <b>Yes</b>. يسمح لأجهزة Tailscale فقط بالوصول عبر Windows Firewall. ثم <code>03_stop_agent.bat</code> و<code>02_start_agent.bat</code>.</p></div></li>
-      <li class="step" data-id="e4"><label><input type="checkbox" id="e4"><span class="num">هـ-4</span><h3>افتح الرابط من الجوال</h3></label>
-        <div class="body"><p>أسفل القائمة الجانبية على الجهاز يظهر <b>«من الجوال (Tailscale): http://100.x.x.x:8765»</b>. افتحه في متصفح الجوال وأدخل الرمز.</p></div></li>
+      <li class="step" data-id="e3"><label><input type="checkbox" id="e3"><span class="num">هـ-3</span><h3>اسمح لـTailscale في جدار الحماية</h3></label>
+        <div class="body">
+          <ol class="sub"><li>اضغط ضغطتين على <code>05_allow_phone_access.bat</code> ← يطلب صلاحية المدير ← <span class="btnlike">Yes</span>.</li>
+          <li>شغّل <code>03_stop_agent.bat</code> ثم <code>02_start_agent.bat</code>.</li></ol>
+          <p class="see"><span class="mono">Ok.</span> ثم <span class="mono">Done.</span></p>
+        </div></li>
+      <li class="step" data-id="e4"><label><input type="checkbox" id="e4"><span class="num">هـ-4</span><h3>افتحه من الجوال</h3></label>
+        <div class="body">
+          <p>على الكمبيوتر، أسفل القائمة الجانبية سطر مثل <b>«من الجوال (Tailscale): http://100.x.x.x:8765»</b>. اكتب نفس الرابط في Chrome على الجوال، وأدخل رمزك.</p>
+          <p class="see">صفحة البرنامج على الجوال. زر «اتصال الآن» هنا يتصل من الجوال مباشرة.</p>
+        </div></li>
     </ol>
   </section>
 
-  <!-- ============ Troubleshooting ============ -->
+  <!-- ================= Daily ================= -->
   <section class="phase">
-    <div class="phase-head"><span class="letter">؟</span><div><h2>إذا واجهت مشكلة</h2><div class="meta">الرسالة ← السبب ← الحل</div></div></div>
+    <div class="phase-head"><span class="letter">☀</span><div><h2>الاستخدام اليومي</h2><div class="meta">بعد ما يخلص الإعداد</div></div></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>ما يظهر</th><th>السبب والحل</th></tr></thead>
+      <thead><tr><th>المهمة</th><th>الطريقة</th></tr></thead>
       <tbody>
-        <tr><td><span class="mono">Python 3.12 or newer was not found</span></td><td>Python غير مثبت أو لم يُفعّل <b>Add to PATH</b>. أعد تثبيته مع تفعيل الخيار، ثم أعد تشغيل <code>01_install.bat</code>.</td></tr>
-        <tr><td><span class="mono">Error 403: access_denied</span> عند Connect Google</td><td>بريد الزميل غير مضاف في <b>Test users</b> (الخطوة أ-2)، أو سجّل الدخول ببريد آخر.</td></tr>
-        <tr><td>لا يظهر أي عميل / «عملاء … اليوم = 0»</td><td>الاسم في الخطوة ج-1 لا يطابق عمود «المسؤول الحالي». عدّله من <b>الإعدادات</b> ← <b>General</b>.</td></tr>
-        <tr><td>«لم يتم العثور على الأعمدة التالية…»</td><td>عنوان عمود تغيّر في الـSheet. عدّل <b>Column Mapping</b> ليطابق العنوان الحالي.</td></tr>
-        <tr><td>«تسجيل الدخول إلى Odoo مطلوب»</td><td>انتهت الجلسة. اضغط <b>فتح Odoo لتسجيل الدخول</b> وسجّل الدخول ثم <b>تحقق</b>.</td></tr>
-        <tr><td>«اتصال الآن» لا يرن على الجوال</td><td>Phone Link غير مربوط بالجوال، أو لم يُختر كتطبيق للاتصال. افتح Phone Link وتأكد من الربط، ثم جرّب مرة أخرى واختر Phone Link.</td></tr>
-        <tr><td>الـAgent يعرض بيانات خالد أو يكتب باسمه</td><td>تم نسخ مجلد <code>data</code> من جهاز خالد. أوقف الـAgent، احذف المجلد <code>data</code> عند الزميل، ثم ابدأ من الخطوة ب-5.</td></tr>
+        <tr><td>تشغيل البرنامج أول الدوام</td><td>ضغطتين على <code>02_start_agent.bat</code></td></tr>
+        <tr><td>إيقافه آخر الدوام</td><td>ضغطتين على <code>03_stop_agent.bat</code></td></tr>
+        <tr><td>جلب العملاء الجدد من الملف</td><td>زر <span class="btnlike">تحديث</span> أو حرف <kbd>U</kbd> (ويفحص تلقائيًا كل 5 دقائق)</td></tr>
+        <tr><td>اتصال / واتساب / تسجيل نتيجة</td><td>الأزرار في بطاقة العميل، أو <kbd>C</kbd> / <kbd>W</kbd> / <kbd>R</kbd></td></tr>
+        <tr><td>كل الاختصارات</td><td>اضغط <kbd>?</kbd> في أي صفحة</td></tr>
       </tbody>
     </table></div>
-    <div class="note ok" style="margin-top:14px"><b class="t">للتحديثات القادمة</b><span>عند صدور نسخة جديدة: <code>03_stop_agent.bat</code> ← الصق الملفات الجديدة فوق المجلد (Replace) ← <code>02_start_agent.bat</code> ← <b>Ctrl + F5</b>. مجلد <code>data</code> و<code>.env</code> يبقيان كما هما.</span></div>
   </section>
 
-  <footer>Khalid Leads Agent · دليل التشغيل لزميل · يطابق الإصدار 2.0.0 · الملف نفسه موجود داخل المشروع: <code>docs/SETUP_GUIDE_AR.html</code></footer>
+  <!-- ================= Troubleshooting ================= -->
+  <section class="phase">
+    <div class="phase-head"><span class="letter">؟</span><div><h2>إذا واجهتك مشكلة</h2><div class="meta">اللي يظهر ← السبب ← الحل</div></div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>اللي يظهر لك</th><th>السبب والحل</th></tr></thead>
+      <tbody>
+        <tr><td><span class="mono">Python 3.12 or newer was not found</span></td><td>Python غير مثبت، أو ما تعلّم خيار <b>Add to PATH</b>. أعد تثبيته (ب-1) مع الخيار، ثم شغّل <code>01_install.bat</code> مرة ثانية.</td></tr>
+        <tr><td>شاشة «Windows protected your PC»</td><td>عادي مع ملفات ‎.bat. اضغط <b>More info</b> ← <b>Run anyway</b>.</td></tr>
+        <tr><td><span class="mono">Error 403: access_denied</span> عند Connect Google</td><td>بريدك غير مضاف في Test users (خطوة أ-2 عند خالد)، أو اخترت بريد ثاني.</td></tr>
+        <tr><td>ما يطلع أي عميل / «عملاء … اليوم = 0»</td><td>الاسم في ج-1 مختلف عن عمود «المسؤول الحالي». عدّله من <b>الإعدادات</b> ← <b>General</b>.</td></tr>
+        <tr><td>«لم يتم العثور على الأعمدة التالية…»</td><td>عنوان عمود تغيّر في الـSheet. عدّل <b>Column Mapping</b> ليطابق العنوان الجديد.</td></tr>
+        <tr><td>«تسجيل الدخول إلى Odoo مطلوب»</td><td>انتهى دخولك في Odoo. اضغط <b>فتح Odoo لتسجيل الدخول</b>، سجّل الدخول، ثم <b>تحقق</b>.</td></tr>
+        <tr><td>«اتصال الآن» ما يرن في الجوال</td><td>Phone Link غير مربوط (د-1)، أو ما اخترت Phone Link لما سألك Windows. افتح Phone Link وتأكد من الربط وجرّب مرة ثانية.</td></tr>
+        <tr><td>الصفحة ما تفتح <span class="mono">127.0.0.1:8765</span></td><td>البرنامج مو شغّال. شغّل <code>02_start_agent.bat</code> وانتظر 10 ثواني.</td></tr>
+        <tr><td>البرنامج يعرض بيانات خالد أو يكتب باسمه</td><td>انسخ مجلد <code>data</code> من جهاز خالد بالغلط. أوقف البرنامج، احذف مجلد <code>data</code> عندك، وابدأ من الخطوة ب-5.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note ok" style="margin-top:14px"><b class="t">لما تنزل نسخة جديدة</b><span><code>03_stop_agent.bat</code> ← الصق الملفات الجديدة فوق المجلد واختر <b>Replace</b> ← <code>02_start_agent.bat</code> ← في الصفحة اضغط <kbd>Ctrl</kbd>+<kbd>F5</kbd>. مجلد <code>data</code> وملف <code>.env</code> يبقون زي ما هم.</span></div>
+  </section>
+
+  <footer>Khalid Leads Agent · دليل التشغيل لزميل · يطابق الإصدار 2.0.0 · نسخة من الدليل داخل المشروع: <code>docs/SETUP_GUIDE_AR.html</code></footer>
 </div>
 
 <script>
 (function () {
-  var KEY = "kla-setup-guide";
+  var KEY = "kla-setup-guide-v2";
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
   var boxes = Array.prototype.slice.call(document.querySelectorAll(".step input[type=checkbox]"));
@@ -363,14 +491,13 @@ ACCESS_PIN=ضع_رمزك_هنا</pre><button type="button" data-copy>نسخ</but
   document.querySelectorAll("[data-copy]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var pre = btn.parentElement.querySelector("pre");
-      var text = pre.textContent;
       function selected() {
         var r = document.createRange(); r.selectNodeContents(pre);
         var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
         btn.textContent = "حدّد وانسخ";
       }
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () {
+        navigator.clipboard.writeText(pre.textContent).then(function () {
           btn.textContent = "تم النسخ";
           setTimeout(function () { btn.textContent = "نسخ"; }, 1600);
         }, selected);
