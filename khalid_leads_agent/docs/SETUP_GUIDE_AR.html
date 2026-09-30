@@ -1,0 +1,382 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>دليل تشغيل Leads Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; phases are a vertical tree (rail + nodes), each step a checkable row. */
+:root {
+  --bg: #f5f6fb;
+  --surface: #ffffff;
+  --surface-2: #eef0f8;
+  --fg: #1c1f33;
+  --fg-2: #4a4f6a;
+  --muted: #767b96;
+  --line: #dde0ee;
+  --accent: #4f46e5;
+  --accent-soft: #ebeafe;
+  --khalid: #0f766e;
+  --khalid-soft: #dcf3ef;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
+  --warn: #9a6200;
+  --warn-soft: #fff4dc;
+  --ok: #067647;
+  --ok-soft: #e3f6ec;
+  --font-body: "Tajawal", "Segoe UI", "Noto Sans Arabic", Tahoma, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11131f; --surface: #191c2c; --surface-2: #22263a; --fg: #eceefa; --fg-2: #c3c6dc; --muted: #9296b3;
+    --line: #2e3350; --accent: #9d97ff; --accent-soft: #2a2856; --khalid: #5fd3c2; --khalid-soft: #16342f;
+    --danger: #ff8a7e; --danger-soft: #3a1f1f; --warn: #f5c060; --warn-soft: #3a2f16; --ok: #6fd8a0; --ok-soft: #173327;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11131f; --surface: #191c2c; --surface-2: #22263a; --fg: #eceefa; --fg-2: #c3c6dc; --muted: #9296b3;
+  --line: #2e3350; --accent: #9d97ff; --accent-soft: #2a2856; --khalid: #5fd3c2; --khalid-soft: #16342f;
+  --danger: #ff8a7e; --danger-soft: #3a1f1f; --warn: #f5c060; --warn-soft: #3a2f16; --ok: #6fd8a0; --ok-soft: #173327;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.75; }
+.wrap { max-width: 860px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; direction: rtl; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.35; margin: 0; }
+h1 { font-size: 1.9rem; font-weight: 800; }
+h2 { font-size: 1.3rem; font-weight: 800; }
+h3 { font-size: 1.02rem; font-weight: 700; }
+p { margin: 0; }
+code, .mono { font-family: var(--font-mono); font-size: .88em; direction: ltr; unicode-bidi: isolate; }
+code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; }
+a { color: var(--accent); }
+.lead { color: var(--fg-2); max-width: 62ch; margin-top: 8px; }
+
+/* header */
+.head { display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
+.eyebrow { font-size: .8rem; font-weight: 700; letter-spacing: .04em; color: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .9rem; color: var(--fg-2); align-items: center; }
+.who { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+.who.k { background: var(--khalid-soft); color: var(--khalid); }
+.who.c { background: var(--accent-soft); color: var(--accent); }
+.path { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .88rem; }
+.path span { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-weight: 600; }
+.path i { color: var(--muted); font-style: normal; }
+
+/* progress */
+.progress { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; margin-bottom: 8px; display: flex; gap: 12px; align-items: center; font-size: .9rem; }
+.bar { flex: 1; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.bar > b { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .3s ease; }
+.progress .n { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.reset { background: none; border: 0; color: var(--muted); font: inherit; font-size: .82rem; cursor: pointer; text-decoration: underline; }
+
+/* callouts */
+.note { border-radius: 12px; padding: 12px 16px; font-size: .95rem; display: flex; flex-direction: column; gap: 4px; }
+.note.danger { background: var(--danger-soft); color: var(--fg); border-inline-start: 4px solid var(--danger); }
+.note.danger b.t { color: var(--danger); }
+.note.warn { background: var(--warn-soft); border-inline-start: 4px solid var(--warn); }
+.note.warn b.t { color: var(--warn); }
+.note.ok { background: var(--ok-soft); border-inline-start: 4px solid var(--ok); }
+.note.ok b.t { color: var(--ok); }
+
+/* tree */
+.phase { position: relative; margin-top: 30px; }
+.phase-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.letter { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center; font-weight: 800; font-size: 1.15rem; background: var(--accent); color: var(--surface); }
+.phase.k .letter { background: var(--khalid); }
+.phase-head .meta { font-size: .85rem; color: var(--muted); }
+.steps { list-style: none; margin: 0; padding: 0; padding-inline-start: 19px; border-inline-start: 2px solid var(--line); margin-inline-start: 19px; display: flex; flex-direction: column; gap: 10px; }
+.step { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-inline-start: 14px; min-width: 0; }
+.step::before { content: ""; position: absolute; top: 22px; inset-inline-start: -30px; width: 28px; height: 2px; background: var(--line); }
+.step > label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.step input[type=checkbox] { width: 20px; height: 20px; margin-top: 4px; accent-color: var(--accent); flex-shrink: 0; }
+.step input:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+.step .num { font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 2.2em; }
+.step.done { background: var(--surface-2); }
+.step.done h3 { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.step .body { margin-top: 6px; margin-inline-start: 30px; color: var(--fg-2); font-size: .95rem; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sub { margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 4px; }
+.sub li::marker { color: var(--muted); }
+.check-it { font-size: .88rem; color: var(--ok); font-weight: 600; }
+.check-it::before { content: "✓ "; }
+
+/* copy blocks */
+.copy { display: flex; align-items: stretch; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; direction: ltr; max-width: 100%; }
+.copy pre { margin: 0; padding: 8px 12px; background: var(--surface-2); flex: 1; min-width: 0; overflow-x: auto; font-family: var(--font-mono); font-size: .86rem; line-height: 1.6; color: var(--fg); }
+.copy button { border: 0; border-left: 1px solid var(--line); background: var(--surface); color: var(--accent); font: inherit; font-size: .8rem; font-weight: 700; padding: 0 12px; cursor: pointer; }
+.copy button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* table */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--surface-2); color: var(--fg-2); font-size: .82rem; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; min-width: 11em; }
+
+footer { margin-top: 36px; color: var(--muted); font-size: .85rem; }
+@media (max-width: 520px) {
+  h1 { font-size: 1.5rem; }
+  .steps { margin-inline-start: 8px; padding-inline-start: 10px; }
+  .step { margin-inline-start: 8px; }
+  .step::before { inset-inline-start: -20px; width: 18px; }
+  .step .body { margin-inline-start: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .bar > b { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div class="eyebrow">KHALID LEADS AGENT · الإصدار 2.0</div>
+    <h1>تشغيل الـAgent على جهاز زميل</h1>
+    <p class="lead">كل زميل يشغّل نسخته الخاصة على جهازه، بحسابه في Google وOdoo، ويرى صفوفه فقط في الـSheet (الصفوف التي فيها «المسؤول الحالي» = اسمه). الوقت المتوقع: 30 إلى 45 دقيقة.</p>
+    <div class="legend">
+      <span>من يقوم بالخطوة:</span>
+      <span class="who k">خالد</span>
+      <span class="who c">الزميل</span>
+    </div>
+    <div class="path" aria-label="مسار العمل">
+      <span>تجهيز من خالد</span><i>←</i><span>تثبيت</span><i>←</i><span>معالج الإعداد</span><i>←</i><span>تجربة آمنة</span><i>←</i><span>تشغيل فعلي</span>
+    </div>
+    <div class="note danger">
+      <b class="t">لا تنسخ مجلد <code>data</code> ولا ملف <code>.env</code> من جهاز خالد</b>
+      <span>فيهما جلسة Odoo وربط Google الخاصين بخالد. إذا نُسخا سيعمل الـAgent عند الزميل باسم خالد ويكتب في Odoo باسمه. الزميل يبدأ دائمًا بمجلد نظيف.</span>
+    </div>
+  </header>
+
+  <div class="progress" aria-live="polite">
+    <span class="bar"><b id="bar"></b></span>
+    <span class="n" id="count">0 / 0</span>
+    <button class="reset" id="reset" type="button">مسح العلامات</button>
+  </div>
+
+  <!-- ============ A ============ -->
+  <section class="phase k">
+    <div class="phase-head">
+      <span class="letter">أ</span>
+      <div><h2>تجهيز من خالد</h2><div class="meta">مرة واحدة لكل زميل · 10 دقائق</div></div>
+      <span class="who k">خالد</span>
+    </div>
+    <ol class="steps">
+      <li class="step" data-id="a1"><label><input type="checkbox" id="a1"><span class="num">أ-1</span><h3>أعطِ الزميل صلاحية تعديل على Google Sheet</h3></label>
+        <div class="body">
+          <ol class="sub"><li>افتح الـSheet ← زر <b>Share</b> ← أضف بريد الزميل ← اختر <b>Editor</b>.</li>
+          <li>تأكد أن اسمه مكتوب في عمود <b>«المسؤول الحالي»</b> بنفس الطريقة في كل صفوفه (مثلًا <b>سارة</b> وليس «أ. سارة»).</li></ol>
+        </div></li>
+      <li class="step" data-id="a2"><label><input type="checkbox" id="a2"><span class="num">أ-2</span><h3>أضف بريد الزميل في Google Cloud</h3></label>
+        <div class="body">
+          <p>ربط Google يستخدم مشروع Google Cloud الذي أنشأته أنت. ما دام التطبيق في وضع الاختبار، لا يستطيع أحد الدخول إلا من تضيفه:</p>
+          <ol class="sub"><li>افتح <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> واختر مشروع الـAgent.</li>
+          <li><b>APIs &amp; Services</b> ← <b>OAuth consent screen</b> ← <b>Test users</b> ← <b>Add users</b> ← بريد الزميل ← <b>Save</b>.</li></ol>
+          <p class="check-it">إذا كان حسابكم Google Workspace والتطبيق من نوع Internal، تخطَّ هذه الخطوة.</p>
+        </div></li>
+      <li class="step" data-id="a3"><label><input type="checkbox" id="a3"><span class="num">أ-3</span><h3>أرسل للزميل ملف ربط Google فقط</h3></label>
+        <div class="body">
+          <p>من مجلد الـAgent عندك انسخ هذا الملف وحده وأرسله للزميل بشكل خاص (بريد العمل أو Teams):</p>
+          <div class="copy"><pre>data\credentials\client_secret.json</pre><button type="button" data-copy>نسخ</button></div>
+          <div class="note warn"><b class="t">لا ترسل <code>token.json</code></b><span>هذا مفتاح حسابك أنت. الزميل ينشئ مفتاحه الخاص عند الضغط على Connect Google.</span></div>
+        </div></li>
+      <li class="step" data-id="a4"><label><input type="checkbox" id="a4"><span class="num">أ-4</span><h3>أرسل ملفات البرنامج (نسخة نظيفة)</h3></label>
+        <div class="body">
+          <ol class="sub"><li>افتح <a href="https://github.com/khalidmudawi5-dev/Leads-Agent" target="_blank" rel="noopener">صفحة المشروع على GitHub</a> ← الزر الأخضر <b>Code</b> ← <b>Download ZIP</b>.</li>
+          <li>أرسل ملف الـZIP للزميل. هذه النسخة لا تحتوي أي بيانات أو جلسات.</li></ol>
+        </div></li>
+    </ol>
+  </section>
+
+  <!-- ============ B ============ -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="letter">ب</span>
+      <div><h2>التثبيت على جهاز الزميل</h2><div class="meta">Windows 10 أو 11 · 10 دقائق · يحتاج إنترنت</div></div>
+      <span class="who c">الزميل</span>
+    </div>
+    <ol class="steps">
+      <li class="step" data-id="b1"><label><input type="checkbox" id="b1"><span class="num">ب-1</span><h3>ثبّت Python 3.12 أو أحدث</h3></label>
+        <div class="body">
+          <ol class="sub"><li>نزّله من <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org/downloads</a>.</li>
+          <li>في أول شاشة للتثبيت فعّل <b>Add python.exe to PATH</b> ثم <b>Install Now</b>.</li></ol>
+          <p class="check-it">إذا كان مثبتًا من قبل (3.12 أو أحدث) تخطَّ الخطوة.</p>
+        </div></li>
+      <li class="step" data-id="b2"><label><input type="checkbox" id="b2"><span class="num">ب-2</span><h3>فك ضغط الملفات في مكان ثابت</h3></label>
+        <div class="body">
+          <ol class="sub"><li>فك ضغط الـZIP، وانسخ المجلد <code>khalid_leads_agent</code> الذي بداخله إلى مكان مثل:</li></ol>
+          <div class="copy"><pre>C:\LeadsAgent</pre><button type="button" data-copy>نسخ</button></div>
+          <p>المجلد الصحيح هو الذي تجد فيه الملف <code>01_install.bat</code> مباشرة.</p>
+        </div></li>
+      <li class="step" data-id="b3"><label><input type="checkbox" id="b3"><span class="num">ب-3</span><h3>شغّل <code>01_install.bat</code></h3></label>
+        <div class="body">
+          <p>ضغطة مزدوجة على الملف، وانتظر من 3 إلى 5 دقائق. يثبّت المكتبات ومتصفح Odoo الخاص بالـAgent.</p>
+          <p class="check-it">في النهاية تظهر رسالة <span class="mono">Installation completed successfully</span></p>
+        </div></li>
+      <li class="step" data-id="b4"><label><input type="checkbox" id="b4"><span class="num">ب-4</span><h3>ضع ملف ربط Google في مكانه</h3></label>
+        <div class="body">
+          <p>احفظ ملف <code>client_secret.json</code> الذي أرسله خالد على سطح المكتب؛ سترفعه من داخل الـAgent في الخطوة ج-2.</p>
+        </div></li>
+      <li class="step" data-id="b5"><label><input type="checkbox" id="b5"><span class="num">ب-5</span><h3>شغّل <code>02_start_agent.bat</code></h3></label>
+        <div class="body">
+          <p>يفتح المتصفح على العنوان التالي، وتظهر شاشة <b>معالج الإعداد</b> تلقائيًا:</p>
+          <div class="copy"><pre>http://127.0.0.1:8765</pre><button type="button" data-copy>نسخ</button></div>
+          <p>تبقى نافذة سوداء صغيرة مصغّرة في شريط المهام باسم <b>Khalid Leads Agent</b>: لا تغلقها أثناء العمل.</p>
+        </div></li>
+    </ol>
+  </section>
+
+  <!-- ============ C ============ -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="letter">ج</span>
+      <div><h2>معالج الإعداد (9 خطوات)</h2><div class="meta">داخل الـAgent · 10 دقائق · كل خطوة تُحفظ فورًا</div></div>
+      <span class="who c">الزميل</span>
+    </div>
+    <ol class="steps">
+      <li class="step" data-id="c1"><label><input type="checkbox" id="c1"><span class="num">ج-1</span><h3>اسم المستخدم</h3></label>
+        <div class="body"><p>اكتب اسمك <b>كما هو حرفيًا</b> في عمود «المسؤول الحالي» في الـSheet. هذا ما يحدد أي الصفوف تظهر لك وأيها يُسمح بتعديله.</p></div></li>
+      <li class="step" data-id="c2"><label><input type="checkbox" id="c2"><span class="num">ج-2</span><h3>ربط Google Sheet</h3></label>
+        <div class="body">
+          <ol class="sub"><li>اضغط <b>رفع ملف OAuth</b> واختر <code>client_secret.json</code>.</li>
+          <li>اضغط <b>Connect Google</b> ← سجّل الدخول ببريدك (الذي أضافه خالد) ← وافق على الصلاحيات.</li>
+          <li>إذا ظهرت شاشة «Google hasn't verified this app»: اضغط <b>Continue</b>.</li></ol>
+          <p class="check-it">تظهر الحالة Connected</p>
+        </div></li>
+      <li class="step" data-id="c3"><label><input type="checkbox" id="c3"><span class="num">ج-3</span><h3>تحديد الملف والـTab</h3></label>
+        <div class="body"><p>الصق رابط الـSheet كاملًا (يستخرج الـAgent المعرّف منه) ← <b>تحميل التابات</b> ← اختر نفس التاب الذي يعمل عليه خالد.</p></div></li>
+      <li class="step" data-id="c4"><label><input type="checkbox" id="c4"><span class="num">ج-4</span><h3>Column Mapping</h3></label>
+        <div class="body"><p>الربط يتم تلقائيًا من عناوين الأعمدة. تأكد فقط أن كل حقل مربوط بالعمود الصحيح (اسم المنشأة، رقم الجوال، المسؤول الحالي، حالة المتابعة…) ثم احفظ.</p></div></li>
+      <li class="step" data-id="c5"><label><input type="checkbox" id="c5"><span class="num">ج-5</span><h3>رابط Odoo</h3></label>
+        <div class="body"><div class="copy"><pre>https://worldofss.odoo.com</pre><button type="button" data-copy>نسخ</button></div></div></li>
+      <li class="step" data-id="c6"><label><input type="checkbox" id="c6"><span class="num">ج-6</span><h3>تسجيل الدخول إلى Odoo</h3></label>
+        <div class="body">
+          <ol class="sub"><li><b>فتح Odoo لتسجيل الدخول</b> ← تفتح نافذة متصفح خاصة بالـAgent ← سجّل الدخول <b>بحسابك أنت</b> في Odoo.</li>
+          <li>ارجع للمعالج ← <b>تحقق من تسجيل الدخول</b>.</li></ol>
+          <p>كلمة المرور لا تُحفظ في الـAgent؛ الجلسة تبقى في المتصفح الخاص به.</p>
+        </div></li>
+      <li class="step" data-id="c7"><label><input type="checkbox" id="c7"><span class="num">ج-7</span><h3>اختبار البحث في Odoo</h3></label>
+        <div class="body"><p>اكتب اسم عميل أو رقم جوال تعرفه ← <b>بحث</b>. يجب أن يظهر العميل من Odoo.</p></div></li>
+      <li class="step" data-id="c8"><label><input type="checkbox" id="c8"><span class="num">ج-8</span><h3>Dry Run Test</h3></label>
+        <div class="body"><p><b>تشغيل Dry Run Test</b> ← يعرض أول عميل من صفوفك وما <b>كان سيتم</b> كتابته، بدون كتابة أي شيء في Odoo أو الـSheet.</p></div></li>
+      <li class="step" data-id="c9"><label><input type="checkbox" id="c9"><span class="num">ج-9</span><h3>جاهز</h3></label>
+        <div class="body"><p>تنتقل للصفحة الرئيسية. أسفل القائمة الجانبية يظهر <b>الإصدار 2.0.0</b>.</p></div></li>
+    </ol>
+  </section>
+
+  <!-- ============ D ============ -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="letter">د</span>
+      <div><h2>التجربة الآمنة ثم التشغيل الفعلي</h2><div class="meta">أول يوم عمل</div></div>
+      <span class="who c">الزميل</span>
+    </div>
+    <ol class="steps">
+      <li class="step" data-id="d1"><label><input type="checkbox" id="d1"><span class="num">د-1</span><h3>جرّب عميلين أو ثلاثة في وضع Dry Run</h3></label>
+        <div class="body">
+          <p>Dry Run مفعّل افتراضيًا (شريط أصفر أعلى الصفحة). اتصل وسجّل نتيجة، وراجع المعاينة: الحالة الجديدة في الـSheet ونص الملاحظة في Odoo.</p>
+          <p>أول مرة تضغط «اتصال الآن» قد يسأل Windows عن التطبيق: اختر <b>Phone Link</b> وفعّل <b>Always</b>.</p>
+        </div></li>
+      <li class="step" data-id="d2"><label><input type="checkbox" id="d2"><span class="num">د-2</span><h3>راجع ربط الحالات والمصادر</h3></label>
+        <div class="body"><p><b>الإعدادات</b> ← <b>Status Mapping</b>: كل نتيجة مربوطة بقيمة القائمة المنسدلة في الـSheet. ثم <b>Source Mapping</b> إن احتجت.</p></div></li>
+      <li class="step" data-id="d3"><label><input type="checkbox" id="d3"><span class="num">د-3</span><h3>أوقف Dry Run</h3></label>
+        <div class="body">
+          <p><b>الإعدادات</b> ← <b>Automation</b> ← ألغِ تحديد <b>Dry Run Mode</b> ← حفظ. من هنا يبدأ الحفظ الفعلي في Odoo والـSheet.</p>
+          <p class="check-it">يختفي الشريط الأصفر، ويظهر أعلى الصفحة Dry Run: OFF</p>
+        </div></li>
+      <li class="step" data-id="d4"><label><input type="checkbox" id="d4"><span class="num">د-4</span><h3>خصّص أدوات المتابعة</h3></label>
+        <div class="body"><p><b>الإعدادات</b> ← <b>واتساب والمتابعة</b>: اكتب قوالب رسائل واتساب بأسلوبك، وحدد هدف المكالمات اليومي، وساعات رجوع «لم يتم الرد».</p></div></li>
+    </ol>
+  </section>
+
+  <!-- ============ E ============ -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="letter">هـ</span>
+      <div><h2>اختياري: فتح الـAgent من الجوال</h2><div class="meta">عبر Tailscale · 10 دقائق</div></div>
+      <span class="who c">الزميل</span>
+    </div>
+    <ol class="steps">
+      <li class="step" data-id="e1"><label><input type="checkbox" id="e1"><span class="num">هـ-1</span><h3>Tailscale على الجهاز والجوال بحساب الزميل نفسه</h3></label>
+        <div class="body"><p>من <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a> على Windows، ومن المتجر على الجوال، بنفس الحساب في الاثنين (حساب الزميل، وليس حساب خالد).</p></div></li>
+      <li class="step" data-id="e2"><label><input type="checkbox" id="e2"><span class="num">هـ-2</span><h3>فعّل الميزة في ملف <code>.env</code></h3></label>
+        <div class="body">
+          <p>افتح <code>.env</code> في مجلد الـAgent بـNotepad وأضف في آخره (اختر رمزًا خاصًا من 6 أرقام أو أكثر):</p>
+          <div class="copy"><pre>REMOTE_ACCESS=true
+ACCESS_PIN=ضع_رمزك_هنا</pre><button type="button" data-copy>نسخ</button></div>
+        </div></li>
+      <li class="step" data-id="e3"><label><input type="checkbox" id="e3"><span class="num">هـ-3</span><h3>شغّل <code>05_allow_phone_access.bat</code> مرة واحدة</h3></label>
+        <div class="body"><p>يطلب صلاحية المدير ← <b>Yes</b>. يسمح لأجهزة Tailscale فقط بالوصول عبر Windows Firewall. ثم <code>03_stop_agent.bat</code> و<code>02_start_agent.bat</code>.</p></div></li>
+      <li class="step" data-id="e4"><label><input type="checkbox" id="e4"><span class="num">هـ-4</span><h3>افتح الرابط من الجوال</h3></label>
+        <div class="body"><p>أسفل القائمة الجانبية على الجهاز يظهر <b>«من الجوال (Tailscale): http://100.x.x.x:8765»</b>. افتحه في متصفح الجوال وأدخل الرمز.</p></div></li>
+    </ol>
+  </section>
+
+  <!-- ============ Troubleshooting ============ -->
+  <section class="phase">
+    <div class="phase-head"><span class="letter">؟</span><div><h2>إذا واجهت مشكلة</h2><div class="meta">الرسالة ← السبب ← الحل</div></div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ما يظهر</th><th>السبب والحل</th></tr></thead>
+      <tbody>
+        <tr><td><span class="mono">Python 3.12 or newer was not found</span></td><td>Python غير مثبت أو لم يُفعّل <b>Add to PATH</b>. أعد تثبيته مع تفعيل الخيار، ثم أعد تشغيل <code>01_install.bat</code>.</td></tr>
+        <tr><td><span class="mono">Error 403: access_denied</span> عند Connect Google</td><td>بريد الزميل غير مضاف في <b>Test users</b> (الخطوة أ-2)، أو سجّل الدخول ببريد آخر.</td></tr>
+        <tr><td>لا يظهر أي عميل / «عملاء … اليوم = 0»</td><td>الاسم في الخطوة ج-1 لا يطابق عمود «المسؤول الحالي». عدّله من <b>الإعدادات</b> ← <b>General</b>.</td></tr>
+        <tr><td>«لم يتم العثور على الأعمدة التالية…»</td><td>عنوان عمود تغيّر في الـSheet. عدّل <b>Column Mapping</b> ليطابق العنوان الحالي.</td></tr>
+        <tr><td>«تسجيل الدخول إلى Odoo مطلوب»</td><td>انتهت الجلسة. اضغط <b>فتح Odoo لتسجيل الدخول</b> وسجّل الدخول ثم <b>تحقق</b>.</td></tr>
+        <tr><td>«اتصال الآن» لا يرن على الجوال</td><td>Phone Link غير مربوط بالجوال، أو لم يُختر كتطبيق للاتصال. افتح Phone Link وتأكد من الربط، ثم جرّب مرة أخرى واختر Phone Link.</td></tr>
+        <tr><td>الـAgent يعرض بيانات خالد أو يكتب باسمه</td><td>تم نسخ مجلد <code>data</code> من جهاز خالد. أوقف الـAgent، احذف المجلد <code>data</code> عند الزميل، ثم ابدأ من الخطوة ب-5.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note ok" style="margin-top:14px"><b class="t">للتحديثات القادمة</b><span>عند صدور نسخة جديدة: <code>03_stop_agent.bat</code> ← الصق الملفات الجديدة فوق المجلد (Replace) ← <code>02_start_agent.bat</code> ← <b>Ctrl + F5</b>. مجلد <code>data</code> و<code>.env</code> يبقيان كما هما.</span></div>
+  </section>
+
+  <footer>Khalid Leads Agent · دليل التشغيل لزميل · يطابق الإصدار 2.0.0 · الملف نفسه موجود داخل المشروع: <code>docs/SETUP_GUIDE_AR.html</code></footer>
+</div>
+
+<script>
+(function () {
+  var KEY = "kla-setup-guide";
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
+  var boxes = Array.prototype.slice.call(document.querySelectorAll(".step input[type=checkbox]"));
+  function update() {
+    var done = 0;
+    boxes.forEach(function (b) {
+      b.closest(".step").classList.toggle("done", b.checked);
+      if (b.checked) done++;
+    });
+    document.getElementById("count").textContent = done + " / " + boxes.length;
+    document.getElementById("bar").style.width = (boxes.length ? (done / boxes.length) * 100 : 0) + "%";
+  }
+  boxes.forEach(function (b) {
+    b.checked = !!saved[b.id];
+    b.addEventListener("change", function () {
+      saved[b.id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { /* works without storage */ }
+      update();
+    });
+  });
+  document.getElementById("reset").addEventListener("click", function () {
+    saved = {};
+    boxes.forEach(function (b) { b.checked = false; });
+    try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+    update();
+  });
+  document.querySelectorAll("[data-copy]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var pre = btn.parentElement.querySelector("pre");
+      var text = pre.textContent;
+      function selected() {
+        var r = document.createRange(); r.selectNodeContents(pre);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        btn.textContent = "حدّد وانسخ";
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          btn.textContent = "تم النسخ";
+          setTimeout(function () { btn.textContent = "نسخ"; }, 1600);
+        }, selected);
+      } else { selected(); }
+    });
+  });
+  update();
+})();
+</script>
