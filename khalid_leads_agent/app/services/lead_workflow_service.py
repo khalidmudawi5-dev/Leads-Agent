@@ -297,7 +297,7 @@ class LeadWorkflowService:
             sheet_source = (c.sheet_source if source is None else source).strip()
             source_name, medium_name = self.odoo_source_for(sheet_source)
             values = {"name": company, "partner_name": company, "phone": format_phone(chk["raw"]),
-                      "contact_name": contact_name, "type": s.odoo_new_lead_type,
+                      "contact_name": contact_name, "type": s.odoo_new_record_type,
                       "source_name": source_name, "medium_name": medium_name}
             action_id = uuid.uuid4().hex
             audit = {"action_id": action_id, "system": "ODOO", "action": "create_lead",
@@ -314,7 +314,7 @@ class LeadWorkflowService:
                 raise
             self._audit(**audit, after={**values, "id": lead.id, "source": lead.source, "medium": lead.medium},
                         success=True)
-            log.info("Created Odoo %s %s for sheet row %s", s.odoo_new_lead_type, lead.id, c.sheet_row)
+            log.info("Created Odoo %s %s for sheet row %s", s.odoo_new_record_type, lead.id, c.sheet_row)
             warnings: list[str] = []
             if source_name and not lead.source:
                 warnings.append(f"المصدر «{source_name}» غير موجود في Odoo (Source)؛ أُضيف العميل بدون مصدر. "
@@ -326,7 +326,7 @@ class LeadWorkflowService:
                 warnings += load_warnings
             self._store_match(fingerprint, MatchResult("matched", lead, [], "created"), lead)
             payload = self._payload(fingerprint, warnings)
-            payload["create"] = {"status": "created", "id": lead.id, "type": s.odoo_new_lead_type}
+            payload["create"] = {"status": "created", "id": lead.id, "type": s.odoo_new_record_type}
             return payload
 
     def _audit(self, **fields) -> None:
@@ -368,7 +368,7 @@ class LeadWorkflowService:
             c = self._cache(fingerprint)
             if not c.odoo_lead_id or not c.odoo_data:
                 if c.match_status == "not_found":
-                    raise AgentError("NOT_MATCHED", "هذا العميل غير موجود في Odoo. أضفه كفرصة جديدة أولًا.",
+                    raise AgentError("NOT_MATCHED", "هذا العميل غير موجود في Odoo. أضفه إلى Odoo أولًا.",
                                      details={"match_status": c.match_status})
                 raise AgentError("NOT_MATCHED", "اربط العميل بـLead في Odoo أولًا (إعادة البحث).", actions=["retry"],
                                  details={"match_status": c.match_status})

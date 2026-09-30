@@ -32,10 +32,10 @@ def test_create_opportunity_links_it_and_audits(env, sheet, odoo):
                     json={"company": "مؤسسة الاختبار الأولى", "phone": "0561234567", "contact_name": "أحمد"})
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["create"]["status"] == "created" and body["create"]["type"] == "opportunity"
+        assert body["create"]["status"] == "created" and body["create"]["type"] == "lead"  # CRM > Leads
         assert odoo.created == [{"id": body["create"]["id"], "name": "مؤسسة الاختبار الأولى",
                                  "partner_name": "مؤسسة الاختبار الأولى", "phone": "+966 56 123 4567",
-                                 "contact_name": "أحمد", "type": "opportunity", "source_name": "",
+                                 "contact_name": "أحمد", "type": "lead", "source_name": "",
                                  "medium_name": ""}]
         lead = body["lead"]
         assert lead["match_status"] == "matched" and lead["odoo_lead_id"] == body["create"]["id"]
@@ -112,12 +112,12 @@ def test_create_failure_is_reported(env, sheet, odoo):
 
 
 def test_lead_type_setting(env, sheet, odoo):
-    tc, _ = _client(env, sheet, odoo, odoo_new_lead_type="lead")
+    tc, _ = _client(env, sheet, odoo, odoo_new_record_type="opportunity")
     with tc:
         fp = _missing_lead(tc, odoo)
         body = tc.post(f"/api/lead/{fp}/create-odoo", headers=H,
                        json={"company": "مؤسسة الاختبار الأولى", "phone": "0561234567"}).json()
-        assert body["create"]["type"] == "lead" and odoo.created[0]["type"] == "lead"
+        assert body["create"]["type"] == "opportunity" and odoo.created[0]["type"] == "opportunity"
 
 
 def _set_sheet_source(c, fp, value):

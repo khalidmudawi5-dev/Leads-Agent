@@ -128,8 +128,9 @@ class AppSettings(BaseModel):
     odoo_note_template: str = DEFAULT_NOTE_TEMPLATE
     odoo_write_method: Literal["ui_first", "rpc_first"] = "ui_first"
     odoo_activity_type_xmlid: str = "mail.mail_activity_data_todo"
-    # Customers missing from Odoo can be added from the agent: as an opportunity (pipeline) or a lead.
-    odoo_new_lead_type: Literal["opportunity", "lead"] = "opportunity"
+    # Customers missing from Odoo are added from the agent as a Lead (CRM > Leads, like the other
+    # customers) or as an Opportunity (CRM > Pipeline).
+    odoo_new_record_type: Literal["lead", "opportunity"] = "lead"
     # fast: hand the Odoo number straight to Windows/Phone Link (instant, no browser);
     # odoo_click: open the lead and click Odoo's own Call link; windows_handler: read that link, then Windows.
     call_launch_mode: Literal["fast", "odoo_click", "windows_handler"] = "fast"
