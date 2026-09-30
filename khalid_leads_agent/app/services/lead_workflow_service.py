@@ -485,10 +485,11 @@ class LeadWorkflowService:
         return {"call_started_at": utcnow().isoformat() + "Z", "phone_field": chosen["field"], "phone": chosen["raw"],
                 "tel": tel, "method": outcome.method, "warnings": warnings}
 
-    async def reload_sheet(self) -> tuple[list[str], int]:
-        """Reconnect to Google and re-read the sheet. Returns (warnings, number of new rows of the owner)."""
+    async def reload_sheet(self, reconnect: bool = True) -> tuple[list[str], int]:
+        """Re-read the sheet (optionally on a fresh Google connection). Returns (warnings, new rows of the owner)."""
         before = {lead.fingerprint for lead in self.queue.owner_leads}
-        self.sheets.reset_client()  # fresh connection + fresh dropdown options
+        if reconnect:
+            self.sheets.reset_client()  # fresh connection + fresh dropdown options
         warnings = await self._refresh(strict=False)
         after = {lead.fingerprint for lead in self.queue.owner_leads}
         return warnings, len(after - before) if before else 0
@@ -498,6 +499,19 @@ class LeadWorkflowService:
                               "pending": payload["stats"]["pending"]}
         payload["filter"] = await self.status_filter()
         return payload
+
+    async def check_new(self) -> dict:
+        """Background check (dashboard timer): new customers of the owner in the sheet. Never raises for
+        Google errors and never changes the current customer."""
+        if not self.queue.loaded:
+            return {"new": 0, "checked": False}
+        before = {lead.fingerprint: lead for lead in self.queue.owner_leads}
+        warnings, new = await self.reload_sheet(reconnect=False)
+        if warnings:
+            return {"new": 0, "checked": False, "warnings": warnings}
+        names = [lead.company_name for lead in self.queue.owner_leads if lead.fingerprint not in before][:5]
+        return {"new": new, "names": names, "checked": True, "stats": self.stats(),
+                "current": self.sessions.ensure().current_fingerprint}
 
     async def refresh_queue(self) -> dict:
         """«تحديث القائمة»: reconnect, re-read the sheet, keep the current lead when it is still there."""

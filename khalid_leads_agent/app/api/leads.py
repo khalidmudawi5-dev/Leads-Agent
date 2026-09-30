@@ -61,6 +61,12 @@ async def queue_refresh(c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.refresh_queue()
 
 
+@router.get("/queue/check")
+async def queue_check(c: AppContainer = Depends(container)) -> dict:
+    """Polled by the dashboard every «sheet_poll_minutes»: new customers in the sheet."""
+    return await c.workflow.check_new()
+
+
 @router.get("/queue/list")
 async def queue_list(kind: str = "pending", c: AppContainer = Depends(container)) -> dict:
     if kind not in ("pending", "all", "match_errors", "followups", "duplicates"):

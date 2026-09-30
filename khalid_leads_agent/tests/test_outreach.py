@@ -138,3 +138,19 @@ def test_settings_round_trip_for_new_options(container):
         s = tc.get("/api/settings").json()["settings"]
         assert s["whatsapp_templates"] == [{"name": "ترحيب", "text": "أهلًا {company}"}]
         assert s["daily_call_goal"] == 25 and s["no_answer_retry_hours"] == 6 and not s["whatsapp_log"]
+
+
+def test_background_check_announces_new_customers(container, sheet):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    with TestClient(create_app(container, allowed_hosts=["testserver"])) as tc:
+        assert tc.get("/api/queue/check").json() == {"new": 0, "checked": False}  # nothing loaded yet
+        tc.post("/api/session/start", json={"resume": True}, headers={"X-KLA": "1"})
+        fp = tc.get("/api/lead/current").json()["lead"]["fingerprint"]
+        assert tc.get("/api/queue/check").json()["new"] == 0
+        sheet.sheets["Leads"].append(["6", "خالد", "عميل وصل الآن", "", "0567777777", "", "", "", "", "", ""])
+        r = tc.get("/api/queue/check").json()
+        assert r["new"] == 1 and r["names"] == ["عميل وصل الآن"] and r["current"] == fp
+        assert r["stats"]["owner_total"] == 5

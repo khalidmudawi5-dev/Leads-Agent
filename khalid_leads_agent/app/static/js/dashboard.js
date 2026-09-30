@@ -61,6 +61,7 @@ async function init() {
     const [st, cfg] = await Promise.all([api("GET", "/api/settings/status-mapping"), api("GET", "/api/settings")]);
     S.statuses = st.items; S.settings = cfg.settings;
     $("#dry-ribbon").classList.toggle("hidden", !S.settings.dry_run);
+    SheetWatch.start();
     const updateId = new URLSearchParams(location.search).get("update");
     const sess = await api("GET", "/api/session");
     if (sess.needs_prompt && !updateId) return askResume(sess.session);
@@ -98,6 +99,7 @@ Shortcuts.register([
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ code: `Numpad${n}`, label: String(n),
     when: () => resultOpen() && !!S.statuses[n - 1], run: () => selectResult(S.statuses[n - 1].code) })),
   { code: "KeyT", label: "T", title: "الانتقال لحقل الملاحظة", group: "لوحة النتيجة", when: resultOpen, run: () => $("#r-note").focus() },
+  { code: "KeyM", label: "M", title: "إملاء الملاحظة بالصوت (تشغيل / إيقاف)", group: "لوحة النتيجة", when: () => resultOpen() && !!$("#r-mic"), run: () => clickIf("#r-mic") },
   { code: "Enter", label: "Enter", ctrl: true, allowInInputs: true, title: "حفظ النتيجة", group: "لوحة النتيجة", when: resultOpen, run: () => clickIf("#r-save") },
   { code: "Escape", label: "Esc", allowInInputs: true, title: "إلغاء لوحة النتيجة / إلغاء الانتقال التلقائي", group: "لوحة النتيجة",
     when: () => resultOpen() || !!$("#btn-cancel-next"), run: () => { if ($("#btn-cancel-next")) $("#btn-cancel-next").click(); else $("#r-cancel").click(); } },
@@ -297,6 +299,75 @@ function duplicateRows(items) {
     <td class="small">${i.others.map((o) => `صف ${o.row}: ${esc(o.company || "—")} <span class="muted">(${esc(o.owner || "بدون مسؤول")}${o.status ? " · " + esc(o.status) : ""})</span>`).join("<br>")}</td>
     <td></td><td><button class="btn sm primary" data-i="${n}">فتح</button></td></tr>`).join("");
 }
+
+// ------------------------------------------------------------ new customers in the sheet
+/** Every «sheet_poll_minutes» (tab visible): re-read the sheet and announce new customers. */
+const SheetWatch = {
+  timer: null, unseen: 0, title: document.title,
+  start() {
+    const min = (S.settings && S.settings.sheet_poll_minutes) || 0;
+    clearInterval(this.timer);
+    if (!min) return;
+    this.timer = setInterval(() => this.tick(), min * 60000);
+    window.addEventListener("focus", () => { this.unseen = 0; document.title = this.title; });
+  },
+  async tick() {
+    if (document.hidden) return;
+    let r;
+    try { r = await api("GET", "/api/queue/check"); } catch (e) { return; }  // quiet: next tick retries
+    if (!r.checked || !r.new) return;
+    renderStats(r.stats);
+    renderBanner(r.stats);
+    const names = (r.names || []).join("، ");
+    toast(`🆕 ${r.new === 1 ? "عميل جديد" : `${r.new} عملاء جدد`} في Google Sheet${names ? `: ${names}` : ""}`, "info", 9000);
+    if (!document.hasFocus()) { this.unseen += r.new; document.title = `(${this.unseen} جديد) ${this.title}`; }
+    if (S.payload && S.payload.done && !resultOpen()) loadCurrent();  // the list was finished: show the new one
+  },
+};
+
+// ------------------------------------------------------------ voice dictation
+const MIC_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+/**
+ * Dictate the result note (Arabic) with the browser's speech recognition (Chrome / Edge).
+ * It only fills the note: the user reads it, fixes it and chooses the result before saving.
+ * Browsers allow the microphone only on https or localhost, so on the PC it works; on the phone
+ * (plain http over Tailscale) the keyboard's own microphone is used instead.
+ */
+const Dictation = {
+  rec: null, target: null, btn: null, base: "",
+  supported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition) && window.isSecureContext; },
+  toggle(target, btn) { if (this.rec) this.stop(); else this.start(target, btn); },
+  start(target, btn) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR();
+    rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
+    this.rec = rec; this.target = target; this.btn = btn;
+    this.base = target.value.trim() ? target.value.trim() + " " : "";
+    rec.onresult = (ev) => {
+      let finalText = "", interim = "";
+      for (let i = 0; i < ev.results.length; i++) {
+        const r = ev.results[i];
+        if (r.isFinal) finalText += r[0].transcript + " "; else interim += r[0].transcript;
+      }
+      target.value = (this.base + finalText + interim).replace(/\s+/g, " ").trimStart();
+      target.dispatchEvent(new Event("input"));
+    };
+    rec.onerror = (ev) => {
+      const msg = ev.error === "not-allowed" || ev.error === "service-not-allowed" ? "اسمح للمتصفح باستخدام الميكروفون ثم أعد المحاولة."
+        : ev.error === "network" ? "الإملاء يحتاج اتصال إنترنت." : ev.error === "no-speech" ? "لم يُسمع كلام." : "";
+      if (msg) toast(msg, "warn", 6000);
+    };
+    rec.onend = () => this.stop();
+    try { rec.start(); } catch (e) { this.stop(); return; }
+    btn.classList.add("recording");
+    $("span", btn).textContent = "جاري الاستماع… اضغط للإيقاف";
+    target.focus();
+  },
+  stop() {
+    if (this.rec) { const r = this.rec; this.rec = null; try { r.stop(); } catch (e) { /* already stopped */ } }
+    if (this.btn) { this.btn.classList.remove("recording"); const s = $("span", this.btn); if (s) s.textContent = "إملاء بالصوت"; }
+  },
+};
 
 // ------------------------------------------------------------ daily goal
 function renderGoal(st) {
@@ -1053,7 +1124,9 @@ async function openResultPanel(prev = null) {
       <div class="small muted" style="margin-top:4px">اختر النتيجة الجديدة واكتب ملاحظة؛ سيتم إضافة Log Note جديد في Odoo وتحديث الصف في Google Sheet مع الحفاظ على الملاحظات القديمة.</div></div>` : ""}
     <div class="result-buttons">${S.statuses.map((s, i) => `<button type="button" class="result-btn" data-code="${s.code}">${i < 9 ? `<span class="num">${i + 1}</span>` : ""}${esc(s.label)}</button>`).join("")}</div>
     <div style="margin-top:16px">
-      <label class="field"><span>ملاحظة حرة</span><textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
+      <label class="field"><span class="note-head">ملاحظة حرة ${Dictation.supported() ? `<button type="button" class="btn sm mic" id="r-mic" title="إملاء الملاحظة بالصوت (M)">${MIC_ICON}<span>إملاء بالصوت</span></button>`
+        : S.remote ? '<span class="small muted">للإملاء: اضغط ميكروفون لوحة مفاتيح الجوال 🎤</span>' : ""}</span>
+        <textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
       <div id="r-followup" class="form-grid hidden">
         <label class="field"><span>تاريخ المتابعة</span><input type="date" id="r-fdate"></label>
         <label class="field"><span>الوقت</span><input type="time" id="r-ftime"></label>
@@ -1084,7 +1157,8 @@ async function openResultPanel(prev = null) {
   $$(".result-btn", card).forEach((b) => b.onclick = () => selectResult(b.dataset.code));
   ["#r-sheet", "#r-odoo"].forEach((sel) => { $(sel).onchange = updateWriteSummary; });
   updateWriteSummary();
-  $("#r-cancel").onclick = () => card.classList.add("hidden");
+  $("#r-cancel").onclick = () => { Dictation.stop(); card.classList.add("hidden"); };
+  if ($("#r-mic")) $("#r-mic").onclick = () => Dictation.toggle($("#r-note"), $("#r-mic"));
   $("#r-save").onclick = (ev) => saveResult(ev.currentTarget, false);
   $("#r-preview").onclick = (ev) => saveResult(ev.currentTarget, true);
   card.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1196,6 +1270,7 @@ function buildResultBody(previewOnly) {
 }
 
 async function saveResult(btn, previewOnly) {
+  Dictation.stop();
   if (!S.result.code) { toast("اختر نتيجة التواصل أولًا", "warn"); return; }
   if (S.busy) return;               // double-click protection (plus server idempotency key)
   S.busy = true;

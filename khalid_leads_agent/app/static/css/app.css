@@ -581,6 +581,12 @@ table.hist { table-layout: auto; }
 .hb-val { font-size: .86rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 @media (max-width: 1150px) { .rep-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
+/* ---------- voice dictation */
+.note-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.btn.mic svg { width: 16px; height: 16px; }
+.btn.mic.recording { background: #dc2626; border-color: #b91c1c; color: #fff; animation: pulse-mic 1.2s infinite; }
+@keyframes pulse-mic { 50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, .2); } }
+
 /* ---------- daily goal */
 .goal { display: flex; align-items: center; gap: 12px; margin: -6px 0 16px; font-size: .86rem; }
 .goal .g-label { font-weight: 700; color: var(--text-2); white-space: nowrap; }
