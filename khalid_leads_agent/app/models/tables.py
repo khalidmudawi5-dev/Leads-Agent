@@ -51,6 +51,7 @@ class LeadCache(Base, TimestampMixin):
     odoo_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     match_status: Mapped[str] = mapped_column(String(20), default="unknown")  # unknown|matched|multiple|not_found|error
     match_candidates: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    match_strategy: Mapped[str] = mapped_column(String(30), default="")  # phone | company_partial | ui_search ...
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

@@ -17,7 +17,7 @@ from app.repositories.log_repo import LogRepository
 from app.repositories.result_repo import CallResultRepository
 from app.services.google_sheets_service import SheetService
 from app.services.lead_queue_service import LeadQueueService
-from app.services.mapping_service import MappingService
+from app.services.mapping_service import _SEP, MappingService
 from app.services.odoo_service import MatchResult, OdooService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
@@ -109,7 +109,8 @@ class LeadWorkflowService:
             "phone": c.phone_raw, "phone_norm": c.phone_norm, "owner": c.owner,
             "followup_status": c.followup_status, "sheet_source": c.sheet_source, "notes": c.notes,
             "last_note": last_note(c.notes), "odoo_lead_id": c.odoo_lead_id, "odoo": c.odoo_data,
-            "match_status": c.match_status, "candidates": c.match_candidates or [],
+            "match_status": c.match_status, "match_strategy": c.match_strategy or "",
+            "candidates": c.match_candidates or [],
             "source": {**resolution.to_dict(), "prefill": prefill, "sheet_current": c.sheet_source},
             "phone_check": phone_report(c.phone_raw, odoo) if odoo else None,
             "trial_registered": (c.row_values or {}).get("trial_registered", ""),
@@ -200,10 +201,10 @@ class LeadWorkflowService:
             chosen = lead or match.lead
             self._update_cache(fingerprint, odoo_lead_id=chosen.id if chosen else None,
                                odoo_data=chosen.to_dict() if chosen else None, match_status="matched",
-                               match_candidates=None)
+                               match_candidates=None, match_strategy=match.strategy)
         else:
             self._update_cache(fingerprint, odoo_lead_id=None, odoo_data=None, match_status=match.status,
-                               match_candidates=[c.to_dict() for c in match.candidates])
+                               match_candidates=[c.to_dict() for c in match.candidates], match_strategy=match.strategy)
 
     async def _load_lead(self, lead: OdooLead, open_in_browser: bool) -> tuple[OdooLead, list[str]]:
         warnings: list[str] = []
@@ -249,8 +250,22 @@ class LeadWorkflowService:
         self._store_match(fingerprint, MatchResult("matched", lead, [], "user_choice"), lead)
         return self._payload(fingerprint, warnings)
 
+    def odoo_source_for(self, sheet_value: str) -> tuple[str, str]:
+        """Odoo (source, medium) names for a sheet source value.
+
+        A saved Source Mapping pointing to this sheet value wins (the most specific one, e.g.
+        "Meta / Leads"); otherwise the sheet value itself is split ("Meta || Leads" → Meta, Leads).
+        """
+        key = normalize_text(sheet_value)
+        if not key:
+            return "", ""
+        mapped = [m["odoo_value"] for m in self.mappings.sources() if normalize_text(m["sheet_value"]) == key]
+        mapped.sort(key=lambda v: len([x for x in _SEP.split(v.strip()) if x]), reverse=True)
+        parts = [x.strip() for x in _SEP.split((mapped[0] if mapped else sheet_value).strip()) if x.strip()]
+        return (parts[0] if parts else ""), (parts[1] if len(parts) > 1 else "")
+
     async def create_in_odoo(self, fingerprint: str, company: str, phone: str, contact_name: str = "",
-                             force: bool = False) -> dict:
+                             force: bool = False, source: str | None = None) -> dict:
         """Add a customer that is missing from Odoo as a new opportunity/lead (explicit user action).
 
         The customer is searched again first with the entered name and number; a strong match is
@@ -279,8 +294,11 @@ class LeadWorkflowService:
                                      "can_force": match.strategy not in STRONG_STRATEGIES}
                 return payload
             s = self.settings.get()
+            sheet_source = (c.sheet_source if source is None else source).strip()
+            source_name, medium_name = self.odoo_source_for(sheet_source)
             values = {"name": company, "partner_name": company, "phone": format_phone(chk["raw"]),
-                      "contact_name": contact_name, "type": s.odoo_new_lead_type}
+                      "contact_name": contact_name, "type": s.odoo_new_lead_type,
+                      "source_name": source_name, "medium_name": medium_name}
             action_id = uuid.uuid4().hex
             audit = {"action_id": action_id, "system": "ODOO", "action": "create_lead",
                      "record": f"row {c.sheet_row} | {c.company_name} | {c.phone_norm}", "before": None}
@@ -294,11 +312,18 @@ class LeadWorkflowService:
             except AgentError as exc:
                 self._audit(**audit, after=values, success=False, error=exc.message_ar)
                 raise
-            self._audit(**audit, after={**values, "id": lead.id}, success=True)
+            self._audit(**audit, after={**values, "id": lead.id, "source": lead.source, "medium": lead.medium},
+                        success=True)
             log.info("Created Odoo %s %s for sheet row %s", s.odoo_new_lead_type, lead.id, c.sheet_row)
             warnings: list[str] = []
+            if source_name and not lead.source:
+                warnings.append(f"المصدر «{source_name}» غير موجود في Odoo (Source)؛ أُضيف العميل بدون مصدر. "
+                                "أضفه في Odoo أو اربطه من الإعدادات > Source Mapping.")
+            if medium_name and not lead.medium:
+                warnings.append(f"الـMedium «{medium_name}» غير موجود في Odoo؛ لم يُضف.")
             if s.auto_open_odoo_lead:
-                lead, warnings = await self._load_lead(lead, True)
+                lead, load_warnings = await self._load_lead(lead, True)
+                warnings += load_warnings
             self._store_match(fingerprint, MatchResult("matched", lead, [], "created"), lead)
             payload = self._payload(fingerprint, warnings)
             payload["create"] = {"status": "created", "id": lead.id, "type": s.odoo_new_lead_type}
@@ -309,10 +334,20 @@ class LeadWorkflowService:
             LogRepository(s).add_audit(**fields)
 
     async def open_in_odoo(self, fingerprint: str) -> dict:
+        """Open the linked lead. An unlinked customer is searched (if needed) instead of opening CRM:
+        the payload's ``open`` says what the user must do (``not_found`` → add it, ``multiple`` → choose)."""
         c = self._cache(fingerprint)
         if not c.odoo_lead_id:
-            await self.odoo.adapter.open_url(self.settings.get().crm_url)
-            return self._payload(fingerprint, ["العميل غير مربوط بـLead؛ تم فتح CRM."])
+            if c.match_status in ("unknown", "error", ""):
+                payload = await self.search_odoo(fingerprint)
+                c = self._cache(fingerprint)
+                if c.odoo_lead_id:
+                    if self.settings.get().auto_open_odoo_lead:  # search_odoo already opened it
+                        return payload
+                    return await self.open_in_odoo(fingerprint)
+            payload = self._payload(fingerprint)
+            payload["open"] = {"status": c.match_status, "strategy": c.match_strategy or ""}
+            return payload
         lead = await self.odoo.adapter.open_lead(OdooLead(id=c.odoo_lead_id))
         self._update_cache(fingerprint, odoo_data=lead.to_dict())
         return self._payload(fingerprint)
@@ -332,7 +367,11 @@ class LeadWorkflowService:
         if fingerprint:
             c = self._cache(fingerprint)
             if not c.odoo_lead_id or not c.odoo_data:
-                raise AgentError("NOT_MATCHED", "اربط العميل بـLead في Odoo أولًا (إعادة البحث).", actions=["retry"])
+                if c.match_status == "not_found":
+                    raise AgentError("NOT_MATCHED", "هذا العميل غير موجود في Odoo. أضفه كفرصة جديدة أولًا.",
+                                     details={"match_status": c.match_status})
+                raise AgentError("NOT_MATCHED", "اربط العميل بـLead في Odoo أولًا (إعادة البحث).", actions=["retry"],
+                                 details={"match_status": c.match_status})
             lead = OdooLead.from_dict(c.odoo_data)  # already loaded: no Odoo round-trip
             sheet_phone = c.phone_raw
         elif odoo_id:

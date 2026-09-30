@@ -51,6 +51,7 @@ class FakeOdooState:
         self.calls_clicked: list[str] = []
         self.rpc_log_notes = 0
         self.created: list[dict[str, Any]] = []
+        self.utm: dict[str, dict[int, str]] = {"utm.source": {3: "Meta", 6: "Google"}, "utm.medium": {4: "Leads"}}
 
     def now(self) -> str:
         """Monotonic fake timestamps so every write gets a new write_date."""
@@ -89,6 +90,8 @@ def _match(rec: dict, term: list) -> bool:
     field, op, value = term
     if op == "=":
         return rec.get(field) == value
+    if op == "=ilike":
+        return str(rec.get(field) or "").lower() == str(value).lower()
     if op == "ilike":
         v = rec.get(field)
         if isinstance(v, list):
@@ -165,12 +168,18 @@ def make_app(state: FakeOdooState) -> FastAPI:
             fields = kwargs.get("fields") or list(FIELDS)
             result = [{"id": state.leads[i]["id"], **{f: state.leads[i].get(f, False) for f in fields}}
                       for i in args[0] if i in state.leads]
+        elif model in ("utm.source", "utm.medium") and method == "search_read":
+            table = state.utm[model]
+            result = [{"id": i, "name": n} for i, n in table.items() if eval_domain({"name": n}, kwargs.get("domain", []))]
         elif model == "crm.lead" and method == "create":
             vals = args[0]
             new_id = max(state.leads, default=0) + 1
             rec = {f: False for f in FIELDS}
             rec.update({"id": new_id, "active": True, "stage_id": [1, "جديد"], "write_date": state.now()})
-            rec.update({k: v for k, v in vals.items() if k != "user_id"})
+            rec.update({k: v for k, v in vals.items() if k not in ("user_id", "source_id", "medium_id")})
+            for fname, model_name in (("source_id", "utm.source"), ("medium_id", "utm.medium")):
+                if vals.get(fname):
+                    rec[fname] = [vals[fname], state.utm[model_name][vals[fname]]]
             if vals.get("user_id"):
                 rec["user_id"] = [vals["user_id"], "Khalid Test"]
             state.leads[new_id] = rec

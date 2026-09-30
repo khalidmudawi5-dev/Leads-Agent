@@ -98,7 +98,8 @@ async def lead_select(fingerprint: str, body: SelectCandidateIn, c: AppContainer
 @router.post("/lead/{fingerprint}/create-odoo")
 async def lead_create_odoo(fingerprint: str, body: CreateLeadIn, c: AppContainer = Depends(container)) -> dict:
     """Add a customer missing from Odoo as a new opportunity/lead (after a fresh duplicate check)."""
-    return await c.workflow.create_in_odoo(fingerprint, body.company, body.phone, body.contact_name, body.force)
+    return await c.workflow.create_in_odoo(fingerprint, body.company, body.phone, body.contact_name, body.force,
+                                           source=body.source)
 
 
 @router.post("/lead/{fingerprint}/open")

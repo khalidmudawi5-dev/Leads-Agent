@@ -18,7 +18,9 @@ SCHEMA_VERSION = 1
 
 # (table, column, DDL type) – columns added after the first release go here so
 # existing local databases are upgraded in place without losing data.
-MIGRATIONS: list[tuple[str, str, str]] = []
+MIGRATIONS: list[tuple[str, str, str]] = [
+    ("lead_cache", "match_strategy", "VARCHAR(30) DEFAULT ''"),
+]
 
 
 class Database:

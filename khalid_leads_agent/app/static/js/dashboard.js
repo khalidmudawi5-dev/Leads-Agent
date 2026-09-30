@@ -378,7 +378,7 @@ function renderLead(lead) {
   bindPhoneProblemButtons();
   $("#btn-copy").onclick = copyPhone;
   $("#btn-call").onclick = (ev) => startCall(ev.currentTarget);
-  $("#btn-open").onclick = (ev) => withBusy(ev.currentTarget, () => leadAction(`/api/lead/${fp}/open`));
+  $("#btn-open").onclick = (ev) => withBusy(ev.currentTarget, () => openInOdoo(fp));
   $("#btn-research").onclick = () => searchOdoo();
   $("#btn-refresh").onclick = (ev) => withBusy(ev.currentTarget, () => leadAction(`/api/lead/${fp}/refresh`, {}, "تم تحديث البيانات"));
   $("#btn-skip").onclick = () => askSkip(fp);
@@ -400,6 +400,14 @@ function renderMatch(lead) {
   if (st === "matched") {
     area.innerHTML = `<div class="alert success">تمت المطابقة مع Odoo: <b>${esc((lead.odoo || {}).name || "")}</b>
       ${lead.odoo && lead.odoo.salesperson ? ` · المسؤول: ${esc(lead.odoo.salesperson)}` : ""}</div>`;
+  } else if (st === "multiple" && WEAK_MATCH.includes(lead.match_strategy)) {
+    area.innerHTML = `<div class="alert error"><b>هذا العميل غير موجود في Odoo</b>
+      <div class="small">لا يوجد Lead بنفس رقم الجوال أو نفس اسم المنشأة. وجدنا ${(lead.candidates || []).length} ${(lead.candidates || []).length > 2 ? "أسماء مشابهة" : "اسم مشابه"} فقط — تأكد أنه ليس منها، أو أضفه كفرصة جديدة.</div>
+      <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة كفرصة جديدة في Odoo <kbd>A</kbd></button>
+      <button class="btn sm" id="btn-choose">عرض الأسماء المشابهة</button><button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
+    $("#btn-create").onclick = () => askCreateLead(lead);
+    $("#btn-choose").onclick = () => chooseCandidate(lead);
+    $("#btn-skip2").onclick = () => askSkip(lead.fingerprint);
   } else if (st === "multiple") {
     area.innerHTML = `<div class="alert warn"><b>وجدنا أكثر من عميل محتمل في Odoo.</b> لن يتم الاختيار تلقائيًا.
       <div class="actions"><button class="btn primary sm" id="btn-choose">اختيار العميل الصحيح</button>
@@ -545,7 +553,7 @@ async function searchOdoo(query = "") {
     const payload = await api("POST", `/api/lead/${fp}/search`, { query });
     render(payload);
     refreshStatus();
-    if (payload.match && payload.match.status === "not_found") toast("العميل غير موجود في Odoo — يمكنك إضافته كفرصة جديدة.", "warn", 6000);
+    if (isMissing(payload.lead)) toast("العميل غير موجود في Odoo — يمكنك إضافته كفرصة جديدة.", "warn", 6000);
   } catch (e) {
     if (e.code !== "ODOO_LOGIN_REQUIRED") { S.lead.match_status = "error"; renderMatch(S.lead); }
     handleOdooError(e, () => searchOdoo(query));
@@ -601,6 +609,33 @@ function chooseCandidate(lead) {
 
 // ------------------------------------------------------ add missing customer to Odoo
 const NEW_TYPE_AR = { opportunity: "فرصة جديدة", lead: "Lead جديد" };
+/** Found only by similar names (never by phone or the exact name): the customer itself is missing. */
+const WEAK_MATCH = ["company_partial", "ui_search"];
+function isMissing(lead) {
+  return !!lead && (lead.match_status === "not_found" || (lead.match_status === "multiple" && WEAK_MATCH.includes(lead.match_strategy)));
+}
+
+/** «فتح في Odoo»: open the linked lead; a customer missing from Odoo is offered to be added (never a bare CRM page). */
+async function openInOdoo(fp) {
+  let payload;
+  try { payload = await api("POST", `/api/lead/${fp}/open`); } catch (e) { handleOdooError(e, () => openInOdoo(fp)); return; }
+  render(payload);
+  refreshStatus();
+  if (payload.open) promptLink(payload.lead);
+}
+
+/** The customer is not linked to a lead: ask to add it, or to pick the right one. */
+function promptLink(lead) {
+  if (!lead) return;
+  if (isMissing(lead)) {
+    toast("هذا العميل غير موجود في Odoo — أضفه كفرصة جديدة.", "warn", 6000);
+    askCreateLead(lead);
+  } else if (lead.match_status === "multiple") {
+    chooseCandidate(lead);
+  } else {
+    toast("العميل غير مربوط بـLead في Odoo. اضغط «إعادة البحث».", "warn", 6000);
+  }
+}
 
 function askCreateLead(lead) {
   const dry = !!(S.settings && S.settings.dry_run);
@@ -612,6 +647,8 @@ function askCreateLead(lead) {
       <label class="field"><span>اسم الشركة *</span><input type="text" id="new-company" maxlength="200" value="${esc(lead.company_name)}"></label>
       <label class="field"><span>رقم الجوال *</span><input type="text" inputmode="tel" id="new-phone" class="ltr" maxlength="40" value="${esc(lead.phone)}"></label>
       <label class="field"><span>اسم الشخص المسؤول لدى العميل (اختياري)</span><input type="text" id="new-contact" maxlength="120"></label>
+      <label class="field"><span>المصدر (Source) — من Google Sheet</span><input type="text" id="new-source" maxlength="200" value="${esc(lead.sheet_source)}" placeholder="مثال: Meta || Leads"></label>
+      <div class="small muted" style="margin-top:-6px">يُربط بمصدر موجود في Odoo بنفس الاسم أو حسب Source Mapping في الإعدادات.</div>
       <div id="new-msg"></div>`,
     buttons: [
       { label: dry ? "معاينة الإضافة (Dry Run)" : "إضافة إلى Odoo", cls: "primary", onClick: (btn) => withBusy(btn, () => submitCreateLead(lead, false)) },
@@ -623,7 +660,7 @@ function askCreateLead(lead) {
 
 async function submitCreateLead(lead, force) {
   const body = { company: $("#new-company").value.trim(), phone: $("#new-phone").value.trim(),
-                 contact_name: $("#new-contact").value.trim(), force };
+                 contact_name: $("#new-contact").value.trim(), source: $("#new-source").value.trim(), force };
   if (!body.company || !body.phone) {
     $("#new-msg").innerHTML = '<div class="alert error">اسم الشركة ورقم الجوال مطلوبان.</div>';
     return;
@@ -642,13 +679,15 @@ async function submitCreateLead(lead, force) {
     $("#new-msg").innerHTML = `<div class="alert warn"><b>Dry Run — لم تتم الإضافة إلى Odoo.</b>
       <div class="kv" style="margin-top:8px"><div class="k">Name</div><div>${orDash(v.name)}</div>
       <div class="k">Company</div><div>${orDash(v.partner_name)}</div><div class="k">Phone</div><div class="ltr">${orDash(v.phone)}</div>
-      <div class="k">Contact</div><div>${orDash(v.contact_name)}</div><div class="k">Type</div><div>${orDash(v.type)}</div></div></div>`;
+      <div class="k">Contact</div><div>${orDash(v.contact_name)}</div><div class="k">Type</div><div>${orDash(v.type)}</div>
+      <div class="k">Source</div><div>${orDash(v.source_name)}</div><div class="k">Medium</div><div>${orDash(v.medium_name)}</div></div></div>`;
     return;
   }
   if (cr.status === "created") {
     Modal.close();
     render(payload);
     toast(`تمت إضافة العميل إلى Odoo كـ${NEW_TYPE_AR[cr.type] || "فرصة جديدة"} (#${cr.id})`, "success", 6000);
+    (payload.warnings || []).forEach((w) => toast(w, "warn", 9000));
     return;
   }
   if (cr.status === "exists") {
@@ -665,7 +704,7 @@ async function submitCreateLead(lead, force) {
       title: "وجدنا عملاء بأسماء مشابهة في Odoo", wide: true,
       html: `<p class="muted">تأكد أن العميل ليس واحدًا منهم. إذا وجدته اختره، وإلا أضفه كعميل جديد.</p>${candidateTable(cands, "هذا هو")}
         <input type="hidden" id="new-company" value="${esc(body.company)}"><input type="hidden" id="new-phone" value="${esc(body.phone)}">
-        <input type="hidden" id="new-contact" value="${esc(body.contact_name)}"><div id="new-msg"></div>`,
+        <input type="hidden" id="new-contact" value="${esc(body.contact_name)}"><input type="hidden" id="new-source" value="${esc(body.source)}"><div id="new-msg"></div>`,
       buttons: [
         { label: "ليس منهم — إضافة كعميل جديد", cls: "primary", onClick: (btn) => withBusy(btn, () => submitCreateLead(lead, true)) },
         { label: "إلغاء" },
@@ -779,6 +818,8 @@ async function startCall(btn, opts = {}) {
           showPhoneInvalid(e, btn);
         } else if (e.code === "PHONE_INVALID") {
           showPhoneInvalid(e, btn);
+        } else if (e.code === "NOT_MATCHED" && S.lead && !manual && ["not_found", "multiple"].includes((e.details || {}).match_status)) {
+          promptLink(S.lead);
         } else handleOdooError(e, () => startCall(btn, opts));
       }
     });

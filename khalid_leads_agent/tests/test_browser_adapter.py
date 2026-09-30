@@ -230,3 +230,10 @@ def test_create_lead_via_rpc(adapter, fake_odoo):
     assert fake_odoo.state.created == [{"name": "مؤسسة جديدة", "partner_name": "مؤسسة جديدة",
                                         "phone": "+966 55 000 1111", "type": "opportunity", "user_id": 2}]
     assert [f.id for f in run(adapter, adapter.search_by_phone("966550001111"))] == [lead.id]
+    # Source/medium: linked only when a UTM record with that name exists (case-insensitive).
+    other = run(adapter, adapter.create_lead({"name": "ب", "partner_name": "ب", "phone": "0550002222",
+                                              "source_name": "meta", "medium_name": "Leads"}))
+    assert other.source == "Meta" and other.medium == "Leads"
+    unknown = run(adapter, adapter.create_lead({"name": "ج", "partner_name": "ج", "phone": "0550003333",
+                                                "source_name": "تيك توك", "medium_name": ""}))
+    assert unknown.source == "" and "source_id" not in fake_odoo.state.created[-1]

@@ -522,9 +522,18 @@ class BrowserOdooAdapter(OdooAdapter):
         if box is None:
             shot = await self._w_screenshot("odoo-search-box-not-found")
             raise AutomationError("ODOO_SEARCH_BOX_NOT_FOUND", "تعذر العثور على مربع البحث في Odoo.", shot)
+        for _ in range(6):
+            facet, _ = await self._first_visible(page, S.FACET_REMOVE)
+            if facet is None:
+                break
+            await facet.click()
+            await page.wait_for_timeout(300)
         await box.fill(query)
         await box.press("Enter")
         await page.wait_for_timeout(1500)
+        for sel in S.SAMPLE_DATA:
+            if await page.locator(sel).count():
+                return []
         for sel in S.LIST_ROWS:
             rows = page.locator(sel)
             n = await rows.count()
@@ -877,6 +886,14 @@ class BrowserOdooAdapter(OdooAdapter):
     async def _w_create_lead(self, values: dict[str, Any]) -> OdooLead:
         try:
             fields = await self._w_fields()
+            values = dict(values)
+            for key, fname, model in (("source_name", "source_id", "utm.source"), ("medium_name", "medium_id", "utm.medium")):
+                name = (values.pop(key, "") or "").strip()
+                if name and fname in fields:
+                    found = await self._w_call_kw(model, "search_read", [],
+                                                  {"domain": [["name", "=ilike", name]], "fields": ["id"], "limit": 1})
+                    if found:
+                        values[fname] = found[0]["id"]
             vals = {k: v for k, v in values.items() if k in fields and v not in ("", None)}
             if "user_id" in fields and "user_id" not in vals:
                 if self._uid is None:

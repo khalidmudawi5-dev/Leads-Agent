@@ -25,6 +25,8 @@ class MockOdooAdapter(OdooAdapter):
         self.versions: dict[int, int] = {}
         self.created: list[dict[str, Any]] = []
         self.fail_create = False
+        self.utm_sources = {"meta", "google", "twajd", "power bi"}
+        self.utm_mediums = {"leads", "cpc"}
 
     def touch(self, lead_id: int) -> None:
         """Simulate an edit made directly in Odoo (changes the live-sync signature)."""
@@ -115,6 +117,11 @@ class MockOdooAdapter(OdooAdapter):
         lead = OdooLead(id=new_id, name=values.get("name", ""), company_name=values.get("partner_name", ""),
                         contact_name=values.get("contact_name", ""), phone=values.get("phone", ""),
                         salesperson="Mock User", stage="جديد", lead_type=values.get("type", ""))
+        src, med = (values.get("source_name") or "").strip(), (values.get("medium_name") or "").strip()
+        if src.lower() in self.utm_sources:
+            lead.source = lead.utm_source = src
+        if med.lower() in self.utm_mediums:
+            lead.medium = lead.utm_medium = med
         self.leads[new_id] = lead
         return self._with_history(lead)
 

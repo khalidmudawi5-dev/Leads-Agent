@@ -137,6 +137,9 @@ class OdooAdapter(ABC):
     async def create_lead(self, values: dict[str, Any]) -> OdooLead:
         """Create a ``crm.lead`` (``name``, ``partner_name``, ``phone``, ``contact_name``, ``type``...).
 
+        ``source_name`` / ``medium_name`` are set only when a UTM source/medium with exactly
+        that name (case-insensitive) already exists in Odoo; nothing is created in UTM.
+
         Only called after the user explicitly asked for it and a fresh search found nothing.
         The current Odoo user becomes the salesperson. Returns the lead as read back from Odoo.
         """

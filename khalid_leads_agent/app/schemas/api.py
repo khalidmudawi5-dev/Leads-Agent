@@ -55,6 +55,7 @@ class CreateLeadIn(BaseModel):
     company: str = Field(default="", max_length=200)
     phone: str = Field(default="", max_length=40)
     contact_name: str = Field(default="", max_length=120)
+    source: str | None = Field(default=None, max_length=200)  # sheet source value; None = the sheet's own
     force: bool = False
 
 

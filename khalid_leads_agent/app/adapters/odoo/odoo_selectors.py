@@ -131,6 +131,11 @@ ACTIVITY_BUTTON = [
 ]
 
 # --------------------------------------------------------------- list search
+# Default filters (e.g. "My Pipeline") are removed before a UI search so every lead is searched.
+FACET_REMOVE = [".o_searchview_facet .o_facet_remove"]
+# Odoo shows fake sample cards/rows when a view is empty: never read them as results.
+SAMPLE_DATA = [".o_view_sample_data", ".o_view_nocontent"]
+
 SEARCH_INPUT = [
     ".o_searchview_input",
     "input[role='searchbox']",
