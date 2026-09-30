@@ -80,7 +80,8 @@ Shortcuts.register([
   { code: "KeyO", label: "O", title: "فتح العميل في Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => clickIf("#btn-open") },
   { code: "KeyR", label: "R", shift: false, title: "تسجيل النتيجة", group: "العميل الحالي", when: () => hasLead() && !resultOpen(), run: () => { stopCall(); openResultPanel(); } },
   { code: "KeyF", label: "F", title: "إعادة البحث في Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => searchOdoo() },
-  { code: "KeyU", label: "U", title: "تحديث بيانات العميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => clickIf("#btn-refresh") },
+  { code: "KeyU", label: "U", title: "تحديث من Google Sheet (عملاء جدد + بيانات العميل)", group: "العميل الحالي", when: () => !S.manual && !resultOpen(),
+    run: () => { if ($("#btn-refresh")) clickIf("#btn-refresh"); else clickIf("#btn-refresh-queue"); } },
   { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
   { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
   { code: "KeyP", label: "P", title: "نسخ رقم الجوال", group: "العميل الحالي", when: hasLead, run: copyPhone },
@@ -186,9 +187,28 @@ async function loadCurrent() {
   try { render(await api("GET", "/api/lead/current")); }
   catch (e) { renderFatal(e, loadCurrent); }
 }
-async function refreshQueue() {
-  try { render(await api("POST", "/api/queue/refresh")); toast("تم تحديث القائمة", "success"); loadFilter(); }
-  catch (e) { renderFatal(e, refreshQueue); }
+async function refreshQueue() { return refreshAll(null); }
+
+/**
+ * «تحديث» (U) / «تحديث القائمة» (Shift+R): reconnect to Google, read new customers from the sheet,
+ * refresh counts, the status filter, the connection chips and the current lead — no page reload.
+ */
+async function refreshAll(fp) {
+  let payload;
+  try {
+    payload = fp ? await api("POST", `/api/lead/${fp}/refresh`) : await api("POST", "/api/queue/refresh");
+  } catch (e) {
+    refreshStatus();
+    if (fp) handleOdooError(e, () => refreshAll(fp)); else renderFatal(e, refreshQueue);
+    return;
+  }
+  render(payload);
+  if (payload.filter) renderFilter(payload.filter.options);
+  refreshStatus();
+  const r = payload.refresh || {};
+  if ((payload.warnings || []).length) toast("تم التحديث مع تنبيهات — راجع أعلى الصفحة.", "warn", 6000);
+  else toast(r.new ? `تم التحديث — ${r.new} ${r.new === 1 ? "عميل جديد" : "عملاء جدد"} في الملف · بانتظار التواصل: ${r.pending}`
+                   : `تم التحديث من Google Sheet · بانتظار التواصل: ${r.pending ?? "–"}`, "success", 5000);
 }
 
 // ---------------------------------------------------------- status filter
@@ -380,7 +400,7 @@ function renderLead(lead) {
   $("#btn-call").onclick = (ev) => startCall(ev.currentTarget);
   $("#btn-open").onclick = (ev) => withBusy(ev.currentTarget, () => openInOdoo(fp));
   $("#btn-research").onclick = () => searchOdoo();
-  $("#btn-refresh").onclick = (ev) => withBusy(ev.currentTarget, () => leadAction(`/api/lead/${fp}/refresh`, {}, "تم تحديث البيانات"));
+  $("#btn-refresh").onclick = (ev) => withBusy(ev.currentTarget, () => refreshAll(fp));
   $("#btn-skip").onclick = () => askSkip(fp);
   $("#btn-result").onclick = () => openResultPanel();
 }

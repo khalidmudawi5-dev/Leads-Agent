@@ -419,9 +419,35 @@ class LeadWorkflowService:
         return {"call_started_at": utcnow().isoformat() + "Z", "phone_field": chosen["field"], "phone": chosen["raw"],
                 "tel": tel, "method": outcome.method, "warnings": warnings}
 
-    async def refresh_lead(self, fingerprint: str) -> dict:
-        """Reload the sheet and, when the Odoo browser is already open, the lead (never opens a window)."""
+    async def reload_sheet(self) -> tuple[list[str], int]:
+        """Reconnect to Google and re-read the sheet. Returns (warnings, number of new rows of the owner)."""
+        before = {lead.fingerprint for lead in self.queue.owner_leads}
+        self.sheets.reset_client()  # fresh connection + fresh dropdown options
         warnings = await self._refresh(strict=False)
+        after = {lead.fingerprint for lead in self.queue.owner_leads}
+        return warnings, len(after - before) if before else 0
+
+    async def _with_refresh_info(self, payload: dict, new: int) -> dict:
+        payload["refresh"] = {"new": new, "owner_total": len(self.queue.owner_leads),
+                              "pending": payload["stats"]["pending"]}
+        payload["filter"] = await self.status_filter()
+        return payload
+
+    async def refresh_queue(self) -> dict:
+        """«تحديث القائمة»: reconnect, re-read the sheet, keep the current lead when it is still there."""
+        warnings, new = await self.reload_sheet()
+        payload = await self.current()
+        payload["warnings"] = warnings + payload.get("warnings", [])
+        return await self._with_refresh_info(payload, new)
+
+    async def refresh_lead(self, fingerprint: str) -> dict:
+        """«تحديث» (U): reconnect to Google, re-read the sheet (new customers, counts, filter) and, when
+        the Odoo browser is already open, the lead itself (never opens a window)."""
+        warnings, new = await self.reload_sheet()
+        if self.queue.find(fingerprint) is None:  # the row is gone or no longer the owner's
+            payload = await self.current()
+            payload["warnings"] = warnings + payload.get("warnings", [])
+            return await self._with_refresh_info(payload, new)
         c = self._cache(fingerprint)
         if c.odoo_lead_id and self.odoo.adapter.browser_started:
             try:
@@ -431,7 +457,7 @@ class LeadWorkflowService:
                 if exc.code == "ODOO_LOGIN_REQUIRED":
                     raise
                 warnings.append(exc.message_ar)
-        return self._payload(fingerprint, warnings)
+        return await self._with_refresh_info(self._payload(fingerprint, warnings), new)
 
     # ------------------------------------------------------ queue list
     async def queue_list(self, kind: str) -> dict:

@@ -56,8 +56,7 @@ async def lead_next(c: AppContainer = Depends(container)) -> dict:
 
 @router.post("/queue/refresh")
 async def queue_refresh(c: AppContainer = Depends(container)) -> dict:
-    await c.workflow._refresh(strict=True)
-    return await c.workflow.current()
+    return await c.workflow.refresh_queue()
 
 
 @router.get("/queue/list")
