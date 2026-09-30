@@ -227,6 +227,30 @@ def make_app(state: FakeOdooState) -> FastAPI:
         state.calls_clicked.append((await request.json())["href"])
         return {"ok": True}
 
+    @app.get("/odoo/crm", response_class=HTMLResponse)
+    def pipeline(request: Request):
+        """CRM pipeline like Odoo 18 for a user in no sales team: a default «My Pipeline» filter
+        and, while it is active, only Odoo's fake sample cards."""
+        if not logged(request):
+            return RedirectResponse("/web/login", status_code=303)
+        names = json.dumps([r["partner_name"] or r["name"] for r in state.leads.values()], ensure_ascii=False)
+        return f"""<html><body><div class="o_web_client">
+          <div class="o_searchview"><span class="o_searchview_facet">My Pipeline <i class="o_facet_remove">x</i></span>
+            <input class="o_searchview_input"></div><div id="view"></div></div><script>
+          const names = {names};
+          document.querySelector(".o_facet_remove").onclick = (e) => e.target.parentElement.remove();
+          document.querySelector(".o_searchview_input").onkeydown = (e) => {{
+            if (e.key !== "Enter") return;
+            const view = document.getElementById("view");
+            if (document.querySelector(".o_searchview_facet")) {{
+              view.innerHTML = '<div class="o_kanban_renderer o_view_sample_data"><div class="o_kanban_record">REF0001</div><div class="o_kanban_record">REF0002</div></div>';
+              return;
+            }}
+            const hits = names.filter((n) => n.includes(e.target.value));
+            view.innerHTML = '<div class="o_kanban_renderer">' + hits.map((n) => '<div class="o_kanban_record">' + n + '</div>').join("") + '</div>';
+          }};
+          </script></body></html>"""
+
     @app.get("/odoo/crm.lead/{lead_id}", response_class=HTMLResponse)
     def form(lead_id: int, request: Request):
         if not logged(request):

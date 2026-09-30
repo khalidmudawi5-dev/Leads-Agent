@@ -145,6 +145,11 @@ class OdooAdapter(ABC):
         """
         raise AgentError("ODOO_CREATE_UNSUPPORTED", "إضافة عميل جديد إلى Odoo غير مدعومة في هذا الوضع.")
 
+    @property
+    def browser_started(self) -> bool:
+        """Whether Odoo can be read without opening a new browser window."""
+        return True
+
     async def lead_signature(self, lead_id: int) -> str | None:
         """Cheap fingerprint of the lead's current state in Odoo (fields + chatter + activities).
 

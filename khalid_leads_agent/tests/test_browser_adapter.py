@@ -237,3 +237,19 @@ def test_create_lead_via_rpc(adapter, fake_odoo):
     unknown = run(adapter, adapter.create_lead({"name": "ج", "partner_name": "ج", "phone": "0550003333",
                                                 "source_name": "تيك توك", "medium_name": ""}))
     assert unknown.source == "" and "source_id" not in fake_odoo.state.created[-1]
+
+
+def test_ui_search_fallback_removes_filters_ignores_samples_and_returns(adapter, fake_odoo):
+    """The CRM-screen search (used when RPC is unavailable) must not leave the user on the pipeline."""
+    login(adapter, fake_odoo)
+    run(adapter, adapter.open_lead(OdooLead(id=7)))
+
+    async def search(q):
+        rows = await adapter._w_ui_search(q)
+        return rows, (await adapter._w_page()).url
+
+    rows, url = run(adapter, adapter._rt.submit(search("مؤسسة الاختبار")))
+    assert [r.name for r in rows] == ["مؤسسة | الاختبار"]  # «My Pipeline» removed first; not the sample cards
+    assert url.endswith("/odoo/crm.lead/7")  # back on the lead, not the pipeline
+    rows, url = run(adapter, adapter._rt.submit(search("غير موجود")))
+    assert rows == [] and url.endswith("/odoo/crm.lead/7")

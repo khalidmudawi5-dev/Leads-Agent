@@ -484,7 +484,8 @@ class BrowserOdooAdapter(OdooAdapter):
     async def _w_search_phone(self, phone_norm: str) -> list[OdooLead]:
         try:
             fields = await self._w_fields()
-        except OdooRpcUnavailable:
+        except OdooRpcUnavailable as exc:
+            log.warning("Odoo RPC unavailable (%s); searching phone through the CRM screen", exc)
             return await self._w_ui_search("0" + national_significant(phone_norm))
         nsn = national_significant(phone_norm)
         terms: list[list] = []
@@ -504,7 +505,8 @@ class BrowserOdooAdapter(OdooAdapter):
     async def _w_search_name(self, text: str) -> list[OdooLead]:
         try:
             fields = await self._w_fields()
-        except OdooRpcUnavailable:
+        except OdooRpcUnavailable as exc:
+            log.warning("Odoo RPC unavailable (%s); searching name through the CRM screen", exc)
             return await self._w_ui_search(text)
         terms = [[f, "ilike", text] for f in ("partner_name", "name", "contact_name", "partner_id") if f in fields]
         return await self._w_search(self._or_domain(terms))
@@ -512,9 +514,24 @@ class BrowserOdooAdapter(OdooAdapter):
     async def search_by_name(self, text: str) -> list[OdooLead]:
         return await self._exec(self._w_search_name, text)
 
-    async def _w_ui_search(self, query: str) -> list[OdooLead]:
-        """Fallback: type into the CRM search box and read visible rows/cards."""
+    async def _w_ui_search(self, query: str, restore: bool = True) -> list[OdooLead]:
+        """Fallback: type into the CRM search box and read visible rows/cards.
+
+        With ``restore`` the tab goes back to the page it showed before (the user is never left
+        on the CRM pipeline just because the agent searched).
+        """
         page = await self._w_page()
+        previous = page.url if page.url.startswith(self.base) and "/web/login" not in page.url else ""
+        try:
+            return await self._w_ui_search_rows(page, query)
+        finally:
+            if restore and previous and page.url != previous:
+                try:
+                    await page.goto(previous)
+                except Exception:  # noqa: BLE001 - best effort only
+                    log.info("Could not return to %s after a UI search", previous, exc_info=True)
+
+    async def _w_ui_search_rows(self, page, query: str) -> list[OdooLead]:
         await page.goto(self.s.crm_url)
         if await self._w_is_login_page(page):
             raise OdooLoginRequired()
@@ -544,7 +561,7 @@ class BrowserOdooAdapter(OdooAdapter):
         return []
 
     async def _w_open_ui_candidate(self, lead: OdooLead) -> int:
-        await self._w_ui_search(lead.ui_query)
+        await self._w_ui_search(lead.ui_query, restore=False)
         page = await self._w_page()
         for sel in S.LIST_ROWS:
             rows = page.locator(sel)

@@ -420,9 +420,10 @@ class LeadWorkflowService:
                 "tel": tel, "method": outcome.method, "warnings": warnings}
 
     async def refresh_lead(self, fingerprint: str) -> dict:
+        """Reload the sheet and, when the Odoo browser is already open, the lead (never opens a window)."""
         warnings = await self._refresh(strict=False)
         c = self._cache(fingerprint)
-        if c.odoo_lead_id:
+        if c.odoo_lead_id and self.odoo.adapter.browser_started:
             try:
                 lead = await self.odoo.adapter.get_lead(c.odoo_lead_id)
                 self._update_cache(fingerprint, odoo_data=lead.to_dict())

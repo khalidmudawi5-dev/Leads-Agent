@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from app.api.deps import container
 from app.container import AppContainer
 from app.errors import AgentError
+from app.version import VERSION
 from app.schemas.api import CallIn, CreateLeadIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
 
 router = APIRouter(prefix="/api")
@@ -17,6 +18,7 @@ def status(c: AppContainer = Depends(container)) -> dict:
     g = c.auth.status(s.google_auth_mode)
     login = c.odoo.last_login
     return {
+        "version": VERSION,
         "owner": s.agent_owner,
         "dry_run": s.dry_run,
         "setup_completed": s.setup_completed,
