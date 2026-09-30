@@ -192,7 +192,9 @@ class BrowserOdooAdapter(OdooAdapter):
             kwargs["viewport"] = {"width": 1400, "height": 900}
         else:
             kwargs["no_viewport"] = True
-            kwargs["args"] = ["--start-maximized"]
+            # Start out of the way: background reads (search, refresh) never pop up a blank window.
+            # The window is shown only for actions the user sees (open lead, call, login).
+            kwargs["args"] = ["--start-minimized"]
         if s.browser_executable_path:
             kwargs["executable_path"] = s.browser_executable_path
         elif s.browser_channel in ("chrome", "msedge"):
@@ -214,6 +216,35 @@ class BrowserOdooAdapter(OdooAdapter):
         ctx.on("close", lambda *_: self._mark_closed())
         self._context, self._page, self._closed = ctx, None, False
         self._fields_cache.clear()
+        if not s.browser_headless:
+            await self._w_window_state(await self._w_page(), "minimized")
+
+    async def _w_window_state(self, page, state: str | None = None) -> str:
+        """Read (and optionally set) the OS window state of ``page``: normal | minimized | maximized."""
+        try:
+            cdp = await self._context.new_cdp_session(page)
+            try:
+                win = await cdp.send("Browser.getWindowForTarget")
+                if state:
+                    if state != "normal" and win["bounds"].get("windowState") not in ("normal", state):
+                        # Chromium only switches minimized → maximized through normal.
+                        await cdp.send("Browser.setWindowBounds", {"windowId": win["windowId"],
+                                                                   "bounds": {"windowState": "normal"}})
+                    await cdp.send("Browser.setWindowBounds", {"windowId": win["windowId"],
+                                                               "bounds": {"windowState": state}})
+                    return state
+                return str(win["bounds"].get("windowState", ""))
+            finally:
+                await cdp.detach()
+        except Exception:  # noqa: BLE001 - cosmetic only
+            log.debug("Could not read/set the browser window state", exc_info=True)
+            return ""
+
+    async def _w_show(self, page) -> None:
+        """Bring the Odoo window in front of the user (restored from the taskbar if minimized)."""
+        if not self.s.browser_headless and await self._w_window_state(page) == "minimized":
+            await self._w_window_state(page, "maximized")
+        await page.bring_to_front()
 
     @staticmethod
     def _launch_error(exc: Exception) -> AgentError:
@@ -472,7 +503,7 @@ class BrowserOdooAdapter(OdooAdapter):
     async def _w_open_url(self, url: str) -> None:
         page = await self._w_page()
         await page.goto(url)
-        await page.bring_to_front()
+        await self._w_show(page)
 
     async def open_login(self) -> None:
         await self._exec(self._w_open_url, self.base + "/web/login")
@@ -704,7 +735,7 @@ class BrowserOdooAdapter(OdooAdapter):
                     raise OdooLoginRequired()
                 if last == "form":
                     self._open_lead_id = lead_id
-                    await page.bring_to_front()
+                    await self._w_show(page)
                     return
             log.warning("Lead %s form not detected (attempt %s)", lead_id, attempt + 1)
         shot = await self._w_screenshot("odoo-open-lead-failed")
@@ -768,7 +799,7 @@ class BrowserOdooAdapter(OdooAdapter):
             log.info("Launched %s via Windows handler for lead %s", target, lead_id)
             return ActionOutcome(True, "windows_tel", sel)
         if loc is not None:
-            await page.bring_to_front()
+            await self._w_show(page)
             await loc.click()
             log.info("Clicked Odoo call control (%s) for lead %s", sel, lead_id)
             return ActionOutcome(True, "ui", sel)

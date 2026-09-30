@@ -253,3 +253,35 @@ def test_ui_search_fallback_removes_filters_ignores_samples_and_returns(adapter,
     assert url.endswith("/odoo/crm.lead/7")  # back on the lead, not the pipeline
     rows, url = run(adapter, adapter._rt.submit(search("غير موجود")))
     assert rows == [] and url.endswith("/odoo/crm.lead/7")
+
+
+
+@pytest.mark.skipif(not os.environ.get("DISPLAY"), reason="needs a display (run under xvfb-run)")
+def test_background_reads_keep_window_minimized(fake_odoo, tmp_path):
+    """Refresh/search launches the browser minimized (no blank window pops up); opening a lead shows it.
+
+    The OS window state is simulated (a bare X server has no window manager to minimize with).
+    """
+    from app.adapters.odoo.browser_adapter import BrowserOdooAdapter
+
+    settings = AppSettings(odoo_base_url=fake_odoo.url, browser_headless=False, browser_executable_path=EXE,
+                           navigation_timeout_ms=8000, action_timeout_ms=4000, retry_attempts=1)
+    ad = BrowserOdooAdapter(lambda: settings, tmp_path / "profile", tmp_path / "shots", tmp_path / "snaps")
+    window = {"state": "normal"}
+
+    async def fake_state(page, state=None):
+        if state:
+            window["state"] = state
+        return window["state"]
+
+    ad._w_window_state = fake_state
+    try:
+        login(ad, fake_odoo)  # launches the browser
+        assert window["state"] == "minimized"
+        assert [f.id for f in run(ad, ad.search_by_phone("966561234567"))] == [7]
+        run(ad, ad.get_lead(7))
+        assert window["state"] == "minimized"  # background reads never show the window
+        run(ad, ad.open_lead(OdooLead(id=7)))
+        assert window["state"] == "maximized"  # «فتح في Odoo» brings it up
+    finally:
+        asyncio.run(ad.close())
