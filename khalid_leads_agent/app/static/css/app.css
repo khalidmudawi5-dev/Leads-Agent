@@ -549,6 +549,16 @@ table.hist { table-layout: auto; }
   .sidebar { width: 210px; }
   .nav a kbd { display: none; }
 }
+/* ---------- WhatsApp + banners */
+.tpl-editor { display: flex; flex-direction: column; gap: 10px; }
+.tpl-row { display: grid; grid-template-columns: minmax(120px, 200px) 1fr auto; gap: 8px; align-items: start; }
+@media (max-width: 760px) { .tpl-row { grid-template-columns: 1fr auto; } .tpl-row .tpl-text { grid-column: 1 / -1; grid-row: 2; } }
+.btn.wa { background: #25d366; border-color: #1fb457; color: #fff; }
+.btn.wa:hover { background: #1fb457; }
+.btn.wa svg { width: 18px; height: 18px; }
+.banner-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+.banner-row > span { flex: 1 1 260px; }
+
 /* ---------- phone (opened over Tailscale): one column, big touch targets, no keyboard hints */
 @media (max-width: 760px) {
   html, body { overflow-x: hidden; }

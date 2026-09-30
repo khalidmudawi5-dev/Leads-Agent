@@ -7,11 +7,13 @@ import re
 import uuid
 from datetime import timedelta
 
+from sqlalchemy import func, select
+
 from app.adapters.odoo.base import ActionOutcome, OdooLead
 from app.config import EMPTY_TOKEN
 from app.db import Database
 from app.errors import AgentError
-from app.models import LeadCache
+from app.models import LeadCache, OutreachMessage
 from app.repositories.lead_repo import LeadCacheRepository, SkipRepository
 from app.repositories.log_repo import LogRepository
 from app.repositories.result_repo import CallResultRepository
@@ -23,7 +25,7 @@ from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
 from app.utils.phone import check_phone, format_phone, normalize_phone, phones_match, to_ascii_digits
 from app.utils.text import normalize_company, normalize_text
-from app.utils.timeutils import end_of_local_day_utc, start_of_local_day_utc, utcnow
+from app.utils.timeutils import end_of_local_day_utc, fmt_local, localnow, start_of_local_day_utc, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -114,15 +116,77 @@ class LeadWorkflowService:
             "source": {**resolution.to_dict(), "prefill": prefill, "sheet_current": c.sheet_source},
             "phone_check": phone_report(c.phone_raw, odoo) if odoo else None,
             "trial_registered": (c.row_values or {}).get("trial_registered", ""),
+            "outcome": self._outcome_view(fingerprint),
+            "duplicates": self._duplicates(c.phone_norm, c.sheet_row),
         }
+
+    def _outcome_view(self, fingerprint: str) -> dict | None:
+        """Follow-up date and no-answer attempts from the results saved for this customer."""
+        fu = self.queue.followups
+        o = fu.outcomes().get(fingerprint) if fu else None
+        if o is None:
+            return None
+        s = self.settings.get()
+        return {"last_code": o.last_code, "last_at": fmt_local(o.last_at), "no_answer_streak": o.no_answer_streak,
+                "max_attempts": s.no_answer_max_attempts,
+                "attempts_reached": bool(s.no_answer_max_attempts and o.no_answer_streak >= s.no_answer_max_attempts),
+                "followup_at": o.followup_at if o.last_code == "FOLLOW_UP" else "",
+                "followup_note": o.followup_note if o.last_code == "FOLLOW_UP" else "",
+                "followup_state": o.followup_state(localnow().date())}
+
+    def _duplicates(self, phone_norm: str, sheet_row: int) -> list[dict]:
+        """Other sheet rows (any owner) with the same phone number."""
+        if not phone_norm:
+            return []
+        return [{"row": lead.sheet_row, "company": lead.company_name, "owner": lead.owner.strip(),
+                 "status": lead.followup_status}
+                for lead in self.queue.all_leads
+                if lead.sheet_row != sheet_row and any(phones_match(p, phone_norm) for p in lead.phones)]
+
+    def duplicate_groups(self) -> list[dict]:
+        """The owner's customers whose number appears in more than one row of the sheet."""
+        groups: list[dict] = []
+        for lead in self.queue.owner_leads:
+            dups = self._duplicates(lead.phone_norm, lead.sheet_row)
+            if dups:
+                groups.append({"fingerprint": lead.fingerprint, "company": lead.company_name, "row": lead.sheet_row,
+                               "phone": format_phone(lead.phone_raw), "others": dups})
+        return groups
+
+    def followup_items(self) -> list[dict]:
+        """The owner's open follow-ups (due today / overdue first, then upcoming)."""
+        fu = self.queue.followups
+        if fu is None:
+            return []
+        outcomes = fu.outcomes()
+        today = localnow().date()
+        items = []
+        for lead in self.queue.owner_leads:
+            o = outcomes.get(lead.fingerprint)
+            state = o.followup_state(today) if o else ""
+            if state:
+                items.append({"fingerprint": lead.fingerprint, "company": lead.company_name,
+                              "phone": format_phone(lead.phone_raw), "status": lead.followup_status,
+                              "row": lead.sheet_row, "followup_at": o.followup_at, "state": state,
+                              "note": o.followup_note})
+        order = {"overdue": 0, "due": 1, "upcoming": 2}
+        items.sort(key=lambda i: (order[i["state"]], i["followup_at"]))
+        return items
 
     def stats(self) -> dict:
         since = start_of_local_day_utc()
         with self.db.session() as s:
             counts = CallResultRepository(s).counts_since(since)
             match_errors = LeadCacheRepository(s).count_by_match_status(("not_found", "error"))
+            whatsapp_today = s.scalar(select(func.count()).select_from(OutreachMessage)
+                                      .where(OutreachMessage.created_at >= since)) or 0
         pending = len(self.queue.queue()) if self.queue.loaded else 0
+        fus = [i for i in self.followup_items() if i["state"] in ("due", "overdue")] if self.queue.loaded else []
+        s_ = self.settings.get()
         return {
+            "followups_due": len(fus), "followups_overdue": sum(1 for i in fus if i["state"] == "overdue"),
+            "goal": s_.daily_call_goal, "whatsapp_today": whatsapp_today,
+            "duplicates": len(self.duplicate_groups()) if self.queue.loaded else 0,
             "owner_total": len(self.queue.owner_leads), "pending": pending,
             "contacted": sum(counts.values()), "no_answer": counts.get("NO_ANSWER", 0),
             "interested": counts.get("INTERESTED", 0), "not_interested": counts.get("NOT_INTERESTED", 0),
@@ -463,9 +527,13 @@ class LeadWorkflowService:
 
     # ------------------------------------------------------ queue list
     async def queue_list(self, kind: str) -> dict:
-        """Leads behind a dashboard card: pending | all | match_errors."""
+        """Leads behind a dashboard card: pending | all | match_errors | followups | duplicates."""
         if not self.queue.loaded:
             await self._refresh(strict=False)
+        if kind == "followups":
+            return {"kind": kind, "items": self.followup_items()}
+        if kind == "duplicates":
+            return {"kind": kind, "items": self.duplicate_groups()}
         pending_fps = {lead.fingerprint for lead in self.queue.queue()}
         current = self.sessions.ensure().current_fingerprint
         with self.db.session() as s:

@@ -6,6 +6,7 @@ from app.models.tables import (
     ErrorLog,
     LeadCache,
     LeadSession,
+    OutreachMessage,
     SettingEntry,
     SkippedLead,
     SourceMapping,
@@ -14,6 +15,6 @@ from app.models.tables import (
 )
 
 __all__ = [
-    "AuditLog", "Base", "CallResult", "ErrorLog", "LeadCache", "LeadSession", "SettingEntry",
+    "AuditLog", "Base", "CallResult", "ErrorLog", "LeadCache", "LeadSession", "OutreachMessage", "SettingEntry",
     "SkippedLead", "SourceMapping", "StatusMapping", "SyncLog",
 ]

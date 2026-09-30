@@ -51,6 +51,13 @@ class SearchIn(BaseModel):
     query: str = ""
 
 
+class WhatsAppIn(BaseModel):
+    tel: str = Field(default="", max_length=40)
+    text: str = Field(default="", max_length=4000)
+    template: str = Field(default="", max_length=100)
+    log: bool | None = None  # None = the «whatsapp_log» setting
+
+
 class CreateLeadIn(BaseModel):
     company: str = Field(default="", max_length=200)
     phone: str = Field(default="", max_length=40)

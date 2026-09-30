@@ -88,6 +88,23 @@ class CallResult(Base, TimestampMixin):
     preview: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class OutreachMessage(Base, TimestampMixin):
+    """A WhatsApp message opened from the agent (the user sends it from WhatsApp)."""
+
+    __tablename__ = "outreach_messages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    fingerprint: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    company_name: Mapped[str] = mapped_column(String(300), default="")
+    phone: Mapped[str] = mapped_column(String(100), default="")
+    odoo_lead_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    channel: Mapped[str] = mapped_column(String(20), default="whatsapp")
+    template: Mapped[str] = mapped_column(String(100), default="")
+    text: Mapped[str] = mapped_column(Text, default="")
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
+    odoo_status: Mapped[str] = mapped_column(String(20), default="skipped")
+    sheet_status: Mapped[str] = mapped_column(String(20), default="skipped")
+
+
 class SyncLog(Base, TimestampMixin):
     """Per-cell Google Sheet change log (local backup of old values)."""
 

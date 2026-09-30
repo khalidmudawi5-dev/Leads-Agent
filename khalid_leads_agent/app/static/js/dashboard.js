@@ -9,6 +9,7 @@ const S = {
   chatterFilter: "all", seenChatter: { key: null, ids: new Set() },
 };
 const ICON = {
+  wa: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.4.8 3.2.6.5-.1 1.5-.6 1.8-1.2.2-.6.2-1.1.1-1.2l-.5-.2z"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
   note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
   message: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>',
@@ -87,6 +88,7 @@ Shortcuts.register([
     run: () => { if ($("#btn-refresh")) clickIf("#btn-refresh"); else clickIf("#btn-refresh-queue"); } },
   { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
   { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
+  { code: "KeyW", label: "W", title: "رسالة واتساب للعميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !resultOpen(), run: () => clickIf("#btn-wa") },
   { code: "KeyP", label: "P", title: "نسخ رقم الجوال", group: "العميل الحالي", when: hasLead, run: copyPhone },
   { code: "KeyN", label: "N", title: "العميل التالي (بعد الحفظ)", group: "العميل الحالي", when: nextVisible, run: goNext },
   { code: "KeyR", label: "R", shift: true, title: "تحديث القائمة من Google Sheet", group: "عام", run: () => $("#btn-refresh-queue").click() },
@@ -239,7 +241,9 @@ function renderFilter(options) {
 }
 
 // ------------------------------------------------------------ stat cards
-const LIST_TITLES = { pending: "العملاء بانتظار التواصل", all: "كل العملاء المسندين إليك", match_errors: "عملاء لم تتم مطابقتهم في Odoo" };
+const LIST_TITLES = { pending: "العملاء بانتظار التواصل", all: "كل العملاء المسندين إليك", match_errors: "عملاء لم تتم مطابقتهم في Odoo",
+  followups: "المتابعات المجدولة", duplicates: "أرقام مكررة في Google Sheet" };
+const FU_STATE = { overdue: ["red", "متأخرة"], due: ["amber", "اليوم"], upcoming: ["blue", "قادمة"] };
 const MATCH_AR = { matched: ["green", "مطابق"], multiple: ["amber", "أكثر من نتيجة"], not_found: ["red", "غير موجود"], error: ["red", "خطأ"], unknown: ["", "لم يُبحث"] };
 
 function openCard(go) {
@@ -255,8 +259,8 @@ async function showLeadList(kind) {
   Modal.open({
     title: `${LIST_TITLES[kind] || "العملاء"} (${items.length})`, wide: true,
     html: items.length ? `<input type="search" id="ll-q" placeholder="بحث بالاسم أو الرقم…" style="margin-bottom:12px">
-      <div class="table-wrap"><table class="table hist"><thead><tr><th>#</th><th>العميل</th><th>الهاتف</th><th>حالة المتابعة</th><th>Odoo</th><th></th></tr></thead><tbody>
-      ${items.map((i, n) => { const [mc, ml] = MATCH_AR[i.match] || MATCH_AR.unknown; return `<tr data-s="${esc((i.company + " " + i.phone).toLowerCase())}">
+      <div class="table-wrap"><table class="table hist"><thead><tr>${LIST_HEAD[kind] || LIST_HEAD.default}</tr></thead><tbody>
+      ${kind === "followups" ? followupRows(items) : kind === "duplicates" ? duplicateRows(items) : items.map((i, n) => { const [mc, ml] = MATCH_AR[i.match] || MATCH_AR.unknown; return `<tr data-s="${esc((i.company + " " + i.phone).toLowerCase())}">
         <td class="muted">${i.row}</td><td><b>${esc(i.company || "—")}</b>${i.current ? ' <span class="badge indigo">الحالي</span>' : ""}${!i.pending && kind !== "pending" ? ' <span class="badge">خارج الفلتر/تم</span>' : ""}</td>
         <td><span class="phone">${orDash(i.phone)}</span></td><td>${i.status ? `<span class="pill">${esc(i.status)}</span>` : '<span class="muted">فارغة</span>'}</td>
         <td><span class="badge ${mc}">${ml}</span></td><td><button class="btn sm primary" data-i="${n}">فتح</button></td></tr>`; }).join("")}
@@ -273,6 +277,122 @@ async function showLeadList(kind) {
         } catch (e) { toast(e.message, "error"); }
       }));
     },
+  });
+}
+
+const LIST_HEAD = {
+  default: "<th>#</th><th>العميل</th><th>الهاتف</th><th>حالة المتابعة</th><th>Odoo</th><th></th>",
+  followups: "<th>#</th><th>العميل</th><th>الهاتف</th><th>موعد المتابعة</th><th>ملاحظة</th><th></th>",
+  duplicates: "<th>#</th><th>العميل</th><th>الهاتف</th><th>نفس الرقم في</th><th></th><th></th>",
+};
+function followupRows(items) {
+  return items.map((i, n) => { const [c, l] = FU_STATE[i.state] || ["", ""]; return `<tr data-s="${esc((i.company + " " + i.phone).toLowerCase())}">
+    <td class="muted">${i.row}</td><td><b>${esc(i.company || "—")}</b></td><td><span class="phone">${orDash(i.phone)}</span></td>
+    <td><span class="badge ${c}">${l}</span> <span class="ltr">${esc(i.followup_at)}</span></td><td class="small">${orDash(i.note)}</td>
+    <td><button class="btn sm primary" data-i="${n}">فتح</button></td></tr>`; }).join("");
+}
+function duplicateRows(items) {
+  return items.map((i, n) => `<tr data-s="${esc((i.company + " " + i.phone).toLowerCase())}">
+    <td class="muted">${i.row}</td><td><b>${esc(i.company || "—")}</b></td><td><span class="phone">${orDash(i.phone)}</span></td>
+    <td class="small">${i.others.map((o) => `صف ${o.row}: ${esc(o.company || "—")} <span class="muted">(${esc(o.owner || "بدون مسؤول")}${o.status ? " · " + esc(o.status) : ""})</span>`).join("<br>")}</td>
+    <td></td><td><button class="btn sm primary" data-i="${n}">فتح</button></td></tr>`).join("");
+}
+
+// ------------------------------------------------ follow-ups / duplicates banner
+function renderBanner(st) {
+  const box = $("#fu-banner");
+  if (!box || !st) return;
+  const parts = [];
+  if (st.followups_due) {
+    parts.push(`<div class="alert ${st.followups_overdue ? "error" : "info"} banner-row"><span>📅 <b>لديك ${st.followups_due} ${st.followups_due === 1 ? "متابعة" : "متابعات"} اليوم</b>${st.followups_overdue ? ` (منها ${st.followups_overdue} متأخرة)` : ""} — تظهر أولًا في القائمة.</span>
+      <button class="btn sm" data-list="followups">عرض المتابعات</button></div>`);
+  }
+  if (st.duplicates) {
+    parts.push(`<div class="alert warn banner-row"><span>⚠ <b>${st.duplicates} ${st.duplicates === 1 ? "رقم مكرر" : "أرقام مكررة"}</b> في Google Sheet (نفس الرقم في أكثر من صف).</span>
+      <button class="btn sm" data-list="duplicates">عرض</button></div>`);
+  }
+  box.innerHTML = parts.join("");
+  $$("[data-list]", box).forEach((b) => b.onclick = () => showLeadList(b.dataset.list));
+}
+
+// ---------------------------------------------- no answer / follow-up / duplicates on the card
+function outcomeAlerts(lead) {
+  const o = lead.outcome || {};
+  const out = [];
+  if (o.followup_state) {
+    const [c, l] = FU_STATE[o.followup_state];
+    out.push(`<div class="alert ${o.followup_state === "overdue" ? "error" : o.followup_state === "due" ? "warn" : "info"}">
+      📅 <b>متابعة ${l === "قادمة" ? "مجدولة" : l}:</b> <span class="ltr">${esc(o.followup_at)}</span>${o.followup_note ? ` — ${esc(o.followup_note)}` : ""}</div>`);
+  }
+  if (o.no_answer_streak) {
+    if (o.attempts_reached) {
+      out.push(`<div class="alert warn"><b>العميل لم يرد ${o.no_answer_streak} ${o.no_answer_streak <= 10 ? "مرات" : "مرة"} متتالية</b> (آخرها ${esc(o.last_at)}).
+        <div class="actions"><button class="btn sm wa" data-oc="wa">${ICON.wa} إرسال واتساب</button>
+        <button class="btn sm" data-oc="invalid">تسجيل: بيانات التواصل غير صحيحة</button></div></div>`);
+    } else {
+      out.push(`<div class="alert info">لم يرد ${o.no_answer_streak === 1 ? "مرة واحدة" : `${o.no_answer_streak} مرات`} (آخرها ${esc(o.last_at)})${o.max_attempts ? ` · المحاولة ${o.no_answer_streak + 1} من ${o.max_attempts}` : ""}</div>`);
+    }
+  }
+  if ((lead.duplicates || []).length) {
+    out.push(`<div class="alert warn">⚠ <b>هذا الرقم مكرر في Google Sheet:</b> ${lead.duplicates.map((d) => `صف ${d.row} — ${esc(d.company || "—")} (${esc(d.owner || "بدون مسؤول")}${d.status ? " · " + esc(d.status) : ""})`).join("، ")}</div>`);
+  }
+  return out.join("");
+}
+function bindOutcomeButtons(lead) {
+  const wa = $('[data-oc="wa"]');
+  if (wa) wa.onclick = () => askWhatsApp(lead);
+  const inv = $('[data-oc="invalid"]');
+  if (inv) inv.onclick = async () => { stopCall(); await openResultPanel(); selectResult("INVALID_NUMBER"); };
+}
+
+// ------------------------------------------------------------------ WhatsApp
+async function askWhatsApp(lead) {
+  let o;
+  try { o = await api("GET", `/api/lead/${lead.fingerprint}/whatsapp`); } catch (e) { toast(e.message, "error"); return; }
+  const nums = o.numbers || [];
+  const tpls = o.templates || [];
+  Modal.open({
+    title: "رسالة واتساب", wide: false,
+    html: `${o.dry_run && o.log ? '<div class="alert warn">Dry Run مفعّل: ستفتح الرسالة في واتساب، لكن لن تُسجَّل في Odoo أو Google Sheet.</div>' : ""}
+      <label class="field"><span>الرقم</span>
+        ${nums.length ? `<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px">${nums.map((n, i) => `<button type="button" class="btn sm ${i === 0 ? "primary" : ""}" data-num="${i}">${esc(n.label)}: <span class="ltr">${esc(n.raw)}</span></button>`).join("")}</div>` : '<div class="small muted">لا يوجد رقم جوال صالح للواتساب؛ اكتبه يدويًا.</div>'}
+        <input type="text" inputmode="tel" id="wa-tel" class="ltr" value="${esc(nums[0] ? nums[0].raw : "")}"></label>
+      ${tpls.length ? `<div class="field"><span>القالب</span><div class="row" style="gap:6px;flex-wrap:wrap">${tpls.map((tp, i) => `<button type="button" class="btn sm ${i === 0 ? "primary" : ""}" data-tpl="${i}">${esc(tp.name || "قالب " + (i + 1))}</button>`).join("")}</div></div>` : ""}
+      <label class="field"><span>نص الرسالة (يمكنك تعديله)</span><textarea id="wa-text" rows="6">${esc(tpls[0] ? tpls[0].text : "")}</textarea></label>
+      <label class="check"><input type="checkbox" id="wa-log" ${o.log ? "checked" : ""}> تسجيل الرسالة في Odoo (Log note) وملاحظات Google Sheet</label>
+      <div class="small muted">سيفتح واتساب والرسالة جاهزة؛ اضغط «إرسال» داخل واتساب.</div><div id="wa-msg"></div>`,
+    buttons: [{ label: "فتح واتساب", cls: "primary", onClick: (btn) => sendWhatsApp(lead, btn) }, { label: "إلغاء" }],
+    onOpen: (m) => {
+      let tplName = tpls[0] ? tpls[0].name : "";
+      $("#wa-text", m).dataset.tpl = tplName;
+      $$("[data-num]", m).forEach((b) => b.onclick = () => {
+        $$("[data-num]", m).forEach((x) => x.classList.toggle("primary", x === b));
+        $("#wa-tel", m).value = nums[+b.dataset.num].raw;
+      });
+      $$("[data-tpl]", m).forEach((b) => b.onclick = () => {
+        $$("[data-tpl]", m).forEach((x) => x.classList.toggle("primary", x === b));
+        const tp = tpls[+b.dataset.tpl];
+        $("#wa-text", m).value = tp.text;
+        $("#wa-text", m).dataset.tpl = tp.name;
+      });
+    },
+  });
+}
+
+async function sendWhatsApp(lead, btn) {
+  const body = { tel: $("#wa-tel").value.trim(), text: $("#wa-text").value, template: $("#wa-text").dataset.tpl || "",
+                 log: $("#wa-log").checked };
+  // Open the tab now (inside the click) so the browser does not block it, then point it at WhatsApp.
+  const win = S.remote ? null : window.open("about:blank", "_blank");
+  await withBusy(btn, async () => {
+    let r;
+    try { r = await api("POST", `/api/lead/${lead.fingerprint}/whatsapp`, body); }
+    catch (e) { if (win) win.close(); $("#wa-msg").innerHTML = `<div class="alert error">${esc(e.message)}</div>`; return; }
+    if (win) win.location.href = r.url; else window.location.href = r.url;
+    Modal.close();
+    const logged = r.logged && !r.dry_run ? " وتم تسجيلها في Odoo والـSheet" : r.dry_run && r.logged ? " (Dry Run: لم تُسجَّل)" : "";
+    toast(`تم فتح واتساب${logged}. بعد الإرسال سجّل النتيجة.`, "success", 6000);
+    (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
   });
 }
 
@@ -306,6 +426,7 @@ function render(payload) {
   S.payload = payload;
   S.lead = payload.lead;
   renderStats(payload.stats);
+  renderBanner(payload.stats);
   renderSession(payload.session);
   $("#global-msg").innerHTML = (payload.warnings || []).map((w) => `<div class="alert warn">${esc(w)}</div>`).join("");
   $("#result-card").classList.add("hidden");
@@ -384,11 +505,13 @@ function renderLead(lead) {
       ${lead.odoo ? `<div class="info wide"><div class="k">آخر ملاحظة في Odoo Chatter</div><div class="v note-box">${orDash(latestOdooNote(o))}</div></div>` : ""}
     </div>
     ${phoneProblems(lead.phone_check)}
+    ${outcomeAlerts(lead)}
     <div id="match-area"></div>
     <div id="lead-msg"></div>
     </div>
     <div class="action-bar">
       <button class="btn call" id="btn-call">${PHONE_ICON} اتصال الآن <kbd>C</kbd></button>
+      <button class="btn wa" id="btn-wa">${ICON.wa} واتساب <kbd>W</kbd></button>
       <button class="btn primary" id="btn-open">${ICON.open} فتح في Odoo <kbd>O</kbd></button>
       <button class="btn" id="btn-result">${ICON.result} تسجيل النتيجة <kbd>R</kbd></button>
       <button class="btn" id="btn-research">${ICON.search} إعادة البحث <kbd>F</kbd></button>
@@ -401,6 +524,8 @@ function renderLead(lead) {
   bindPhoneProblemButtons();
   $("#btn-copy").onclick = copyPhone;
   $("#btn-call").onclick = (ev) => startCall(ev.currentTarget);
+  $("#btn-wa").onclick = () => askWhatsApp(lead);
+  bindOutcomeButtons(lead);
   $("#btn-open").onclick = (ev) => withBusy(ev.currentTarget, () => openInOdoo(fp));
   $("#btn-research").onclick = () => searchOdoo();
   $("#btn-refresh").onclick = (ev) => withBusy(ev.currentTarget, () => refreshAll(fp));

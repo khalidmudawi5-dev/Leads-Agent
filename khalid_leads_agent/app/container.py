@@ -10,6 +10,7 @@ from app.config import AppSettings, EnvSettings
 from app.db import Database
 from app.services.call_result_service import ResultService
 from app.services.google_auth_service import GoogleAuthService
+from app.services.followup_service import FollowupService
 from app.services.google_sheets_service import SheetService
 from app.services.lead_queue_service import LeadQueueService
 from app.services.lead_workflow_service import LeadWorkflowService
@@ -18,6 +19,7 @@ from app.services.odoo_service import OdooService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
 from app.services.sync_service import SyncService
+from app.services.whatsapp_service import WhatsAppService
 
 
 @dataclass
@@ -34,6 +36,8 @@ class AppContainer:
     sync: SyncService
     results: ResultService
     workflow: LeadWorkflowService
+    followups: FollowupService
+    whatsapp: WhatsAppService
 
 
 def build_container(
@@ -81,9 +85,12 @@ def build_container(
     sheets = SheetService(db, settings, sheets_client_factory)
     odoo = OdooService(odoo_adapter)
     sessions = SessionService(db, settings)
-    queue = LeadQueueService(db, settings, sheets, sessions)
+    followups = FollowupService(db, settings)
+    queue = LeadQueueService(db, settings, sheets, sessions, followups)
     mappings = MappingService(db, source_options=lambda: sheets.dropdown_options("source"))
     sync = SyncService(db, sheets, odoo)
     results = ResultService(db, settings, mappings, sync, sessions)
     workflow = LeadWorkflowService(db, settings, sheets, queue, sessions, odoo, mappings)
-    return AppContainer(env, db, settings, auth, sheets, odoo, sessions, queue, mappings, sync, results, workflow)
+    whatsapp = WhatsAppService(db, settings, sync)
+    return AppContainer(env, db, settings, auth, sheets, odoo, sessions, queue, mappings, sync, results, workflow,
+                        followups, whatsapp)

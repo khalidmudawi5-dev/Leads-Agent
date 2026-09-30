@@ -8,7 +8,7 @@ from app.container import AppContainer
 from app.errors import AgentError
 from app.remote_access import is_loopback
 from app.version import VERSION
-from app.schemas.api import CallIn, CreateLeadIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
+from app.schemas.api import CallIn, CreateLeadIn, WhatsAppIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
 
 router = APIRouter(prefix="/api")
 
@@ -63,7 +63,7 @@ async def queue_refresh(c: AppContainer = Depends(container)) -> dict:
 
 @router.get("/queue/list")
 async def queue_list(kind: str = "pending", c: AppContainer = Depends(container)) -> dict:
-    if kind not in ("pending", "all", "match_errors"):
+    if kind not in ("pending", "all", "match_errors", "followups", "duplicates"):
         raise AgentError("BAD_KIND", "نوع قائمة غير معروف.")
     return await c.workflow.queue_list(kind)
 
@@ -103,6 +103,17 @@ async def lead_create_odoo(fingerprint: str, body: CreateLeadIn, c: AppContainer
     """Add a customer missing from Odoo as a new opportunity/lead (after a fresh duplicate check)."""
     return await c.workflow.create_in_odoo(fingerprint, body.company, body.phone, body.contact_name, body.force,
                                            source=body.source)
+
+
+@router.get("/lead/{fingerprint}/whatsapp")
+def lead_whatsapp_options(fingerprint: str, c: AppContainer = Depends(container)) -> dict:
+    return c.whatsapp.options(fingerprint)
+
+
+@router.post("/lead/{fingerprint}/whatsapp")
+async def lead_whatsapp(fingerprint: str, body: WhatsAppIn, c: AppContainer = Depends(container)) -> dict:
+    """Returns the wa.me link (the page opens it) and records the message in Odoo/Sheet when enabled."""
+    return await c.whatsapp.send(fingerprint, body.tel, body.text, body.template, body.log)
 
 
 @router.post("/lead/{fingerprint}/open")
