@@ -58,6 +58,7 @@ The workflow is deterministic end to end. No LLM decides customer identity, row 
 
 ### Odoo without version lock-in
 - A persistent Playwright profile (`data/browser-profile`) means the user logs in manually and no password is stored.
+- **Window-less reads:** after a signed-in RPC through the browser, the Odoo session cookies are saved to `data/odoo-session.json`. While the browser window is closed, RPC goes through a Playwright `APIRequestContext` with those cookies (no browser, no window); live-sync polling uses only that path. An expired saved session is deleted and the browser is used (sign-in). A relaunched browser receives the saved cookies if its profile has none. The window starts minimized and is shown only for user-visible actions.
 - Structured reads use the logged-in session's generic web-client endpoint `/web/dataset/call_kw`. Available fields are discovered with `fields_get`, and for phone search `phone_mobile_search` is used when present. Every read also has a DOM fallback driven by `odoo_selectors.py`.
 - **Calls:** the agent opens the lead, then clicks Odoo's own phone/Call link. Windows' `tel:` handler (Phone Link) does the rest. The optional `windows_handler` mode reads the same link from Odoo and hands it to Windows directly.
 - **Log note:** by default the agent uses the UI Log note composer (never "Send message"). If that fails it falls back to `message_post(subtype_xmlid="mail.mt_note")`. Each note carries a `KLA-…` reference, checked before and after every attempt, so it is never posted twice.

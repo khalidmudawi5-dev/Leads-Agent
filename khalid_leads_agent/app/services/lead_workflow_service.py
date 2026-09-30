@@ -449,7 +449,7 @@ class LeadWorkflowService:
             payload["warnings"] = warnings + payload.get("warnings", [])
             return await self._with_refresh_info(payload, new)
         c = self._cache(fingerprint)
-        if c.odoo_lead_id and self.odoo.adapter.browser_started:
+        if c.odoo_lead_id and self.odoo.adapter.quiet_ready:
             try:
                 lead = await self.odoo.adapter.get_lead(c.odoo_lead_id)
                 self._update_cache(fingerprint, odoo_data=lead.to_dict())

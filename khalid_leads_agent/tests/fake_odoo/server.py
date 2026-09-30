@@ -51,6 +51,7 @@ class FakeOdooState:
         self.calls_clicked: list[str] = []
         self.rpc_log_notes = 0
         self.created: list[dict[str, Any]] = []
+        self.session_expired = False
         self.utm: dict[str, dict[int, str]] = {"utm.source": {3: "Meta", 6: "Google"}, "utm.medium": {4: "Leads"}}
 
     def now(self) -> str:
@@ -123,7 +124,7 @@ def make_app(state: FakeOdooState) -> FastAPI:
     app = FastAPI()
 
     def logged(request: Request) -> bool:
-        return request.cookies.get("session_id") == SESSION
+        return not state.session_expired and request.cookies.get("session_id") == SESSION
 
     @app.get("/web/login", response_class=HTMLResponse)
     def login_page():

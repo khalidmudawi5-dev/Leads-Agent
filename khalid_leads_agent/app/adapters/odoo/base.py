@@ -147,7 +147,12 @@ class OdooAdapter(ABC):
 
     @property
     def browser_started(self) -> bool:
-        """Whether Odoo can be read without opening a new browser window."""
+        """Whether the Odoo browser window is already open."""
+        return True
+
+    @property
+    def quiet_ready(self) -> bool:
+        """Whether Odoo can be read without opening a browser window."""
         return True
 
     async def lead_signature(self, lead_id: int) -> str | None:

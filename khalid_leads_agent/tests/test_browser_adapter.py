@@ -162,9 +162,10 @@ def test_browser_closed_by_user_is_relaunched(adapter, fake_odoo):
     async def close_ctx():
         await adapter._context.close()
     run(adapter, adapter._rt.submit(close_ctx()))
-    # Session cookie lived only in memory for this test, so a relaunch shows the login page again.
-    st = run(adapter, adapter.login_status())
-    assert st.browser_open and not st.logged_in
+    assert not adapter.browser_started
+    # A visible action relaunches the window (the saved session keeps the user signed in).
+    lead = run(adapter, adapter.open_lead(OdooLead(id=7)))
+    assert adapter.browser_started and lead.company_name == "مؤسسة الاختبار"
 
 
 def test_windows_handler_mode_reads_odoo_call_link(adapter, fake_odoo, monkeypatch):
@@ -285,3 +286,28 @@ def test_background_reads_keep_window_minimized(fake_odoo, tmp_path):
         assert window["state"] == "maximized"  # «فتح في Odoo» brings it up
     finally:
         asyncio.run(ad.close())
+
+
+def test_background_reads_use_saved_session_without_a_browser(adapter, fake_odoo, tmp_path):
+    """After one signed-in read, searches/reads work with the browser closed: no window is opened."""
+    login(adapter, fake_odoo)
+    assert run(adapter, adapter.login_status()).logged_in
+    session_file = tmp_path / "odoo-session.json"
+    assert session_file.exists()
+
+    async def close_window():  # the user closes the agent's Odoo window
+        await adapter._context.close()
+    run(adapter, adapter._rt.submit(close_window()))
+    assert not adapter.browser_started and adapter.quiet_ready
+
+    assert [f.id for f in run(adapter, adapter.search_by_phone("966561234567"))] == [7]
+    assert run(adapter, adapter.get_lead(7)).company_name == "مؤسسة الاختبار"
+    assert run(adapter, adapter.lead_signature(7))  # live sync works too
+    assert not adapter.browser_started  # still no browser window
+
+    # Expired session: polling stays quiet, a real read falls back to the browser (sign-in needed).
+    fake_odoo.state.session_expired = True
+    with pytest.raises(OdooLoginRequired):
+        run(adapter, adapter.lead_signature(7))
+    assert not session_file.exists() and not adapter.browser_started
+    assert run(adapter, adapter.lead_signature(7)) is None  # nothing saved any more: never launches
