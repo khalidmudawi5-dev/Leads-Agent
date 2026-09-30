@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · Khalid Leads Agent</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <script>try { var t = localStorage.getItem("kla-theme"); if (t) document.documentElement.dataset.theme = t;
+    var p = localStorage.getItem("kla-palette"); if (p) document.documentElement.dataset.palette = p; } catch (e) {}</script>
+  <link rel="preload" href="/static/fonts/tajawal-arabic-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/tajawal-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></div>
+      <div><div class="name">Khalid Leads Agent</div>
+      <div class="sub">لوحة متابعة العملاء اليومية</div></div>
+    </div>
+    <ul class="nav">
+      <li class="nav-label">القائمة</li>
+      <li><a href="/" class="{{ 'active' if active == 'dashboard' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>الرئيسية<kbd>Alt 1</kbd></a></li>
+      <li><a href="/history" class="{{ 'active' if active == 'history' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>سجل المتابعات<kbd>Alt 2</kbd></a></li>
+      <li><a href="/reports" class="{{ 'active' if active == 'reports' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>التقارير<kbd>Alt 7</kbd></a></li>
+      <li><a href="/skipped" class="{{ 'active' if active == 'skipped' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l7 7-7 7M13 5l7 7-7 7"/></svg>العملاء المتخطون<kbd>Alt 3</kbd></a></li>
+      <li><a href="/errors" class="{{ 'active' if active == 'errors' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17v.5"/></svg>الأخطاء<kbd>Alt 4</kbd></a></li>
+      <li><a href="/settings" class="{{ 'active' if active == 'settings' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>الإعدادات<kbd>Alt 5</kbd></a></li>
+      <li><a href="/diagnostics" class="{{ 'active' if active == 'diagnostics' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6 4 4 6-6"/><path d="M14 9h6v6"/></svg>التشخيص<kbd>Alt 6</kbd></a></li>
+    </ul>
+    <div class="foot">
+      <button type="button" class="side-btn" id="btn-shortcuts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>الاختصارات<kbd>?</kbd></button>
+      <div class="palette-row"><span class="lbl">النمط <kbd>Alt T</kbd></span>
+        <button type="button" class="swatch" data-p="indigo" title="الأصلي (بنفسجي نيلي)"></button>
+        <button type="button" class="swatch" data-p="blue" title="أزرق وأبيض"></button>
+        <button type="button" class="swatch" data-p="stc" title="مستوحى من stc (بنفسجي ومرجاني)"></button></div>
+      <button type="button" class="side-btn" id="btn-theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span id="theme-label">الوضع الداكن</span><kbd>Alt D</kbd></button>
+      {% if phone_urls %}<div class="ver">من الجوال (Tailscale): {% for u in phone_urls %}<span class="ltr">{{ u }}</span> {% endfor %}</div>{% endif %}
+      <div class="ver">الإصدار {{ version }} · {% if phone_urls %}متاح لأجهزتك عبر Tailscale برمز PIN{% else %}يعمل محليًا فقط{% endif %}</div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <h1>{{ title }}</h1>
+      <div class="chips">
+        <span class="chip user"><span class="dot" style="background:var(--primary)"></span><span class="txt">{{ owner }}</span></span>
+        <span class="chip" id="chip-odoo" style="cursor:pointer" title="اضغط للتحقق من تسجيل الدخول"><span class="dot"></span><span class="txt">Odoo: …</span></span>
+        <span class="chip" id="chip-google"><span class="dot"></span><span class="txt">Google: …</span></span>
+        <span class="chip {{ 'warn' if dry_run else 'ok' }}" id="chip-dry"><span class="dot"></span><span class="txt">Dry Run: {{ 'ON' if dry_run else 'OFF' }}</span></span>
+      </div>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="/static/js/app.js?v={{ version }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

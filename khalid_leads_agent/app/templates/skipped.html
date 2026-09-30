@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l7 7-7 7M13 5l7 7-7 7"/></svg></span>
+    <div><h2>العملاء المتخطون</h2><p>التخطي لا يعدّل Google Sheet. يعود العملاء تلقائيًا للقائمة بعد انتهاء المدة، أو أعدهم الآن.</p></div>
+    <div class="pi-actions" id="skip-sum"></div></div>
+  <div class="table-wrap"><table class="table hist">
+    <thead><tr><th>الوقت</th><th>العميل</th><th>الهاتف</th><th>الصف</th><th>المدة</th><th>حتى</th><th>السبب</th><th>الحالة</th><th></th></tr></thead>
+    <tbody id="rows"></tbody></table></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+async function loadSkipped() {
+  const r = await api("GET", "/api/skipped");
+  const active = r.items.filter((i) => i.active).length;
+  $("#skip-sum").innerHTML = `<span class="pill p-warn">متخطى الآن: ${active}</span><span class="pill">الإجمالي: ${r.items.length}</span>`;
+  $("#rows").innerHTML = r.items.length ? r.items.map((i) => `<tr><td class="small muted nowrap">${esc(i.time)}</td><td class="who"><b>${esc(i.company)}</b></td>
+    <td><span class="phone">${orDash(i.phone)}</span></td><td class="muted">${i.row ?? "—"}</td><td><span class="pill p-info">${esc(i.mode)}</span></td>
+    <td class="small nowrap">${orDash(i.until)}</td><td class="small">${orDash(i.reason)}</td>
+    <td>${i.active ? '<span class="pill p-warn">متخطى</span>' : '<span class="pill">انتهى</span>'}</td>
+    <td>${i.active ? `<button class="btn sm primary" data-id="${i.id}">إعادة للقائمة</button>` : ""}</td></tr>`).join("")
+    : emptyRow(9, "لا يوجد عملاء متخطون", "كل عملائك ضمن قائمة العمل.", "skip");
+  $$("button[data-id]").forEach((b) => b.onclick = async () => { await api("POST", `/api/skipped/${b.dataset.id}/restore`); toast("تمت الإعادة للقائمة", "success"); loadSkipped(); });
+}
+document.addEventListener("DOMContentLoaded", () => loadSkipped().catch((e) => toast(e.message, "error")));
+</script>{% endblock %}

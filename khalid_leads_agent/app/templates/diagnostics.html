@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid-2">
+  <div class="card">
+    <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6 4 4 6-6"/><path d="M14 9h6v6"/></svg></span>
+      <div><h2>تشخيص Selectors في Odoo</h2><p>افتح Lead في متصفح Odoo الخاص بالـAgent ثم اضغط «فحص الصفحة الحالية». إذا فشل عنصر عدّل
+      <span class="ltr">app/adapters/odoo/odoo_selectors.py</span>.</p></div></div>
+    <div class="actions" style="margin-bottom:14px">
+      <button class="btn primary" id="btn-run">فحص الصفحة الحالية</button>
+      <button class="btn" id="btn-dom">Capture DOM snapshot</button>
+      <button class="btn" id="btn-shot">Capture screenshot</button>
+    </div>
+    <div id="diag"></div>
+  </div>
+  <div class="card">
+    <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      <div><h2>سجل التدقيق (Audit Log)</h2><p>كل تغيير خارجي على Google Sheets أو Odoo (بما فيها Dry Run).</p></div></div>
+    <div class="table-wrap" style="max-height:640px;overflow:auto"><table class="table hist">
+      <thead><tr><th>الوقت</th><th>النظام</th><th>العملية</th><th>السجل</th><th>النتيجة</th></tr></thead>
+      <tbody id="audit"></tbody></table></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+const CHECKS = [["url", "Current Odoo URL"], ["lead_detected", "Lead detected?"], ["phone_detected", "Phone detected?"],
+  ["source_detected", "Source detected?"], ["call_button_detected", "Call button detected?"],
+  ["log_note_detected", "Log Note button detected?"], ["activity_detected", "Activities button detected?"],
+  ["rpc_available", "Session RPC available?"], ["login_page", "Login page shown?"]];
+async function runDiag(btn) {
+  await withBusy(btn, async () => {
+    try {
+      const d = await api("GET", "/api/diagnostics");
+      $("#diag").innerHTML = `<table class="table hist"><tbody>${CHECKS.map(([k, l]) => {
+        const v = d[k];
+        const cell = typeof v === "boolean" ? `<span class="pill ${v ? "p-ok" : "p-bad"}">${v ? "نعم" : "لا"}</span>` : `<span class="ltr small">${esc(v ?? "")}</span>`;
+        return `<tr><td><b>${l}</b></td><td>${cell}</td></tr>`;
+      }).join("")}
+      <tr><td>Phone / Mobile</td><td class="ltr">${esc(d.phone_value || "")} ${esc(d.mobile_value || "")}</td></tr>
+      <tr><td>Source value</td><td>${esc(d.source_value || "")}</td></tr>
+      <tr><td>Call selector</td><td class="ltr small">${esc(d.call_selector || "")}</td></tr>
+      <tr><td>Log note selector</td><td class="ltr small">${esc(d.log_note_selector || "")}</td></tr>
+      <tr><td>Activity selector</td><td class="ltr small">${esc(d.activity_selector || "")}</td></tr></tbody></table>`;
+    } catch (e) { showError(e, $("#diag")); }
+  });
+}
+async function capture(btn, url) {
+  await withBusy(btn, async () => {
+    try { const r = await api("POST", url); toast(r.path ? "تم الحفظ: " + r.path : "لم يتم الحفظ", r.path ? "success" : "warn", 7000); }
+    catch (e) { toast(e.message, "error"); }
+  });
+}
+async function loadAudit() {
+  const r = await api("GET", "/api/audit");
+  $("#audit").innerHTML = r.items.map((a) => `<tr><td class="nowrap small">${esc(a.time)}</td><td>${esc(a.system)}</td>
+    <td class="small">${esc(a.action)}</td><td class="small">${esc(a.record)}</td>
+    <td>${a.dry_run ? '<span class="pill p-warn">Dry Run</span>' : (a.success ? '<span class="pill p-ok">نجح</span>' : `<span class="pill p-bad" title="${esc(a.error)}">فشل</span>`)}</td></tr>`).join("")
+    || emptyRow(5, "لا توجد عمليات بعد", "ستظهر هنا كل كتابة في Odoo أو Google Sheet.", "history");
+}
+document.addEventListener("DOMContentLoaded", () => {
+  $("#btn-run").onclick = (ev) => runDiag(ev.currentTarget);
+  $("#btn-dom").onclick = (ev) => capture(ev.currentTarget, "/api/diagnostics/dom");
+  $("#btn-shot").onclick = (ev) => capture(ev.currentTarget, "/api/diagnostics/screenshot");
+  loadAudit().catch(() => {});
+});
+</script>{% endblock %}

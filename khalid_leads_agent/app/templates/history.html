@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+    <div><h2>سجل المتابعات</h2><p>كل نتيجة سجّلتها ونتيجة تحديث Odoo وGoogle Sheet لها. «تحديث العميل» يعيد فتحه لتسجيل نتيجة جديدة.</p></div></div>
+  <form class="hist-filters" id="filters">
+    <label class="field"><span>الفترة</span><select name="period"><option value="today">اليوم</option><option value="week">هذا الأسبوع</option><option value="">الكل</option></select></label>
+    <label class="field"><span>اسم العميل</span><input type="text" name="name" placeholder="بحث بالاسم"></label>
+    <label class="field"><span>رقم الهاتف</span><input type="text" name="phone" placeholder="05XXXXXXXX" class="ltr" style="width:100%"></label>
+    <label class="field"><span>النتيجة</span><select name="result" id="f-result"><option value="">الكل</option></select></label>
+    <label class="field"><span>نجح تحديث Odoo؟</span><select name="odoo_ok"><option value="">الكل</option><option value="1">نعم</option><option value="0">لا</option></select></label>
+    <label class="field"><span>نجح تحديث Sheet؟</span><select name="sheet_ok"><option value="">الكل</option><option value="1">نعم</option><option value="0">لا</option></select></label>
+    <div class="btns"><button class="btn primary" type="submit">تطبيق</button><button class="btn ghost" type="button" id="btn-clear">مسح</button></div>
+  </form>
+  <div class="hist-summary" id="summary"></div>
+  <div class="table-wrap"><table class="table hist">
+    <thead><tr><th>العميل</th><th>الهاتف</th><th>النتيجة</th><th>الملاحظات</th><th>Odoo</th><th>Google</th><th>المدة</th><th>تنبيهات</th><th></th></tr></thead>
+    <tbody id="rows"><tr><td colspan="9" class="empty"><span class="spinner"></span></td></tr></tbody>
+  </table></div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/history.js?v={{ version }}"></script>{% endblock %}
