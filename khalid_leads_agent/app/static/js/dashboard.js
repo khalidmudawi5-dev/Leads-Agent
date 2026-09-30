@@ -30,7 +30,10 @@ const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", 
 
 // ------------------------------------------------------------------ boot
 document.addEventListener("DOMContentLoaded", init);
-document.addEventListener("agent-status", (e) => { $("#dry-ribbon").classList.toggle("hidden", !e.detail.dry_run); });
+document.addEventListener("agent-status", (e) => {
+  $("#dry-ribbon").classList.toggle("hidden", !e.detail.dry_run);
+  S.remote = !!e.detail.remote;  // opened from the phone / another device (Tailscale)
+});
 document.addEventListener("dry-run-changed", (e) => {
   if (S.settings) S.settings.dry_run = e.detail.dry_run;
   const b = $("#r-save");
@@ -637,6 +640,8 @@ function isMissing(lead) {
 
 /** «فتح في Odoo»: open the linked lead; a customer missing from Odoo is offered to be added (never a bare CRM page). */
 async function openInOdoo(fp) {
+  const url = S.lead && S.lead.fingerprint === fp && S.lead.odoo && S.lead.odoo.url;
+  if (S.remote && url) { window.open(url, "_blank", "noopener"); return; }  // on the phone: Odoo in its own browser
   let payload;
   try { payload = await api("POST", `/api/lead/${fp}/open`); } catch (e) { handleOdooError(e, () => openInOdoo(fp)); return; }
   render(payload);
@@ -819,7 +824,7 @@ async function startCall(btn, opts = {}) {
   try {
     await withBusy(btn, async () => {
       try {
-        const body = { target: opts.target || "auto", force: !!opts.force };
+        const body = { target: opts.target || "auto", force: !!opts.force, client_dial: !!S.remote };
         const r = manual ? await api("POST", "/api/manual/call", { ...body, odoo_id: manual.id })
                          : await api("POST", `/api/lead/${S.lead.fingerprint}/call`, body);
         S.call.startedAt = new Date(); S.call.endedAt = null;
@@ -827,7 +832,8 @@ async function startCall(btn, opts = {}) {
         clearInterval(S.call.timer);
         S.call.timer = setInterval(() => { $("#call-timer").textContent = fmtDuration((Date.now() - S.call.startedAt) / 1000); }, 500);
         $("#call-timer").textContent = "00:00";
-        const via = r.method === "fast_tel" ? "مباشرة إلى Phone Link" : "من Odoo";
+        if (r.method === "client_tel") window.location.href = `tel:${r.tel}`;  // the phone dials itself
+        const via = r.method === "client_tel" ? "من هذا الجوال" : r.method === "fast_tel" ? "مباشرة إلى Phone Link" : "من Odoo";
         toast(`جاري الاتصال بـ ${r.tel || r.phone} (${FIELD_AR[r.phone_field] || r.phone_field}) ${via}. أكمل المكالمة من الجوال.`, "success", 6000);
         (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
       } catch (e) {

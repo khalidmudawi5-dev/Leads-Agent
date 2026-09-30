@@ -74,6 +74,9 @@ The workflow is deterministic end to end. No LLM decides customer identity, row 
 ### UI
 - Tajawal font bundled locally in `app/static/fonts` (SIL OFL), a light/dark theme (`Alt+D`, remembered per browser), and a layout-independent keyboard shortcut registry (`Shortcuts` in `app.js`, using `KeyboardEvent.code` so it also works on the Arabic keyboard layout).
 
+### Remote access (optional, Tailscale + PIN)
+`app/remote_access.py`, off unless `REMOTE_ACCESS=true` and `ACCESS_PIN` (6+ digits). `run.py` then listens on 0.0.0.0; the `remote_guard` middleware keeps the PC (loopback, local host names only) unchanged, refuses every non-Tailscale address (100.64.0.0/10, fd7a:115c:a1e0::/48), and requires an HMAC cookie issued after the PIN (rate-limited, 30 days, SameSite=Strict). Shutdown is PC-only. From a phone, calls use `client_dial` (the page opens `tel:` itself) and «Open in Odoo» opens the lead URL in the phone's browser.
+
 ### Dry Run & duplicates
 - Dry Run is ON by default. It produces the same plan as a real save, including fresh sheet values and the appended notes, but writes nothing and records `dry_run` in the audit.
 - Idempotency: the client sends an `idempotency_key` per result panel. Replaying the same key returns the first outcome. Saves are serialized per lead with an asyncio lock. The same lead + same result inside `duplicate_window_seconds` is not written again.

@@ -51,11 +51,20 @@ def main() -> None:
     from app.config import EnvSettings
     from app.main import create_app
 
+    from app.remote_access import valid_pin
+
     env = EnvSettings()
-    host = env.app_host
-    if host not in ("127.0.0.1", "localhost"):
-        print("WARNING: APP_HOST is not local; forcing 127.0.0.1 for safety.")
-        host = "127.0.0.1"
+    host = "127.0.0.1"
+    if env.app_host not in ("127.0.0.1", "localhost"):
+        print("WARNING: APP_HOST is not local; forcing 127.0.0.1 for safety (use REMOTE_ACCESS for other devices).")
+    listen = host
+    if env.remote_access:
+        if valid_pin(env.access_pin):
+            # Other devices are filtered in the app: Tailscale addresses + PIN only.
+            listen = "0.0.0.0"
+            print("Remote access ON: open http://<this PC's Tailscale IP>:%s on your phone (PIN required)." % env.app_port)
+        else:
+            print("WARNING: REMOTE_ACCESS=true but ACCESS_PIN is missing or shorter than 6 digits; staying local only.")
     url = f"http://{host}:{env.app_port}"
     if _port_open(host, env.app_port):
         running = _running_version(url)
@@ -75,7 +84,7 @@ def main() -> None:
     pid_file.write_text(str(os.getpid()), encoding="ascii")
 
     app = create_app()
-    config = uvicorn.Config(app, host=host, port=env.app_port, log_level="info", access_log=False)
+    config = uvicorn.Config(app, host=listen, port=env.app_port, log_level="info", access_log=False)
     server = uvicorn.Server(config)
     app.state.server = server
 

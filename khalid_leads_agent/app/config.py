@@ -41,6 +41,9 @@ class EnvSettings(BaseSettings):
     data_dir: str = ""
     logs_dir: str = ""
     open_browser_on_start: bool = True
+    # Open the agent from your phone/other devices over Tailscale (see README_AR). Off by default.
+    remote_access: bool = False
+    access_pin: str = ""
     # Development only: use in-memory Google sheet + fake Odoo adapter.
     use_mocks: bool = False
 

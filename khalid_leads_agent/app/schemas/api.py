@@ -97,3 +97,5 @@ class CallIn(BaseModel):
     target: Literal["auto", "phone", "mobile", "sheet"] = "auto"
     force: bool = False
     odoo_id: int | None = None
+    # The page dials the returned tel: itself (agent opened from a phone): nothing is launched on the PC.
+    client_dial: bool = False

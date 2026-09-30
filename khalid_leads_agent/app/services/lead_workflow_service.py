@@ -7,7 +7,7 @@ import re
 import uuid
 from datetime import timedelta
 
-from app.adapters.odoo.base import OdooLead
+from app.adapters.odoo.base import ActionOutcome, OdooLead
 from app.config import EMPTY_TOKEN
 from app.db import Database
 from app.errors import AgentError
@@ -356,7 +356,7 @@ class LeadWorkflowService:
         await self.odoo.adapter.open_url(self.settings.get().crm_url)
 
     async def call(self, fingerprint: str | None = None, odoo_id: int | None = None, *, target: str = "auto",
-                   force: bool = False) -> dict:
+                   force: bool = False, client_dial: bool = False) -> dict:
         """Start the call; Phone Link takes over from Windows.
 
         ``target``: auto | phone | mobile | sheet. The chosen number is checked first; a number
@@ -411,7 +411,9 @@ class LeadWorkflowService:
         else:  # "call anyway" on a number that failed the check: dial the digits exactly as written
             digits = re.sub(r"\D", "", to_ascii_digits(chosen["raw"]))
             tel = digits if digits.startswith("0") else "+" + digits
-        if s.call_launch_mode == "fast" or chosen["field"] == "sheet":
+        if client_dial:  # opened from the phone: the phone dials the number itself
+            outcome = ActionOutcome(True, "client_tel")
+        elif s.call_launch_mode == "fast" or chosen["field"] == "sheet":
             outcome = await self.odoo.adapter.launch_tel(f"tel:{tel}")
         else:
             outcome = await self.odoo.adapter.click_call(lead.id, chosen["field"], chosen["raw"])

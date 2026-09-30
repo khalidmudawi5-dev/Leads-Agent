@@ -549,6 +549,60 @@ table.hist { table-layout: auto; }
   .sidebar { width: 210px; }
   .nav a kbd { display: none; }
 }
+/* ---------- phone (opened over Tailscale): one column, big touch targets, no keyboard hints */
+@media (max-width: 760px) {
+  html, body { overflow-x: hidden; }
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: static; }
+  .brand { padding: 12px 16px 6px; }
+  .brand .logo { width: 34px; height: 34px; border-radius: 11px; }
+  .brand .sub, .nav .nav-label, .sidebar .foot .side-btn, .sidebar .foot .palette-row { display: none; }
+  .nav { display: flex; gap: 4px; overflow-x: auto; padding: 4px 10px 10px; margin: 0; flex: none; scrollbar-width: none; }
+  .nav li { flex-shrink: 0; }
+  .nav a { padding: 8px 12px; margin: 0; white-space: nowrap; font-size: .88rem; }
+  .nav a.active { box-shadow: inset 0 -3px 0 var(--nav-active-bar); }
+  .sidebar .foot { padding: 0 16px 10px; gap: 2px; }
+  kbd { display: none !important; }
+  .topbar { height: auto; padding: 10px 14px; flex-wrap: wrap; position: static; }
+  .topbar h1 { font-size: 1.1rem; }
+  .chip { font-size: .72rem; }
+  .content { padding: 12px 12px 90px; display: flex; flex-direction: column; }
+  .content > .filter-bar { order: 10; margin-top: 16px; }  /* the customer comes first on a phone */
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+  .stat { padding: 8px 6px; gap: 2px; border-radius: 12px; }
+  .stat .ic { display: none; }
+  .stat .label { font-size: .66rem; line-height: 1.25; }
+  .stat .value { font-size: 1.3rem; }
+  .stat .go { display: none; }
+  .toolbar { flex-wrap: wrap; }
+  .toolbar .search-field { flex: 1 1 100%; }
+  .toolbar .btn { flex: 1 1 0; }
+  .fb-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filter-bar .fb-head .small { display: none; }
+  .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .info { padding: 10px 12px; }
+  .info .badge { white-space: normal; max-width: 100%; }
+  .action-bar { position: sticky; bottom: 0; z-index: 15; box-shadow: 0 -8px 20px -12px rgba(15, 23, 42, .35); }
+  .lead-head { flex-direction: column; }
+  .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .grid-2 > * { min-width: 0; }
+  .lead-phone { flex-wrap: wrap; row-gap: 6px; }
+  .lead-name { font-size: 1.2rem; overflow-wrap: anywhere; }
+  .lead-title { gap: 10px; }
+  .action-bar { padding: 12px; gap: 8px; }
+  .action-bar .btn { flex: 1 1 calc(50% - 8px); padding: 12px 10px; }
+  .action-bar .btn.call { flex-basis: 100%; font-size: 1.05rem; padding: 14px; }
+  .action-bar .spacer { display: none; }
+  .kv { grid-template-columns: 110px 1fr; }
+  .modal-backdrop { padding: 8px; align-items: flex-end; }
+  .modal { max-height: 92vh; border-radius: 18px; }
+  .modal header, .modal .body, .modal footer { padding-inline: 16px; }
+  .modal footer { flex-wrap: wrap; }
+  .modal footer .btn { flex: 1 1 auto; }
+  #toasts { left: 10px; right: 10px; bottom: 12px; }
+  .toast { min-width: 0; max-width: none; }
+  .filters { grid-template-columns: 1fr 1fr; }
+}
 /* table cells keep table layout even when marked LTR (phone numbers) */
 td.ltr, th.ltr { display: table-cell; direction: ltr; text-align: right; }
 .modal .note-box { max-height: none; }

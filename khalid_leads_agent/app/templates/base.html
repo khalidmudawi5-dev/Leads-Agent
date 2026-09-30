@@ -41,7 +41,8 @@
         <button type="button" class="swatch" data-p="blue" title="أزرق وأبيض"></button>
         <button type="button" class="swatch" data-p="stc" title="مستوحى من stc (بنفسجي ومرجاني)"></button></div>
       <button type="button" class="side-btn" id="btn-theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span id="theme-label">الوضع الداكن</span><kbd>Alt D</kbd></button>
-      <div class="ver">الإصدار {{ version }} · يعمل محليًا فقط</div>
+      {% if phone_urls %}<div class="ver">من الجوال (Tailscale): {% for u in phone_urls %}<span class="ltr">{{ u }}</span> {% endfor %}</div>{% endif %}
+      <div class="ver">الإصدار {{ version }} · {% if phone_urls %}متاح لأجهزتك عبر Tailscale برمز PIN{% else %}يعمل محليًا فقط{% endif %}</div>
     </div>
   </aside>
   <div class="main">

@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.api.deps import container
 from app.container import AppContainer
+from app.remote_access import tailscale_ips
 
 router = APIRouter()
 
@@ -21,9 +22,12 @@ PAGES = {
 
 def _render(request: Request, c: AppContainer, template: str, title: str, active: str) -> HTMLResponse:
     s = c.settings.get()
+    phone_urls = []
+    if getattr(request.app.state, "remote", None) is not None:
+        phone_urls = [f"http://{ip}:{c.env.app_port}" for ip in tailscale_ips()] or ["(شغّل Tailscale على هذا الجهاز)"]
     return request.app.state.templates.TemplateResponse(
         request, template, {"title": title, "active": active, "owner": s.agent_owner, "dry_run": s.dry_run,
-                            "version": request.app.version},
+                            "version": request.app.version, "phone_urls": phone_urls},
     )
 
 
