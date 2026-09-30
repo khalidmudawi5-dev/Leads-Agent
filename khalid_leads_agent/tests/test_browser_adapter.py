@@ -218,3 +218,15 @@ def test_dom_chatter_fallback(adapter, fake_odoo):
         return await adapter._w_dom_chatter(await adapter._w_page())
     rows = run(adapter, adapter._rt.submit(dom()))
     assert rows[0]["author"] == "سارة" and "عرض سعر" in rows[0]["body"] and rows[0]["date"] == "2026-09-22 14:10:00"
+
+
+def test_create_lead_via_rpc(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    lead = run(adapter, adapter.create_lead({"name": "مؤسسة جديدة", "partner_name": "مؤسسة جديدة",
+                                             "phone": "+966 55 000 1111", "contact_name": "", "type": "opportunity"}))
+    assert lead.id and lead.company_name == "مؤسسة جديدة" and lead.phone == "+966 55 000 1111"
+    assert lead.lead_type == "opportunity" and lead.salesperson == "Khalid Test"
+    # Empty values are not sent; the logged-in user becomes the salesperson.
+    assert fake_odoo.state.created == [{"name": "مؤسسة جديدة", "partner_name": "مؤسسة جديدة",
+                                        "phone": "+966 55 000 1111", "type": "opportunity", "user_id": 2}]
+    assert [f.id for f in run(adapter, adapter.search_by_phone("966550001111"))] == [lead.id]

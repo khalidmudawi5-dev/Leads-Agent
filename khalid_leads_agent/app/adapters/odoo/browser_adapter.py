@@ -873,6 +873,31 @@ class BrowserOdooAdapter(OdooAdapter):
     async def schedule_activity(self, lead_id: int, date_deadline: str, summary: str, note: str) -> ActionOutcome:
         return await self._exec(self._w_schedule_activity, lead_id, date_deadline, summary, note)
 
+    # -------------------------------------------------------------- create
+    async def _w_create_lead(self, values: dict[str, Any]) -> OdooLead:
+        try:
+            fields = await self._w_fields()
+            vals = {k: v for k, v in values.items() if k in fields and v not in ("", None)}
+            if "user_id" in fields and "user_id" not in vals:
+                if self._uid is None:
+                    await self._w_login_status()
+                if self._uid:
+                    vals["user_id"] = self._uid
+            new_id = await self._w_call_kw("crm.lead", "create", [vals])
+        except OdooLoginRequired:
+            raise
+        except (OdooRpcError, OdooRpcUnavailable) as exc:
+            log.warning("Creating a lead failed", exc_info=True)
+            raise AgentError("ODOO_CREATE_FAILED", f"تعذر إضافة العميل إلى Odoo: {exc}", actions=["retry"]) from exc
+        if isinstance(new_id, list):
+            new_id = new_id[0] if new_id else None
+        if not new_id:
+            raise AgentError("ODOO_CREATE_FAILED", "لم يرجع Odoo رقم العميل الجديد.", actions=["retry"])
+        return await self._w_get_lead(int(new_id))
+
+    async def create_lead(self, values: dict[str, Any]) -> OdooLead:
+        return await self._exec(self._w_create_lead, values)
+
     # --------------------------------------------------------- diagnostics
     async def _w_diagnostics(self) -> dict[str, Any]:
         page = await self._w_page()

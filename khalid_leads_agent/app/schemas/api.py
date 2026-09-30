@@ -51,6 +51,13 @@ class SearchIn(BaseModel):
     query: str = ""
 
 
+class CreateLeadIn(BaseModel):
+    company: str = Field(default="", max_length=200)
+    phone: str = Field(default="", max_length=40)
+    contact_name: str = Field(default="", max_length=120)
+    force: bool = False
+
+
 class SelectCandidateIn(BaseModel):
     odoo_id: int | None = None
     ui_index: int | None = None

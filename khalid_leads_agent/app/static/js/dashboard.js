@@ -9,6 +9,7 @@ const S = {
   chatterFilter: "all", seenChatter: { key: null, ids: new Set() },
 };
 const ICON = {
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
   note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
   message: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>',
   email: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
@@ -81,6 +82,7 @@ Shortcuts.register([
   { code: "KeyF", label: "F", title: "إعادة البحث في Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => searchOdoo() },
   { code: "KeyU", label: "U", title: "تحديث بيانات العميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => clickIf("#btn-refresh") },
   { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
+  { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
   { code: "KeyP", label: "P", title: "نسخ رقم الجوال", group: "العميل الحالي", when: hasLead, run: copyPhone },
   { code: "KeyN", label: "N", title: "العميل التالي (بعد الحفظ)", group: "العميل الحالي", when: nextVisible, run: goNext },
   { code: "KeyR", label: "R", shift: true, title: "تحديث القائمة من Google Sheet", group: "عام", run: () => $("#btn-refresh-queue").click() },
@@ -400,13 +402,18 @@ function renderMatch(lead) {
       ${lead.odoo && lead.odoo.salesperson ? ` · المسؤول: ${esc(lead.odoo.salesperson)}` : ""}</div>`;
   } else if (st === "multiple") {
     area.innerHTML = `<div class="alert warn"><b>وجدنا أكثر من عميل محتمل في Odoo.</b> لن يتم الاختيار تلقائيًا.
-      <div class="actions"><button class="btn primary sm" id="btn-choose">اختيار العميل الصحيح</button></div></div>`;
+      <div class="actions"><button class="btn primary sm" id="btn-choose">اختيار العميل الصحيح</button>
+      <button class="btn sm" id="btn-create">${ICON.plus} ليس منهم؟ إضافة كفرصة جديدة</button></div></div>`;
     $("#btn-choose").onclick = () => chooseCandidate(lead);
+    $("#btn-create").onclick = () => askCreateLead(lead);
   } else if (st === "not_found") {
-    area.innerHTML = `<div class="alert error"><b>لم يتم العثور على العميل في Odoo</b>
+    area.innerHTML = `<div class="alert error"><b>هذا العميل غير موجود في Odoo</b>
+      <div class="small">لم نجد Lead بنفس رقم الجوال أو اسم المنشأة. يمكنك إضافته الآن كفرصة جديدة، أو البحث باسم أو رقم آخر.</div>
+      <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة كفرصة جديدة في Odoo <kbd>A</kbd></button></div>
       <div class="row" style="margin-top:10px"><input type="text" id="custom-q" placeholder="بحث باسم أو رقم آخر" style="max-width:320px">
       <button class="btn sm" id="btn-re">إعادة البحث</button><button class="btn sm" id="btn-crm">فتح CRM</button>
       <button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
+    $("#btn-create").onclick = () => askCreateLead(lead);
     $("#btn-re").onclick = () => searchOdoo($("#custom-q").value);
     $("#btn-crm").onclick = openCrm;
     $("#btn-skip2").onclick = () => askSkip(lead.fingerprint);
@@ -538,6 +545,7 @@ async function searchOdoo(query = "") {
     const payload = await api("POST", `/api/lead/${fp}/search`, { query });
     render(payload);
     refreshStatus();
+    if (payload.match && payload.match.status === "not_found") toast("العميل غير موجود في Odoo — يمكنك إضافته كفرصة جديدة.", "warn", 6000);
   } catch (e) {
     if (e.code !== "ODOO_LOGIN_REQUIRED") { S.lead.match_status = "error"; renderMatch(S.lead); }
     handleOdooError(e, () => searchOdoo(query));
@@ -589,6 +597,87 @@ function chooseCandidate(lead) {
       await leadAction(`/api/lead/${lead.fingerprint}/select`, { odoo_id: c.id, ui_index: c.ui_index, ui_query: c.ui_query || "" }, "تم اختيار العميل");
     })),
   });
+}
+
+// ------------------------------------------------------ add missing customer to Odoo
+const NEW_TYPE_AR = { opportunity: "فرصة جديدة", lead: "Lead جديد" };
+
+function askCreateLead(lead) {
+  const dry = !!(S.settings && S.settings.dry_run);
+  const typeAr = NEW_TYPE_AR[(S.settings && S.settings.odoo_new_lead_type) || "opportunity"];
+  Modal.open({
+    title: `إضافة العميل إلى Odoo كـ${typeAr}`,
+    html: `<p class="muted">سيتم البحث في Odoo مرة أخرى بالاسم والرقم قبل الإضافة حتى لا يتكرر العميل. ستكون أنت المسؤول (Salesperson).</p>
+      ${dry ? '<div class="alert warn">Dry Run مفعّل: ستظهر معاينة فقط ولن تتم الإضافة فعليًا. عطّله من الإعدادات للإضافة الحقيقية.</div>' : ""}
+      <label class="field"><span>اسم الشركة *</span><input type="text" id="new-company" maxlength="200" value="${esc(lead.company_name)}"></label>
+      <label class="field"><span>رقم الجوال *</span><input type="text" inputmode="tel" id="new-phone" class="ltr" maxlength="40" value="${esc(lead.phone)}"></label>
+      <label class="field"><span>اسم الشخص المسؤول لدى العميل (اختياري)</span><input type="text" id="new-contact" maxlength="120"></label>
+      <div id="new-msg"></div>`,
+    buttons: [
+      { label: dry ? "معاينة الإضافة (Dry Run)" : "إضافة إلى Odoo", cls: "primary", onClick: (btn) => withBusy(btn, () => submitCreateLead(lead, false)) },
+      { label: "إلغاء" },
+    ],
+    onOpen: () => $("#new-company").focus(),
+  });
+}
+
+async function submitCreateLead(lead, force) {
+  const body = { company: $("#new-company").value.trim(), phone: $("#new-phone").value.trim(),
+                 contact_name: $("#new-contact").value.trim(), force };
+  if (!body.company || !body.phone) {
+    $("#new-msg").innerHTML = '<div class="alert error">اسم الشركة ورقم الجوال مطلوبان.</div>';
+    return;
+  }
+  let payload;
+  try {
+    payload = await api("POST", `/api/lead/${lead.fingerprint}/create-odoo`, body);
+  } catch (e) {
+    if (e.code === "ODOO_LOGIN_REQUIRED") { Modal.close(); handleOdooError(e, () => askCreateLead(lead)); return; }
+    $("#new-msg").innerHTML = `<div class="alert error">${esc(e.message)}</div>`;
+    return;
+  }
+  const cr = payload.create || {};
+  if (cr.status === "dry_run") {
+    const v = cr.values || {};
+    $("#new-msg").innerHTML = `<div class="alert warn"><b>Dry Run — لم تتم الإضافة إلى Odoo.</b>
+      <div class="kv" style="margin-top:8px"><div class="k">Name</div><div>${orDash(v.name)}</div>
+      <div class="k">Company</div><div>${orDash(v.partner_name)}</div><div class="k">Phone</div><div class="ltr">${orDash(v.phone)}</div>
+      <div class="k">Contact</div><div>${orDash(v.contact_name)}</div><div class="k">Type</div><div>${orDash(v.type)}</div></div></div>`;
+    return;
+  }
+  if (cr.status === "created") {
+    Modal.close();
+    render(payload);
+    toast(`تمت إضافة العميل إلى Odoo كـ${NEW_TYPE_AR[cr.type] || "فرصة جديدة"} (#${cr.id})`, "success", 6000);
+    return;
+  }
+  if (cr.status === "exists") {
+    const cands = (payload.lead && payload.lead.candidates) || [];
+    if (cr.match === "matched" || !cr.can_force) {
+      Modal.close();
+      render(payload);
+      toast(cr.match === "matched" ? "العميل موجود بالفعل في Odoo، وتم ربطه بدل إنشاء عميل مكرر."
+                                   : "يوجد أكثر من عميل بنفس البيانات في Odoo؛ اختر الصحيح بدل إنشاء عميل مكرر.", "warn", 7000);
+      return;
+    }
+    render(payload);
+    Modal.open({
+      title: "وجدنا عملاء بأسماء مشابهة في Odoo", wide: true,
+      html: `<p class="muted">تأكد أن العميل ليس واحدًا منهم. إذا وجدته اختره، وإلا أضفه كعميل جديد.</p>${candidateTable(cands, "هذا هو")}
+        <input type="hidden" id="new-company" value="${esc(body.company)}"><input type="hidden" id="new-phone" value="${esc(body.phone)}">
+        <input type="hidden" id="new-contact" value="${esc(body.contact_name)}"><div id="new-msg"></div>`,
+      buttons: [
+        { label: "ليس منهم — إضافة كعميل جديد", cls: "primary", onClick: (btn) => withBusy(btn, () => submitCreateLead(lead, true)) },
+        { label: "إلغاء" },
+      ],
+      onKey: digitPicker,
+      onOpen: (m) => $$("button[data-i]", m).forEach((b) => b.onclick = () => withBusy(b, async () => {
+        const c = cands[+b.dataset.i];
+        Modal.close();
+        await leadAction(`/api/lead/${lead.fingerprint}/select`, { odoo_id: c.id, ui_index: c.ui_index, ui_query: c.ui_query || "" }, "تم اختيار العميل");
+      })),
+    });
+  }
 }
 
 function askSkip(fp) {

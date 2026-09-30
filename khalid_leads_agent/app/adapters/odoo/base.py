@@ -134,6 +134,14 @@ class OdooAdapter(ABC):
         """Fast path: hand a ``tel:`` URI straight to the OS (Windows → Phone Link). No browser involved."""
         raise AgentError("CALL_MODE_UNSUPPORTED", "الاتصال السريع غير مدعوم في هذا الوضع.")
 
+    async def create_lead(self, values: dict[str, Any]) -> OdooLead:
+        """Create a ``crm.lead`` (``name``, ``partner_name``, ``phone``, ``contact_name``, ``type``...).
+
+        Only called after the user explicitly asked for it and a fresh search found nothing.
+        The current Odoo user becomes the salesperson. Returns the lead as read back from Odoo.
+        """
+        raise AgentError("ODOO_CREATE_UNSUPPORTED", "إضافة عميل جديد إلى Odoo غير مدعومة في هذا الوضع.")
+
     async def lead_signature(self, lead_id: int) -> str | None:
         """Cheap fingerprint of the lead's current state in Odoo (fields + chatter + activities).
 

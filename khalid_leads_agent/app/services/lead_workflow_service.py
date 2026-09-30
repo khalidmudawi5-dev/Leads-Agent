@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import uuid
 from datetime import timedelta
 
 from app.adapters.odoo.base import OdooLead
@@ -12,6 +13,7 @@ from app.db import Database
 from app.errors import AgentError
 from app.models import LeadCache
 from app.repositories.lead_repo import LeadCacheRepository, SkipRepository
+from app.repositories.log_repo import LogRepository
 from app.repositories.result_repo import CallResultRepository
 from app.services.google_sheets_service import SheetService
 from app.services.lead_queue_service import LeadQueueService
@@ -27,6 +29,8 @@ log = logging.getLogger(__name__)
 
 
 FIELD_LABEL = {"phone": "Phone", "mobile": "Mobile", "sheet": "Google Sheet"}
+# A fresh search with one of these strategies means the customer really is in Odoo: never create a duplicate.
+STRONG_STRATEGIES = {"phone", "mobile", "phone+company", "company_exact"}
 
 
 def phone_report(sheet_raw: str, odoo: OdooLead | None) -> dict:
@@ -77,6 +81,7 @@ class LeadWorkflowService:
         self.sessions = sessions
         self.odoo = odoo
         self.mappings = mappings
+        self._create_locks: dict[str, asyncio.Lock] = {}
 
     # ------------------------------------------------------------ helpers
     def _cache(self, fingerprint: str) -> LeadCache:
@@ -243,6 +248,65 @@ class LeadWorkflowService:
         lead, warnings = await self._load_lead(chosen, True)
         self._store_match(fingerprint, MatchResult("matched", lead, [], "user_choice"), lead)
         return self._payload(fingerprint, warnings)
+
+    async def create_in_odoo(self, fingerprint: str, company: str, phone: str, contact_name: str = "",
+                             force: bool = False) -> dict:
+        """Add a customer that is missing from Odoo as a new opportunity/lead (explicit user action).
+
+        The customer is searched again first with the entered name and number; a strong match is
+        linked instead of creating a duplicate. Weak (partial name) matches are shown to the user and
+        only ``force`` creates anyway. Dry Run writes nothing.
+        """
+        company, contact_name = company.strip(), contact_name.strip()
+        if not company:
+            raise AgentError("COMPANY_REQUIRED", "اكتب اسم الشركة.")
+        chk = check_phone(phone)
+        if chk["severity"] == "error":
+            raise AgentError("PHONE_INVALID", f"رقم الجوال ({chk['raw'] or '—'}) غير صحيح: " + "، ".join(chk["issues"]))
+        lock = self._create_locks.setdefault(fingerprint, asyncio.Lock())
+        async with lock:
+            c = self._cache(fingerprint)
+            if c.odoo_lead_id:
+                raise AgentError("ALREADY_LINKED", "العميل مربوط بالفعل بـLead في Odoo.", actions=["open_odoo"])
+            match = await self.odoo.find_match(company, chk["norm"])
+            if match.status != "not_found" and (match.strategy in STRONG_STRATEGIES or not force):
+                lead = None
+                if match.status == "matched" and match.lead:
+                    lead, _ = await self._load_lead(match.lead, self.settings.get().auto_open_odoo_lead)
+                self._store_match(fingerprint, match, lead)
+                payload = self._payload(fingerprint)
+                payload["create"] = {"status": "exists", "strategy": match.strategy, "match": match.status,
+                                     "can_force": match.strategy not in STRONG_STRATEGIES}
+                return payload
+            s = self.settings.get()
+            values = {"name": company, "partner_name": company, "phone": format_phone(chk["raw"]),
+                      "contact_name": contact_name, "type": s.odoo_new_lead_type}
+            action_id = uuid.uuid4().hex
+            audit = {"action_id": action_id, "system": "ODOO", "action": "create_lead",
+                     "record": f"row {c.sheet_row} | {c.company_name} | {c.phone_norm}", "before": None}
+            if s.dry_run:
+                self._audit(**audit, after=values, success=True, dry_run=True)
+                payload = self._payload(fingerprint)
+                payload["create"] = {"status": "dry_run", "values": values}
+                return payload
+            try:
+                lead = await self.odoo.adapter.create_lead(values)
+            except AgentError as exc:
+                self._audit(**audit, after=values, success=False, error=exc.message_ar)
+                raise
+            self._audit(**audit, after={**values, "id": lead.id}, success=True)
+            log.info("Created Odoo %s %s for sheet row %s", s.odoo_new_lead_type, lead.id, c.sheet_row)
+            warnings: list[str] = []
+            if s.auto_open_odoo_lead:
+                lead, warnings = await self._load_lead(lead, True)
+            self._store_match(fingerprint, MatchResult("matched", lead, [], "created"), lead)
+            payload = self._payload(fingerprint, warnings)
+            payload["create"] = {"status": "created", "id": lead.id, "type": s.odoo_new_lead_type}
+            return payload
+
+    def _audit(self, **fields) -> None:
+        with self.db.session() as s:
+            LogRepository(s).add_audit(**fields)
 
     async def open_in_odoo(self, fingerprint: str) -> dict:
         c = self._cache(fingerprint)

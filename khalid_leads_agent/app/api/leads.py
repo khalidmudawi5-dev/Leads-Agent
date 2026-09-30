@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from app.api.deps import container
 from app.container import AppContainer
 from app.errors import AgentError
-from app.schemas.api import CallIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
+from app.schemas.api import CallIn, CreateLeadIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
 
 router = APIRouter(prefix="/api")
 
@@ -93,6 +93,12 @@ async def lead_search(fingerprint: str, body: SearchIn, c: AppContainer = Depend
 @router.post("/lead/{fingerprint}/select")
 async def lead_select(fingerprint: str, body: SelectCandidateIn, c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.select_candidate(fingerprint, body.odoo_id, body.ui_index, body.ui_query)
+
+
+@router.post("/lead/{fingerprint}/create-odoo")
+async def lead_create_odoo(fingerprint: str, body: CreateLeadIn, c: AppContainer = Depends(container)) -> dict:
+    """Add a customer missing from Odoo as a new opportunity/lead (after a fresh duplicate check)."""
+    return await c.workflow.create_in_odoo(fingerprint, body.company, body.phone, body.contact_name, body.force)
 
 
 @router.post("/lead/{fingerprint}/open")

@@ -5,7 +5,7 @@ from dataclasses import replace
 from typing import Any
 
 from app.adapters.odoo.base import ActionOutcome, LoginStatus, OdooAdapter, OdooLead
-from app.errors import AutomationError, OdooLoginRequired
+from app.errors import AgentError, AutomationError, OdooLoginRequired
 from app.utils.phone import normalize_phone, phones_match
 from app.utils.text import normalize_company
 
@@ -23,6 +23,8 @@ class MockOdooAdapter(OdooAdapter):
         self.fail_note = False
         self.fail_call = False
         self.versions: dict[int, int] = {}
+        self.created: list[dict[str, Any]] = []
+        self.fail_create = False
 
     def touch(self, lead_id: int) -> None:
         """Simulate an edit made directly in Odoo (changes the live-sync signature)."""
@@ -103,6 +105,18 @@ class MockOdooAdapter(OdooAdapter):
         self.activities.append({"lead_id": lead_id, "date": date_deadline, "summary": summary, "note": note})
         self.touch(lead_id)
         return ActionOutcome(True, "mock")
+
+    async def create_lead(self, values: dict[str, Any]) -> OdooLead:
+        self._check()
+        if self.fail_create:
+            raise AgentError("ODOO_CREATE_FAILED", "تعذر إضافة العميل إلى Odoo: mock failure", actions=["retry"])
+        new_id = max(self.leads, default=0) + 1
+        self.created.append({"id": new_id, **values})
+        lead = OdooLead(id=new_id, name=values.get("name", ""), company_name=values.get("partner_name", ""),
+                        contact_name=values.get("contact_name", ""), phone=values.get("phone", ""),
+                        salesperson="Mock User", stage="جديد", lead_type=values.get("type", ""))
+        self.leads[new_id] = lead
+        return self._with_history(lead)
 
     async def lead_signature(self, lead_id: int) -> str | None:
         self._check()

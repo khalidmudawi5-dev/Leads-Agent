@@ -50,6 +50,7 @@ class FakeOdooState:
         self.clock = 0
         self.calls_clicked: list[str] = []
         self.rpc_log_notes = 0
+        self.created: list[dict[str, Any]] = []
 
     def now(self) -> str:
         """Monotonic fake timestamps so every write gets a new write_date."""
@@ -164,6 +165,17 @@ def make_app(state: FakeOdooState) -> FastAPI:
             fields = kwargs.get("fields") or list(FIELDS)
             result = [{"id": state.leads[i]["id"], **{f: state.leads[i].get(f, False) for f in fields}}
                       for i in args[0] if i in state.leads]
+        elif model == "crm.lead" and method == "create":
+            vals = args[0]
+            new_id = max(state.leads, default=0) + 1
+            rec = {f: False for f in FIELDS}
+            rec.update({"id": new_id, "active": True, "stage_id": [1, "جديد"], "write_date": state.now()})
+            rec.update({k: v for k, v in vals.items() if k != "user_id"})
+            if vals.get("user_id"):
+                rec["user_id"] = [vals["user_id"], "Khalid Test"]
+            state.leads[new_id] = rec
+            state.created.append(dict(vals))
+            result = new_id
         elif model == "crm.lead" and method == "message_post":
             state.rpc_log_notes += 1
             for lead_id in args[0]:
