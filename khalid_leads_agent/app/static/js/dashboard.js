@@ -298,6 +298,25 @@ function duplicateRows(items) {
     <td></td><td><button class="btn sm primary" data-i="${n}">فتح</button></td></tr>`).join("");
 }
 
+// ------------------------------------------------------------ daily goal
+function renderGoal(st) {
+  const box = $("#goal");
+  if (!box) return;
+  const goal = st.goal || 0, done = st.contacted || 0;
+  box.classList.toggle("hidden", !goal);
+  if (!goal) return;
+  const pctDone = Math.min(100, Math.round((done / goal) * 100));
+  const reached = done >= goal;
+  box.classList.toggle("done", reached);
+  box.setAttribute("aria-valuemax", goal); box.setAttribute("aria-valuenow", done);
+  box.innerHTML = `<span class="g-label">هدف اليوم</span><span class="g-track"><span class="g-fill" style="width:${pctDone}%"></span></span>
+    <span class="g-num">${done} / ${goal} ${reached ? "🎉 تم تحقيق الهدف" : `(${pctDone}%)`}</span>`;
+  if (reached && S.goalShown !== new Date().toDateString()) {
+    if (S.goalShown !== undefined) toast(`أحسنت! وصلت لهدف اليوم (${goal}).`, "success", 6000);
+    S.goalShown = new Date().toDateString();
+  } else if (!reached && S.goalShown === undefined) S.goalShown = null;
+}
+
 // ------------------------------------------------ follow-ups / duplicates banner
 function renderBanner(st) {
   const box = $("#fu-banner");
@@ -441,6 +460,7 @@ function render(payload) {
 function renderStats(st) {
   if (!st) return;
   $$("#stats .value").forEach((el) => { el.textContent = st[el.dataset.k] ?? "–"; });
+  renderGoal(st);
 }
 
 function renderSession(sess) {

@@ -144,11 +144,12 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
                                        "message": "حدث خطأ غير متوقع. تم تسجيل التفاصيل في ملف السجل (logs/agent.log).",
                                        "actions": ["retry"]}}, status_code=500)
 
-    from app.api import diagnostics_api, history_api, leads, pages, settings_api
+    from app.api import diagnostics_api, history_api, leads, pages, reports_api, settings_api
 
     app.include_router(leads.router)
     app.include_router(settings_api.router)
     app.include_router(history_api.router)
     app.include_router(diagnostics_api.router)
+    app.include_router(reports_api.router)
     app.include_router(pages.router)
     return app

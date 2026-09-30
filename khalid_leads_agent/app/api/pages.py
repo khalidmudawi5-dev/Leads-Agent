@@ -12,6 +12,7 @@ router = APIRouter()
 
 PAGES = {
     "history": ("history.html", "سجل المتابعات"),
+    "reports": ("reports.html", "التقارير"),
     "skipped": ("skipped.html", "العملاء المتخطون"),
     "errors": ("errors.html", "الأخطاء"),
     "settings": ("settings.html", "الإعدادات"),

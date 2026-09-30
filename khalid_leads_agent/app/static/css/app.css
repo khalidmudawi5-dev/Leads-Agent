@@ -549,6 +549,47 @@ table.hist { table-layout: auto; }
   .sidebar { width: 210px; }
   .nav a kbd { display: none; }
 }
+/* ---------- reports */
+.rep-filters { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--text-2); font: inherit; font-weight: 700; font-size: .88rem; padding: 7px 14px; border-radius: 9px; cursor: pointer; }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+.rep-custom { display: flex; gap: 8px; align-items: flex-end; }
+.rep-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.rtile { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.rt-label { font-size: .82rem; color: var(--text-2); font-weight: 700; }
+.rt-value { font-size: 1.9rem; font-weight: 700; color: var(--text); line-height: 1.2; margin-top: 4px; }
+.rt-sub { font-size: .76rem; color: var(--muted); margin-top: 2px; }
+#rep-days { position: relative; }
+.colchart { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 8px; height: 240px; padding-top: 18px; }
+.cc-axis { display: flex; flex-direction: column; justify-content: space-between; font-size: .72rem; color: var(--muted); padding-bottom: 22px; text-align: left; }
+.cc-plot { position: relative; display: flex; align-items: stretch; gap: 2px; padding-bottom: 22px; }
+.cc-grid { position: absolute; inset: 0 0 22px 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+.cc-grid i { display: block; border-top: 1px solid var(--border); }
+.cc-col { position: relative; flex: 1; display: flex; align-items: flex-end; justify-content: center; cursor: default; outline: none; }
+.cc-col:hover, .cc-col:focus-visible { background: color-mix(in srgb, var(--primary) 6%, transparent); border-radius: 6px; }
+.cc-bar { width: min(24px, 70%); background: var(--primary); border-radius: 4px 4px 0 0; min-height: 0; transition: height .3s ease; }
+.cc-val { position: absolute; font-size: .75rem; font-weight: 700; color: var(--text); }
+.cc-x { position: absolute; bottom: -20px; font-size: .68rem; color: var(--muted); white-space: nowrap; }
+.cc-tip { position: absolute; z-index: 5; background: var(--text); color: var(--surface); font-size: .8rem; padding: 6px 10px; border-radius: 8px; pointer-events: none; white-space: nowrap; }
+.hbars { display: flex; flex-direction: column; gap: 12px; }
+.hb-row { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; }
+.hb-label { font-size: .86rem; font-weight: 600; color: var(--text-2); }
+.hb-track { display: flex; align-items: center; gap: 8px; }
+.hb-bar { height: 18px; background: var(--primary); border-radius: 0 4px 4px 0; }
+[dir="rtl"] .hb-bar { border-radius: 4px 0 0 4px; }
+.hb-val { font-size: .86rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+@media (max-width: 1150px) { .rep-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ---------- daily goal */
+.goal { display: flex; align-items: center; gap: 12px; margin: -6px 0 16px; font-size: .86rem; }
+.goal .g-label { font-weight: 700; color: var(--text-2); white-space: nowrap; }
+.goal .g-track { flex: 1; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 16%, var(--surface-2)); overflow: hidden; }
+.goal .g-fill { height: 100%; border-radius: 999px; background: var(--primary); transition: width .4s ease; }
+.goal.done .g-fill { background: var(--success); }
+.goal.done .g-track { background: color-mix(in srgb, var(--success) 18%, var(--surface-2)); }
+.goal .g-num { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
 /* ---------- WhatsApp + banners */
 .tpl-editor { display: flex; flex-direction: column; gap: 10px; }
 .tpl-row { display: grid; grid-template-columns: minmax(120px, 200px) 1fr auto; gap: 8px; align-items: start; }
@@ -612,6 +653,9 @@ table.hist { table-layout: auto; }
   #toasts { left: 10px; right: 10px; bottom: 12px; }
   .toast { min-width: 0; max-width: none; }
   .filters { grid-template-columns: 1fr 1fr; }
+  .rep-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hb-row { grid-template-columns: 90px 1fr; }
+  .goal { margin-top: 0; }
 }
 /* table cells keep table layout even when marked LTR (phone numbers) */
 td.ltr, th.ltr { display: table-cell; direction: ltr; text-align: right; }

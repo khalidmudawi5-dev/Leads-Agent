@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="goal hidden" id="goal" role="progressbar" aria-valuemin="0"></div>
 <div class="stats" id="stats">
   <button type="button" class="stat c-indigo" data-go="list:all" title="كل العملاء المسندين"><div class="top"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span><span class="label">عملاء {{ owner }} اليوم</span></div><div class="value" data-k="owner_total">–</div><span class="go">كل العملاء المسندين ←</span></button>
   <button type="button" class="stat c-sky" data-go="list:pending" title="عرض القائمة"><div class="top"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span><span class="label">بانتظار التواصل</span></div><div class="value" data-k="pending">–</div><span class="go">عرض القائمة ←</span></button>

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
+    <div><h2>التقارير</h2><p>أداؤك حسب الفترة: المكالمات المسجلة، نسبة الرد، الاهتمام، الاشتراكات، واتساب، والنتائج حسب المصدر. لا تُحتسب نتائج Dry Run.</p></div>
+    <div class="pi-actions"><a class="btn primary" id="btn-export" href="#">تصدير Excel</a></div></div>
+  <form class="rep-filters" id="rep-filters">
+    <div class="seg" id="rep-period">
+      <button type="button" data-p="today">اليوم</button><button type="button" data-p="week" class="on">هذا الأسبوع</button>
+      <button type="button" data-p="month">هذا الشهر</button><button type="button" data-p="custom">فترة مخصصة</button></div>
+    <div class="rep-custom hidden" id="rep-custom">
+      <label class="field"><span>من</span><input type="date" name="start"></label>
+      <label class="field"><span>إلى</span><input type="date" name="end"></label>
+      <button class="btn" type="submit">عرض</button></div>
+    <span class="small muted" id="rep-range"></span>
+  </form>
+  <div class="rep-tiles" id="rep-tiles"></div>
+</div>
+<div class="grid-2" style="margin-top:16px">
+  <div class="card"><h2>النتائج المسجلة حسب اليوم</h2><div id="rep-days"></div></div>
+  <div class="card"><h2>توزيع النتائج</h2><div id="rep-results"></div></div>
+</div>
+<div class="card" style="margin-top:16px"><h2>حسب المصدر</h2><div class="table-wrap" id="rep-sources"></div></div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/reports.js?v={{ version }}"></script>{% endblock %}

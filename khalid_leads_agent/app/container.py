@@ -17,6 +17,7 @@ from app.services.lead_workflow_service import LeadWorkflowService
 from app.services.mapping_service import MappingService
 from app.services.odoo_service import OdooService
 from app.services.session_service import SessionService
+from app.services.report_service import ReportService
 from app.services.settings_service import SettingsService
 from app.services.sync_service import SyncService
 from app.services.whatsapp_service import WhatsAppService
@@ -38,6 +39,7 @@ class AppContainer:
     workflow: LeadWorkflowService
     followups: FollowupService
     whatsapp: WhatsAppService
+    reports: ReportService
 
 
 def build_container(
@@ -93,4 +95,4 @@ def build_container(
     workflow = LeadWorkflowService(db, settings, sheets, queue, sessions, odoo, mappings)
     whatsapp = WhatsAppService(db, settings, sync)
     return AppContainer(env, db, settings, auth, sheets, odoo, sessions, queue, mappings, sync, results, workflow,
-                        followups, whatsapp)
+                        followups, whatsapp, ReportService(db, mappings))
