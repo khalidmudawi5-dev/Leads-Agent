@@ -164,6 +164,7 @@ function applyLiveUpdate(target, r) {
     if (!resultOpen() && !S.call.startedAt) renderLead(r.lead);
     renderOdoo(r.lead.odoo);
     renderChatter(r.lead.odoo, true);
+    (r.notices || []).forEach((n) => toast(n, "success", 7000));
   } else {
     if (!S.manual || !r.odoo || r.odoo.id !== S.manual.id) return;
     S.manual = r.odoo;
@@ -519,6 +520,7 @@ function render(payload) {
   renderBanner(payload.stats);
   renderSession(payload.session);
   $("#global-msg").innerHTML = (payload.warnings || []).map((w) => `<div class="alert warn">${esc(w)}</div>`).join("");
+  (payload.notices || []).forEach((n) => toast(n, "success", 7000));
   $("#result-card").classList.add("hidden");
   if (payload.done || !payload.lead) { Live.watch(null); return renderDone(); }
   renderLead(payload.lead);
@@ -587,9 +589,9 @@ function renderLead(lead) {
     <div class="lead-body">
     <div class="info-grid">
       <div class="info"><div class="k">المصدر في Google Sheet</div><div class="v">${orDash(lead.sheet_source)}</div></div>
-      <div class="info"><div class="k">Source من Odoo</div><div class="v">${orDash(o.source)}</div></div>
-      <div class="info"><div class="k">Medium</div><div class="v">${orDash(o.medium)}</div></div>
-      <div class="info"><div class="k">Campaign</div><div class="v">${orDash(o.campaign)}</div></div>
+      <div class="info"><div class="k">UTM Source من Odoo</div><div class="v">${orDash(o.utm_source)}</div></div>
+      <div class="info"><div class="k">UTM Medium</div><div class="v">${orDash(o.utm_medium || o.medium)}</div></div>
+      <div class="info"><div class="k">UTM Campaign</div><div class="v">${orDash(o.utm_campaign || o.campaign)}</div></div>
       <div class="info"><div class="k">حالة المتابعة الحالية</div><div class="v">${orDash(lead.followup_status)}</div></div>
       <div class="info"><div class="k">ربط المصدر</div><div class="v">${sourceBadge(lead)}</div></div>
       <div class="info wide"><div class="k">آخر ملاحظة في Google Sheet</div><div class="v note-box">${orDash(lead.last_note)}</div></div>
@@ -629,7 +631,7 @@ function sourceBadge(lead) {
   if (!lead.odoo) return '<span class="muted">بانتظار Odoo</span>';
   if (s.mapped) return `<span class="badge green">مربوط → ${esc(s.sheet_value)}</span>`;
   if (s.odoo_value) return `<span class="badge amber">المصدر غير مربوط</span>`;
-  return '<span class="muted">لا يوجد Source في Odoo</span>';
+  return '<span class="muted">لا يوجد UTM Source في Odoo</span>';
 }
 
 function renderMatch(lead) {
@@ -813,10 +815,10 @@ async function openCrm() {
 
 function candidateTable(cands, btnLabel) {
   return `<div class="table-wrap"><table class="table"><thead><tr><th>Company</th><th>Phone</th><th>Mobile</th>
-    <th>Salesperson</th><th>Source</th><th>Lead Status</th><th></th></tr></thead><tbody>
+    <th>Salesperson</th><th>UTM Source</th><th>Lead Status</th><th></th></tr></thead><tbody>
     ${cands.map((c, i) => `<tr><td><b>${esc(c.company_name || c.name)}</b>${c.company_name && c.name && c.name !== c.company_name ? `<div class="small muted">${esc(c.name)}</div>` : ""}</td>
       <td class="ltr">${orDash(c.phone)}</td><td class="ltr">${orDash(c.mobile)}</td><td>${orDash(c.salesperson)}</td>
-      <td>${orDash([c.source, c.medium].filter(Boolean).join(" / "))}</td><td>${orDash(c.stage)}${c.active === false ? ' <span class="badge red">مؤرشف</span>' : ""}</td>
+      <td>${orDash(c.utm_source || c.source)}</td><td>${orDash(c.stage)}${c.active === false ? ' <span class="badge red">مؤرشف</span>' : ""}</td>
       <td><button class="btn primary sm" data-i="${i}">${btnLabel}${i < 9 ? ` <kbd>${i + 1}</kbd>` : ""}</button></td></tr>`).join("")}
     </tbody></table></div>`;
 }
@@ -888,8 +890,8 @@ function askCreateLead(lead) {
       <label class="field"><span>اسم الشركة *</span><input type="text" id="new-company" maxlength="200" value="${esc(lead.company_name)}"></label>
       <label class="field"><span>رقم الجوال *</span><input type="text" inputmode="tel" id="new-phone" class="ltr" maxlength="40" value="${esc(lead.phone)}"></label>
       <label class="field"><span>اسم الشخص المسؤول لدى العميل (اختياري)</span><input type="text" id="new-contact" maxlength="120"></label>
-      <label class="field"><span>المصدر (Source) — من Google Sheet</span><input type="text" id="new-source" maxlength="200" value="${esc(lead.sheet_source)}" placeholder="مثال: Meta || Leads"></label>
-      <div class="small muted" style="margin-top:-6px">يُربط بمصدر موجود في Odoo بنفس الاسم أو حسب Source Mapping في الإعدادات.</div>
+      <label class="field"><span>المصدر (UTM Source) — من Google Sheet</span><input type="text" id="new-source" maxlength="200" value="${esc(lead.sheet_source)}" placeholder="مثال: Meta || Leads"></label>
+      <div class="small muted" style="margin-top:-6px">يُكتب في UTM Source بمصدر موجود في Odoo بنفس الاسم أو حسب Source Mapping في الإعدادات.</div>
       <div id="new-msg"></div>`,
     buttons: [
       { label: dry ? "معاينة الإضافة (Dry Run)" : "إضافة إلى Odoo", cls: "primary", onClick: (btn) => withBusy(btn, () => submitCreateLead(lead, false)) },
@@ -921,7 +923,7 @@ async function submitCreateLead(lead, force) {
       <div class="kv" style="margin-top:8px"><div class="k">Name</div><div>${orDash(v.name)}</div>
       <div class="k">Company</div><div>${orDash(v.partner_name)}</div><div class="k">Phone</div><div class="ltr">${orDash(v.phone)}</div>
       <div class="k">Contact</div><div>${orDash(v.contact_name)}</div><div class="k">Type</div><div>${orDash(v.type)}</div>
-      <div class="k">Source</div><div>${orDash(v.source_name)}</div><div class="k">Medium</div><div>${orDash(v.medium_name)}</div></div></div>`;
+      <div class="k">UTM Source</div><div>${orDash(v.source_name)}</div><div class="k">Medium</div><div>${orDash(v.medium_name)}</div></div></div>`;
     return;
   }
   if (cr.status === "created") {
@@ -1138,7 +1140,7 @@ async function openResultPanel(prev = null) {
       <div id="r-reason" class="hidden"><label class="field"><span>سبب عدم الاشتراك (اختياري)</span>
         <input type="text" id="r-reason-in" list="reason-list"><datalist id="reason-list"></datalist></label></div>
       ${ctx.manual ? "" : `<label class="field"><span>مصدر العميل في Google Sheet</span><select id="r-source"><option value="">— بدون تغيير —</option></select></label>
-      ${src.odoo_value && !src.mapped ? `<div class="alert warn"><b>المصدر غير مربوط:</b> Odoo = «${esc(src.odoo_value)}». اختر القيمة المناسبة من قائمة Sheet.
+      ${src.odoo_value && !src.mapped ? `<div class="alert warn"><b>المصدر غير مربوط:</b> UTM Source في Odoo = «${esc(src.odoo_value)}». اختر القيمة المناسبة من قائمة Sheet.
         <label class="check" style="display:flex;margin-top:8px"><input type="checkbox" id="r-save-map" checked> حفظ هذا الربط للاستخدام مستقبلًا</label></div>` : ""}`}
       ${ctx.manual ? "" : `<div class="field"><span class="small"><b>هل تم التسجيل بالنسخة التجريبية؟</b>
         <span class="muted">(الحالية في الـSheet: ${esc(ctx.trialCurrent || "فارغة")})</span></span>
@@ -1228,8 +1230,8 @@ function updateWriteSummary() {
   if (sheetOn) {
     rows.push(`<li><span class="sys">حالة المتابعة</span>${st ? `<span class="ok">← ${esc(st.sheet_value || "(غير مربوطة – راجع Status Mapping)")}</span>` : '<span class="warn-t">اختر النتيجة أولًا</span>'}</li>`);
     rows.push(`<li><span class="sys">مصدر العميل</span>${src
-      ? `<span class="ok">← ${esc(src)}</span>${srcInfo.auto && src === srcInfo.sheet_value ? ' <span class="badge green">مطابق لـOdoo تلقائيًا</span>' : ""}`
-      : `<span class="warn-t">بدون تغيير${srcInfo.odoo_value ? ` — Odoo = «${esc(srcInfo.odoo_value)}»، اختر القيمة المقابلة من القائمة لتحديثه` : ""}</span>`}</li>`);
+      ? `<span class="ok">← ${esc(src)}</span>${srcInfo.mapped && src === srcInfo.sheet_value ? ` <span class="badge green">من UTM Source${srcInfo.auto ? " (مطابق تلقائيًا)" : ""}</span>` : ""}`
+      : `<span class="warn-t">بدون تغيير${srcInfo.odoo_value ? ` — UTM Source = «${esc(srcInfo.odoo_value)}»، اختر القيمة المقابلة من القائمة لتحديثه` : ""}</span>`}</li>`);
     if (S.result.trial) rows.push(`<li><span class="sys">النسخة التجريبية</span><span class="ok">← ${esc(S.result.trial)}</span></li>`);
     rows.push('<li><span class="sys">الملاحظات</span><span class="ok">← تُضاف ملاحظة جديدة مع الحفاظ على القديمة</span></li>');
   } else {
@@ -1426,9 +1428,9 @@ function renderManual(o, warnings) {
     <div class="lead-body">
     ${warnings.map((w) => `<div class="alert warn">${esc(w)}</div>`).join("")}
     <div class="info-grid">
-      <div class="info"><div class="k">Source</div><div class="v">${orDash(o.source)}</div></div>
-      <div class="info"><div class="k">Medium</div><div class="v">${orDash(o.medium)}</div></div>
-      <div class="info"><div class="k">Campaign</div><div class="v">${orDash(o.campaign)}</div></div>
+      <div class="info"><div class="k">UTM Source</div><div class="v">${orDash(o.utm_source)}</div></div>
+      <div class="info"><div class="k">UTM Medium</div><div class="v">${orDash(o.utm_medium || o.medium)}</div></div>
+      <div class="info"><div class="k">UTM Campaign</div><div class="v">${orDash(o.utm_campaign || o.campaign)}</div></div>
       <div class="info wide"><div class="k">آخر ملاحظة في Odoo Chatter</div><div class="v note-box">${orDash(latestOdooNote(o))}</div></div>
     </div><div id="lead-msg"></div></div>
     <div class="action-bar">

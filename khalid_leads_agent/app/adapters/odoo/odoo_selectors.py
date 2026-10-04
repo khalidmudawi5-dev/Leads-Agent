@@ -36,6 +36,10 @@ FIELD_NAMES: dict[str, list[str]] = {
     "source": ["source_id"],
     "medium": ["medium_id"],
     "campaign": ["campaign_id"],
+    # Custom "UTM ..." fields (Studio); the standard ones are source_id / medium_id / campaign_id.
+    "utm_source": ["x_utm_source", "x_studio_utm_source", "utm_source"],
+    "utm_medium": ["x_utm_medium", "x_studio_utm_medium", "utm_medium"],
+    "utm_campaign": ["x_utm_campaign", "x_studio_utm_campaign", "utm_campaign"],
 }
 
 # Labels used when a field has no stable ``name`` attribute (EN / AR).
@@ -50,6 +54,9 @@ FIELD_LABELS: dict[str, list[str]] = {
     "medium": ["Medium", "الوسيط", "الوسيلة"],
     "campaign": ["Campaign", "الحملة"],
     "service_type": ["Service Type", "Service", "نوع الخدمة", "الخدمة"],
+    "utm_source": ["UTM Source", "مصدر UTM"],
+    "utm_medium": ["UTM Medium", "وسيط UTM"],
+    "utm_campaign": ["UTM Campaign", "حملة UTM"],
 }
 
 # Strategies to read the value of a field widget (``{field}`` = technical name).

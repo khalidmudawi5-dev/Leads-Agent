@@ -36,26 +36,14 @@ class SourceResolution:
 
 
 def odoo_source_labels(lead: OdooLead | None) -> list[str]:
-    """Odoo values to look up, most specific first."""
+    """The Odoo value the sheet's «مصدر العميل» is mapped from: the lead's **UTM Source** only.
+
+    (Source / Medium / Campaign are no longer used for the mapping.)
+    """
     if lead is None:
         return []
-    labels: list[str] = []
-
-    def add(*parts: str) -> None:
-        clean = [p.strip() for p in parts if p and p.strip()]
-        if len(clean) == len(parts) and clean:
-            label = " / ".join(clean)
-            if label not in labels:
-                labels.append(label)
-
-    add(lead.source, lead.medium)
-    add(lead.utm_source, lead.utm_medium)
-    add(lead.source)
-    add(lead.utm_source)
-    add(lead.campaign)
-    add(lead.utm_campaign)
-    add(lead.medium)
-    return labels
+    value = (lead.utm_source or "").strip()
+    return [value] if value else []
 
 
 class MappingService:
@@ -114,7 +102,7 @@ class MappingService:
     def save_source(self, odoo_value: str, sheet_value: str) -> dict:
         key = source_key(odoo_value)
         if not key or not sheet_value.strip():
-            raise AgentError("BAD_MAPPING", "أدخل قيمة Odoo وقيمة Google Sheet.")
+            raise AgentError("BAD_MAPPING", "أدخل قيمة UTM Source من Odoo وقيمة Google Sheet.")
         with self.db.session() as s:
             row = MappingRepository(s).upsert_source(odoo_value.strip(), key, sheet_value.strip())
             return {"id": row.id, "odoo_value": row.odoo_value, "sheet_value": row.sheet_value}

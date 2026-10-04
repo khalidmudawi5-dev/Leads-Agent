@@ -25,11 +25,11 @@ class FakeOdooState:
                 "phone": "+966 56 123 4567", "mobile": "", "email_from": "test@example.com", "user_id": [2, "خالد"],
                 "stage_id": [1, "جديد"], "source_id": [3, "Meta"], "medium_id": [4, "Leads"],
                 "campaign_id": [5, "حملة سبتمبر"], "type": "lead", "active": True, "x_service_type": "رصد التواجد",
-                "write_date": "2026-09-28 10:00:00"},
+                "x_studio_utm_source": "Meta / Leads", "write_date": "2026-09-28 10:00:00"},
             8: {"id": 8, "name": "شركة بلا زر", "partner_name": "شركة بلا زر", "contact_name": "", "phone": "",
                 "mobile": "", "email_from": "", "user_id": False, "stage_id": [1, "جديد"], "source_id": False,
                 "medium_id": False, "campaign_id": False, "type": "lead", "active": True, "x_service_type": False,
-                "write_date": "2026-09-28 10:00:00"},
+                "x_studio_utm_source": False, "write_date": "2026-09-28 10:00:00"},
         }
         # Pre-existing chatter history on lead 7 (written by people, before the agent).
         self.messages: list[dict[str, Any]] = [
@@ -77,8 +77,11 @@ FIELDS = {
     "contact_name": {"string": "Contact Name", "type": "char"}, "phone": {"string": "Phone", "type": "char"},
     "mobile": {"string": "Mobile", "type": "char"}, "email_from": {"string": "Email", "type": "char"},
     "user_id": {"string": "Salesperson", "type": "many2one"}, "stage_id": {"string": "Stage", "type": "many2one"},
-    "source_id": {"string": "Source", "type": "many2one"}, "medium_id": {"string": "Medium", "type": "many2one"},
-    "campaign_id": {"string": "Campaign", "type": "many2one"}, "type": {"string": "Type", "type": "selection"},
+    "source_id": {"string": "Source", "type": "many2one", "relation": "utm.source"},
+    "medium_id": {"string": "Medium", "type": "many2one", "relation": "utm.medium"},
+    "campaign_id": {"string": "Campaign", "type": "many2one", "relation": "utm.campaign"},
+    # A Studio field labelled "UTM Source": the agent's source of truth for «مصدر العميل».
+    "x_studio_utm_source": {"string": "UTM Source", "type": "char"}, "type": {"string": "Type", "type": "selection"},
     "active": {"string": "Active", "type": "boolean"},
     "x_service_type": {"string": "Service Type", "type": "char"},
     "write_date": {"string": "Last Updated on", "type": "datetime"},
@@ -283,6 +286,7 @@ def make_app(state: FakeOdooState) -> FastAPI:
           {field('source_id', 'Source', _m2o(r['source_id']))}
           {field('medium_id', 'Medium', _m2o(r['medium_id']))}
           {field('campaign_id', 'Campaign', _m2o(r['campaign_id']))}
+          {field('x_studio_utm_source', 'UTM Source', r.get('x_studio_utm_source') or '')}
           <div class="o_wrap_field"><div class="o_cell"><label class="o_form_label">Service Type</label></div>
             <div class="o_cell"><span>{html.escape(r['x_service_type'] or '')}</span></div></div>
         </div></div>
