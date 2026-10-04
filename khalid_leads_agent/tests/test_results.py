@@ -238,3 +238,20 @@ def test_legacy_note_template_migrated(env, sheet, odoo):
     c.settings.seed()
     c.settings.invalidate()
     assert c.settings.get().odoo_note_template == DEFAULT_NOTE_TEMPLATE
+
+
+def test_any_sheet_dropdown_status_can_be_recorded(container, sheet, odoo):
+    lead = prepare(container)
+    res = save(container, idempotency_key="key-sheet-st1", fingerprint=lead["fingerprint"],
+               result_code="S:بيانات التواصل غير صحيحة", note="الرقم مقفل")
+    assert res["status"] == "done" and res["sheet_status"] == "success"
+    assert sheet.sheets["Leads"][1][3] == "بيانات التواصل غير صحيحة"
+    assert "نتيجة التواصل: بيانات التواصل غير صحيحة" in odoo.notes[-1]["body"]
+    from app.services.settings_service import result_label
+    assert result_label("S:السعر مرتفع") == "السعر مرتفع" and result_label("INTERESTED") == "مهتم"
+
+
+def test_sheet_status_outside_dropdown_is_refused(container, sheet):
+    lead = prepare(container)
+    res = save(container, idempotency_key="key-sheet-st2", fingerprint=lead["fingerprint"], result_code="S:قيمة غير موجودة")
+    assert res["sheet_status"] == "failed" and sheet.write_calls == []

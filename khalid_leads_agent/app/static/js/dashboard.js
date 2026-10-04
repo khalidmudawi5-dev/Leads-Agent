@@ -751,6 +751,8 @@ async function openResultPanel(prev = null) {
       ${prev.note ? `<div class="small" style="margin-top:4px">الملاحظة السابقة: ${esc(prev.note)}</div>` : ""}
       <div class="small muted" style="margin-top:4px">اختر النتيجة الجديدة واكتب ملاحظة؛ سيتم إضافة Log Note جديد في Odoo وتحديث الصف في Google Sheet مع الحفاظ على الملاحظات القديمة.</div></div>` : ""}
     <div class="result-buttons">${S.statuses.map((s, i) => `<button type="button" class="result-btn" data-code="${s.code}">${i < 9 ? `<span class="num">${i + 1}</span>` : ""}${esc(s.label)}</button>`).join("")}</div>
+    <div class="more-status hidden" id="r-more"><div class="small muted" style="margin-bottom:6px">حالات أخرى من قائمة «حالة المتابعة» في الـSheet:</div>
+      <div class="more-chips" id="r-more-chips"></div></div>
     <div style="margin-top:16px">
       <label class="field"><span>ملاحظة حرة</span><textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
       <div id="r-followup" class="form-grid hidden">
@@ -811,7 +813,16 @@ async function openResultPanel(prev = null) {
       updateWriteSummary();
     });
   }
-  if (prev && S.statuses.some((x) => x.code === prev.result_code)) {
+  // Every other value of the sheet's follow-up dropdown, written to the sheet as-is ("S:<value>").
+  const statusOpts = await loadOptions("followup_status");
+  const mainValues = new Set(S.statuses.map((x) => (x.sheet_value || "").trim()));
+  const extra = statusOpts.filter((v) => v && !mainValues.has(v.trim()));
+  if (extra.length) {
+    $("#r-more").classList.remove("hidden");
+    $("#r-more-chips").innerHTML = extra.map((v) => `<button type="button" class="result-btn mini" data-code="S:${esc(v)}">${esc(v)}</button>`).join("");
+    $$("#r-more-chips .result-btn").forEach((b) => b.onclick = () => selectResult(b.dataset.code));
+  }
+  if (prev && (S.statuses.some((x) => x.code === prev.result_code) || (prev.result_code || "").startsWith("S:"))) {
     selectResult(prev.result_code);
     if (prev.followup_date) { $("#r-fdate").value = prev.followup_date; $("#r-ftime").value = prev.followup_time || "10:00"; }
     if (prev.not_subscribed_reason) $("#r-reason-in").value = prev.not_subscribed_reason;
@@ -827,7 +838,8 @@ function updateWriteSummary() {
   if (!box || !S.result.ctx) return;
   const ctx = S.result.ctx;
   const dry = !!(S.settings && S.settings.dry_run);
-  const st = S.statuses.find((x) => x.code === S.result.code);
+  const code = S.result.code || "";
+  const st = S.statuses.find((x) => x.code === code) || (code.startsWith("S:") ? { sheet_value: code.slice(2) } : null);
   const odooOn = $("#r-odoo") && $("#r-odoo").checked && !!ctx.odooId;
   const sheetOn = $("#r-sheet") && $("#r-sheet").checked && !ctx.manual;
   const srcSel = $("#r-source");

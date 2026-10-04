@@ -71,6 +71,11 @@ class MappingService:
                     for m in MappingRepository(s).statuses()]
 
     def status_sheet_value(self, code: str) -> str:
+        if code.startswith("S:"):  # a value picked directly from the sheet's dropdown
+            value = code[2:].strip()
+            if not value:
+                raise AgentError("UNKNOWN_RESULT", "نتيجة غير معروفة.")
+            return value
         with self.db.session() as s:
             row = MappingRepository(s).status(code)
         if row is None:
@@ -84,6 +89,8 @@ class MappingService:
         return row.sheet_value
 
     def status_label(self, code: str) -> str:
+        if code.startswith("S:"):
+            return code[2:].strip()
         with self.db.session() as s:
             row = MappingRepository(s).status(code)
         return row.label_ar if row else code

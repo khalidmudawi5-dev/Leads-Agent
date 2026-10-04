@@ -17,7 +17,7 @@ class ResultIn(BaseModel):
     idempotency_key: str = Field(min_length=8, max_length=80)
     fingerprint: str | None = None
     odoo_lead_id: int | None = None
-    result_code: str
+    result_code: str = Field(min_length=1, max_length=120)  # a code (INTERESTED…) or "S:<sheet dropdown value>"
     note: str = ""
     source_value: str = ""
     save_source_mapping: bool = False
