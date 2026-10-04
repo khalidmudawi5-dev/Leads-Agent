@@ -9,6 +9,8 @@ const S = {
   chatterFilter: "all", seenChatter: { key: null, ids: new Set() },
 };
 const ICON = {
+  wa: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.4.8 3.2.6.5-.1 1.5-.6 1.8-1.2.2-.6.2-1.1.1-1.2l-.5-.2z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
   note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>',
   message: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>',
   email: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
@@ -29,7 +31,10 @@ const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", 
 
 // ------------------------------------------------------------------ boot
 document.addEventListener("DOMContentLoaded", init);
-document.addEventListener("agent-status", (e) => { $("#dry-ribbon").classList.toggle("hidden", !e.detail.dry_run); });
+document.addEventListener("agent-status", (e) => {
+  $("#dry-ribbon").classList.toggle("hidden", !e.detail.dry_run);
+  S.remote = !!e.detail.remote;  // opened from the phone / another device (Tailscale)
+});
 document.addEventListener("dry-run-changed", (e) => {
   if (S.settings) S.settings.dry_run = e.detail.dry_run;
   const b = $("#r-save");
@@ -56,6 +61,7 @@ async function init() {
     const [st, cfg] = await Promise.all([api("GET", "/api/settings/status-mapping"), api("GET", "/api/settings")]);
     S.statuses = st.items; S.settings = cfg.settings;
     $("#dry-ribbon").classList.toggle("hidden", !S.settings.dry_run);
+    SheetWatch.start();
     const updateId = new URLSearchParams(location.search).get("update");
     const sess = await api("GET", "/api/session");
     if (sess.needs_prompt && !updateId) return askResume(sess.session);
@@ -79,8 +85,11 @@ Shortcuts.register([
   { code: "KeyO", label: "O", title: "فتح العميل في Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => clickIf("#btn-open") },
   { code: "KeyR", label: "R", shift: false, title: "تسجيل النتيجة", group: "العميل الحالي", when: () => hasLead() && !resultOpen(), run: () => { stopCall(); openResultPanel(); } },
   { code: "KeyF", label: "F", title: "إعادة البحث في Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => searchOdoo() },
-  { code: "KeyU", label: "U", title: "تحديث بيانات العميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => clickIf("#btn-refresh") },
+  { code: "KeyU", label: "U", title: "تحديث من Google Sheet (عملاء جدد + بيانات العميل)", group: "العميل الحالي", when: () => !S.manual && !resultOpen(),
+    run: () => { if ($("#btn-refresh")) clickIf("#btn-refresh"); else clickIf("#btn-refresh-queue"); } },
   { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
+  { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
+  { code: "KeyW", label: "W", title: "رسالة واتساب للعميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !resultOpen(), run: () => clickIf("#btn-wa") },
   { code: "KeyP", label: "P", title: "نسخ رقم الجوال", group: "العميل الحالي", when: hasLead, run: copyPhone },
   { code: "KeyN", label: "N", title: "العميل التالي (بعد الحفظ)", group: "العميل الحالي", when: nextVisible, run: goNext },
   { code: "KeyR", label: "R", shift: true, title: "تحديث القائمة من Google Sheet", group: "عام", run: () => $("#btn-refresh-queue").click() },
@@ -90,6 +99,7 @@ Shortcuts.register([
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ code: `Numpad${n}`, label: String(n),
     when: () => resultOpen() && !!S.statuses[n - 1], run: () => selectResult(S.statuses[n - 1].code) })),
   { code: "KeyT", label: "T", title: "الانتقال لحقل الملاحظة", group: "لوحة النتيجة", when: resultOpen, run: () => $("#r-note").focus() },
+  { code: "KeyM", label: "M", title: "إملاء الملاحظة بالصوت (تشغيل / إيقاف)", group: "لوحة النتيجة", when: () => resultOpen() && !!$("#r-mic"), run: () => clickIf("#r-mic") },
   { code: "Enter", label: "Enter", ctrl: true, allowInInputs: true, title: "حفظ النتيجة", group: "لوحة النتيجة", when: resultOpen, run: () => clickIf("#r-save") },
   { code: "Escape", label: "Esc", allowInInputs: true, title: "إلغاء لوحة النتيجة / إلغاء الانتقال التلقائي", group: "لوحة النتيجة",
     when: () => resultOpen() || !!$("#btn-cancel-next"), run: () => { if ($("#btn-cancel-next")) $("#btn-cancel-next").click(); else $("#r-cancel").click(); } },
@@ -184,9 +194,28 @@ async function loadCurrent() {
   try { render(await api("GET", "/api/lead/current")); }
   catch (e) { renderFatal(e, loadCurrent); }
 }
-async function refreshQueue() {
-  try { render(await api("POST", "/api/queue/refresh")); toast("تم تحديث القائمة", "success"); loadFilter(); }
-  catch (e) { renderFatal(e, refreshQueue); }
+async function refreshQueue() { return refreshAll(null); }
+
+/**
+ * «تحديث» (U) / «تحديث القائمة» (Shift+R): reconnect to Google, read new customers from the sheet,
+ * refresh counts, the status filter, the connection chips and the current lead — no page reload.
+ */
+async function refreshAll(fp) {
+  let payload;
+  try {
+    payload = fp ? await api("POST", `/api/lead/${fp}/refresh`) : await api("POST", "/api/queue/refresh");
+  } catch (e) {
+    refreshStatus();
+    if (fp) handleOdooError(e, () => refreshAll(fp)); else renderFatal(e, refreshQueue);
+    return;
+  }
+  render(payload);
+  if (payload.filter) renderFilter(payload.filter.options);
+  refreshStatus();
+  const r = payload.refresh || {};
+  if ((payload.warnings || []).length) toast("تم التحديث مع تنبيهات — راجع أعلى الصفحة.", "warn", 6000);
+  else toast(r.new ? `تم التحديث — ${r.new} ${r.new === 1 ? "عميل جديد" : "عملاء جدد"} في الملف · بانتظار التواصل: ${r.pending}`
+                   : `تم التحديث من Google Sheet · بانتظار التواصل: ${r.pending ?? "–"}`, "success", 5000);
 }
 
 // ---------------------------------------------------------- status filter
@@ -214,7 +243,9 @@ function renderFilter(options) {
 }
 
 // ------------------------------------------------------------ stat cards
-const LIST_TITLES = { pending: "العملاء بانتظار التواصل", all: "كل العملاء المسندين إليك", match_errors: "عملاء لم تتم مطابقتهم في Odoo" };
+const LIST_TITLES = { pending: "العملاء بانتظار التواصل", all: "كل العملاء المسندين إليك", match_errors: "عملاء لم تتم مطابقتهم في Odoo",
+  followups: "المتابعات المجدولة", duplicates: "أرقام مكررة في Google Sheet" };
+const FU_STATE = { overdue: ["red", "متأخرة"], due: ["amber", "اليوم"], upcoming: ["blue", "قادمة"] };
 const MATCH_AR = { matched: ["green", "مطابق"], multiple: ["amber", "أكثر من نتيجة"], not_found: ["red", "غير موجود"], error: ["red", "خطأ"], unknown: ["", "لم يُبحث"] };
 
 function openCard(go) {
@@ -230,8 +261,8 @@ async function showLeadList(kind) {
   Modal.open({
     title: `${LIST_TITLES[kind] || "العملاء"} (${items.length})`, wide: true,
     html: items.length ? `<input type="search" id="ll-q" placeholder="بحث بالاسم أو الرقم…" style="margin-bottom:12px">
-      <div class="table-wrap"><table class="table hist"><thead><tr><th>#</th><th>العميل</th><th>الهاتف</th><th>حالة المتابعة</th><th>Odoo</th><th></th></tr></thead><tbody>
-      ${items.map((i, n) => { const [mc, ml] = MATCH_AR[i.match] || MATCH_AR.unknown; return `<tr data-s="${esc((i.company + " " + i.phone).toLowerCase())}">
+      <div class="table-wrap"><table class="table hist"><thead><tr>${LIST_HEAD[kind] || LIST_HEAD.default}</tr></thead><tbody>
+      ${kind === "followups" ? followupRows(items) : kind === "duplicates" ? duplicateRows(items) : items.map((i, n) => { const [mc, ml] = MATCH_AR[i.match] || MATCH_AR.unknown; return `<tr data-s="${esc((i.company + " " + i.phone).toLowerCase())}">
         <td class="muted">${i.row}</td><td><b>${esc(i.company || "—")}</b>${i.current ? ' <span class="badge indigo">الحالي</span>' : ""}${!i.pending && kind !== "pending" ? ' <span class="badge">خارج الفلتر/تم</span>' : ""}</td>
         <td><span class="phone">${orDash(i.phone)}</span></td><td>${i.status ? `<span class="pill">${esc(i.status)}</span>` : '<span class="muted">فارغة</span>'}</td>
         <td><span class="badge ${mc}">${ml}</span></td><td><button class="btn sm primary" data-i="${n}">فتح</button></td></tr>`; }).join("")}
@@ -248,6 +279,210 @@ async function showLeadList(kind) {
         } catch (e) { toast(e.message, "error"); }
       }));
     },
+  });
+}
+
+const LIST_HEAD = {
+  default: "<th>#</th><th>العميل</th><th>الهاتف</th><th>حالة المتابعة</th><th>Odoo</th><th></th>",
+  followups: "<th>#</th><th>العميل</th><th>الهاتف</th><th>موعد المتابعة</th><th>ملاحظة</th><th></th>",
+  duplicates: "<th>#</th><th>العميل</th><th>الهاتف</th><th>نفس الرقم في</th><th></th><th></th>",
+};
+function followupRows(items) {
+  return items.map((i, n) => { const [c, l] = FU_STATE[i.state] || ["", ""]; return `<tr data-s="${esc((i.company + " " + i.phone).toLowerCase())}">
+    <td class="muted">${i.row}</td><td><b>${esc(i.company || "—")}</b></td><td><span class="phone">${orDash(i.phone)}</span></td>
+    <td><span class="badge ${c}">${l}</span> <span class="ltr">${esc(i.followup_at)}</span></td><td class="small">${orDash(i.note)}</td>
+    <td><button class="btn sm primary" data-i="${n}">فتح</button></td></tr>`; }).join("");
+}
+function duplicateRows(items) {
+  return items.map((i, n) => `<tr data-s="${esc((i.company + " " + i.phone).toLowerCase())}">
+    <td class="muted">${i.row}</td><td><b>${esc(i.company || "—")}</b></td><td><span class="phone">${orDash(i.phone)}</span></td>
+    <td class="small">${i.others.map((o) => `صف ${o.row}: ${esc(o.company || "—")} <span class="muted">(${esc(o.owner || "بدون مسؤول")}${o.status ? " · " + esc(o.status) : ""})</span>`).join("<br>")}</td>
+    <td></td><td><button class="btn sm primary" data-i="${n}">فتح</button></td></tr>`).join("");
+}
+
+// ------------------------------------------------------------ new customers in the sheet
+/** Every «sheet_poll_minutes» (tab visible): re-read the sheet and announce new customers. */
+const SheetWatch = {
+  timer: null, unseen: 0, title: document.title,
+  start() {
+    const min = (S.settings && S.settings.sheet_poll_minutes) || 0;
+    clearInterval(this.timer);
+    if (!min) return;
+    this.timer = setInterval(() => this.tick(), min * 60000);
+    window.addEventListener("focus", () => { this.unseen = 0; document.title = this.title; });
+  },
+  async tick() {
+    if (document.hidden) return;
+    let r;
+    try { r = await api("GET", "/api/queue/check"); } catch (e) { return; }  // quiet: next tick retries
+    if (!r.checked || !r.new) return;
+    renderStats(r.stats);
+    renderBanner(r.stats);
+    const names = (r.names || []).join("، ");
+    toast(`🆕 ${r.new === 1 ? "عميل جديد" : `${r.new} عملاء جدد`} في Google Sheet${names ? `: ${names}` : ""}`, "info", 9000);
+    if (!document.hasFocus()) { this.unseen += r.new; document.title = `(${this.unseen} جديد) ${this.title}`; }
+    if (S.payload && S.payload.done && !resultOpen()) loadCurrent();  // the list was finished: show the new one
+  },
+};
+
+// ------------------------------------------------------------ voice dictation
+const MIC_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+/**
+ * Dictate the result note (Arabic) with the browser's speech recognition (Chrome / Edge).
+ * It only fills the note: the user reads it, fixes it and chooses the result before saving.
+ * Browsers allow the microphone only on https or localhost, so on the PC it works; on the phone
+ * (plain http over Tailscale) the keyboard's own microphone is used instead.
+ */
+const Dictation = {
+  rec: null, target: null, btn: null, base: "",
+  supported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition) && window.isSecureContext; },
+  toggle(target, btn) { if (this.rec) this.stop(); else this.start(target, btn); },
+  start(target, btn) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR();
+    rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
+    this.rec = rec; this.target = target; this.btn = btn;
+    this.base = target.value.trim() ? target.value.trim() + " " : "";
+    rec.onresult = (ev) => {
+      let finalText = "", interim = "";
+      for (let i = 0; i < ev.results.length; i++) {
+        const r = ev.results[i];
+        if (r.isFinal) finalText += r[0].transcript + " "; else interim += r[0].transcript;
+      }
+      target.value = (this.base + finalText + interim).replace(/\s+/g, " ").trimStart();
+      target.dispatchEvent(new Event("input"));
+    };
+    rec.onerror = (ev) => {
+      const msg = ev.error === "not-allowed" || ev.error === "service-not-allowed" ? "اسمح للمتصفح باستخدام الميكروفون ثم أعد المحاولة."
+        : ev.error === "network" ? "الإملاء يحتاج اتصال إنترنت." : ev.error === "no-speech" ? "لم يُسمع كلام." : "";
+      if (msg) toast(msg, "warn", 6000);
+    };
+    rec.onend = () => this.stop();
+    try { rec.start(); } catch (e) { this.stop(); return; }
+    btn.classList.add("recording");
+    $("span", btn).textContent = "جاري الاستماع… اضغط للإيقاف";
+    target.focus();
+  },
+  stop() {
+    if (this.rec) { const r = this.rec; this.rec = null; try { r.stop(); } catch (e) { /* already stopped */ } }
+    if (this.btn) { this.btn.classList.remove("recording"); const s = $("span", this.btn); if (s) s.textContent = "إملاء بالصوت"; }
+  },
+};
+
+// ------------------------------------------------------------ daily goal
+function renderGoal(st) {
+  const box = $("#goal");
+  if (!box) return;
+  const goal = st.goal || 0, done = st.contacted || 0;
+  box.classList.toggle("hidden", !goal);
+  if (!goal) return;
+  const pctDone = Math.min(100, Math.round((done / goal) * 100));
+  const reached = done >= goal;
+  box.classList.toggle("done", reached);
+  box.setAttribute("aria-valuemax", goal); box.setAttribute("aria-valuenow", done);
+  box.innerHTML = `<span class="g-label">هدف اليوم</span><span class="g-track"><span class="g-fill" style="width:${pctDone}%"></span></span>
+    <span class="g-num">${done} / ${goal} ${reached ? "🎉 تم تحقيق الهدف" : `(${pctDone}%)`}</span>`;
+  if (reached && S.goalShown !== new Date().toDateString()) {
+    if (S.goalShown !== undefined) toast(`أحسنت! وصلت لهدف اليوم (${goal}).`, "success", 6000);
+    S.goalShown = new Date().toDateString();
+  } else if (!reached && S.goalShown === undefined) S.goalShown = null;
+}
+
+// ------------------------------------------------ follow-ups / duplicates banner
+function renderBanner(st) {
+  const box = $("#fu-banner");
+  if (!box || !st) return;
+  const parts = [];
+  if (st.followups_due) {
+    parts.push(`<div class="alert ${st.followups_overdue ? "error" : "info"} banner-row"><span>📅 <b>لديك ${st.followups_due} ${st.followups_due === 1 ? "متابعة" : "متابعات"} اليوم</b>${st.followups_overdue ? ` (منها ${st.followups_overdue} متأخرة)` : ""} — تظهر أولًا في القائمة.</span>
+      <button class="btn sm" data-list="followups">عرض المتابعات</button></div>`);
+  }
+  if (st.duplicates) {
+    parts.push(`<div class="alert warn banner-row"><span>⚠ <b>${st.duplicates} ${st.duplicates === 1 ? "رقم مكرر" : "أرقام مكررة"}</b> في Google Sheet (نفس الرقم في أكثر من صف).</span>
+      <button class="btn sm" data-list="duplicates">عرض</button></div>`);
+  }
+  box.innerHTML = parts.join("");
+  $$("[data-list]", box).forEach((b) => b.onclick = () => showLeadList(b.dataset.list));
+}
+
+// ---------------------------------------------- no answer / follow-up / duplicates on the card
+function outcomeAlerts(lead) {
+  const o = lead.outcome || {};
+  const out = [];
+  if (o.followup_state) {
+    const [c, l] = FU_STATE[o.followup_state];
+    out.push(`<div class="alert ${o.followup_state === "overdue" ? "error" : o.followup_state === "due" ? "warn" : "info"}">
+      📅 <b>متابعة ${l === "قادمة" ? "مجدولة" : l}:</b> <span class="ltr">${esc(o.followup_at)}</span>${o.followup_note ? ` — ${esc(o.followup_note)}` : ""}</div>`);
+  }
+  if (o.no_answer_streak) {
+    if (o.attempts_reached) {
+      out.push(`<div class="alert warn"><b>العميل لم يرد ${o.no_answer_streak} ${o.no_answer_streak <= 10 ? "مرات" : "مرة"} متتالية</b> (آخرها ${esc(o.last_at)}).
+        <div class="actions"><button class="btn sm wa" data-oc="wa">${ICON.wa} إرسال واتساب</button>
+        <button class="btn sm" data-oc="invalid">تسجيل: بيانات التواصل غير صحيحة</button></div></div>`);
+    } else {
+      out.push(`<div class="alert info">لم يرد ${o.no_answer_streak === 1 ? "مرة واحدة" : `${o.no_answer_streak} مرات`} (آخرها ${esc(o.last_at)})${o.max_attempts ? ` · المحاولة ${o.no_answer_streak + 1} من ${o.max_attempts}` : ""}</div>`);
+    }
+  }
+  if ((lead.duplicates || []).length) {
+    out.push(`<div class="alert warn">⚠ <b>هذا الرقم مكرر في Google Sheet:</b> ${lead.duplicates.map((d) => `صف ${d.row} — ${esc(d.company || "—")} (${esc(d.owner || "بدون مسؤول")}${d.status ? " · " + esc(d.status) : ""})`).join("، ")}</div>`);
+  }
+  return out.join("");
+}
+function bindOutcomeButtons(lead) {
+  const wa = $('[data-oc="wa"]');
+  if (wa) wa.onclick = () => askWhatsApp(lead);
+  const inv = $('[data-oc="invalid"]');
+  if (inv) inv.onclick = async () => { stopCall(); await openResultPanel(); selectResult("INVALID_NUMBER"); };
+}
+
+// ------------------------------------------------------------------ WhatsApp
+async function askWhatsApp(lead) {
+  let o;
+  try { o = await api("GET", `/api/lead/${lead.fingerprint}/whatsapp`); } catch (e) { toast(e.message, "error"); return; }
+  const nums = o.numbers || [];
+  const tpls = o.templates || [];
+  Modal.open({
+    title: "رسالة واتساب", wide: false,
+    html: `${o.dry_run && o.log ? '<div class="alert warn">Dry Run مفعّل: ستفتح الرسالة في واتساب، لكن لن تُسجَّل في Odoo أو Google Sheet.</div>' : ""}
+      <label class="field"><span>الرقم</span>
+        ${nums.length ? `<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px">${nums.map((n, i) => `<button type="button" class="btn sm ${i === 0 ? "primary" : ""}" data-num="${i}">${esc(n.label)}: <span class="ltr">${esc(n.raw)}</span></button>`).join("")}</div>` : '<div class="small muted">لا يوجد رقم جوال صالح للواتساب؛ اكتبه يدويًا.</div>'}
+        <input type="text" inputmode="tel" id="wa-tel" class="ltr" value="${esc(nums[0] ? nums[0].raw : "")}"></label>
+      ${tpls.length ? `<div class="field"><span>القالب</span><div class="row" style="gap:6px;flex-wrap:wrap">${tpls.map((tp, i) => `<button type="button" class="btn sm ${i === 0 ? "primary" : ""}" data-tpl="${i}">${esc(tp.name || "قالب " + (i + 1))}</button>`).join("")}</div></div>` : ""}
+      <label class="field"><span>نص الرسالة (يمكنك تعديله)</span><textarea id="wa-text" rows="6">${esc(tpls[0] ? tpls[0].text : "")}</textarea></label>
+      <label class="check"><input type="checkbox" id="wa-log" ${o.log ? "checked" : ""}> تسجيل الرسالة في Odoo (Log note) وملاحظات Google Sheet</label>
+      <div class="small muted">سيفتح واتساب والرسالة جاهزة؛ اضغط «إرسال» داخل واتساب.</div><div id="wa-msg"></div>`,
+    buttons: [{ label: "فتح واتساب", cls: "primary", onClick: (btn) => sendWhatsApp(lead, btn) }, { label: "إلغاء" }],
+    onOpen: (m) => {
+      let tplName = tpls[0] ? tpls[0].name : "";
+      $("#wa-text", m).dataset.tpl = tplName;
+      $$("[data-num]", m).forEach((b) => b.onclick = () => {
+        $$("[data-num]", m).forEach((x) => x.classList.toggle("primary", x === b));
+        $("#wa-tel", m).value = nums[+b.dataset.num].raw;
+      });
+      $$("[data-tpl]", m).forEach((b) => b.onclick = () => {
+        $$("[data-tpl]", m).forEach((x) => x.classList.toggle("primary", x === b));
+        const tp = tpls[+b.dataset.tpl];
+        $("#wa-text", m).value = tp.text;
+        $("#wa-text", m).dataset.tpl = tp.name;
+      });
+    },
+  });
+}
+
+async function sendWhatsApp(lead, btn) {
+  const body = { tel: $("#wa-tel").value.trim(), text: $("#wa-text").value, template: $("#wa-text").dataset.tpl || "",
+                 log: $("#wa-log").checked };
+  // Open the tab now (inside the click) so the browser does not block it, then point it at WhatsApp.
+  const win = S.remote ? null : window.open("about:blank", "_blank");
+  await withBusy(btn, async () => {
+    let r;
+    try { r = await api("POST", `/api/lead/${lead.fingerprint}/whatsapp`, body); }
+    catch (e) { if (win) win.close(); $("#wa-msg").innerHTML = `<div class="alert error">${esc(e.message)}</div>`; return; }
+    if (win) win.location.href = r.url; else window.location.href = r.url;
+    Modal.close();
+    const logged = r.logged && !r.dry_run ? " وتم تسجيلها في Odoo والـSheet" : r.dry_run && r.logged ? " (Dry Run: لم تُسجَّل)" : "";
+    toast(`تم فتح واتساب${logged}. بعد الإرسال سجّل النتيجة.`, "success", 6000);
+    (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
   });
 }
 
@@ -281,6 +516,7 @@ function render(payload) {
   S.payload = payload;
   S.lead = payload.lead;
   renderStats(payload.stats);
+  renderBanner(payload.stats);
   renderSession(payload.session);
   $("#global-msg").innerHTML = (payload.warnings || []).map((w) => `<div class="alert warn">${esc(w)}</div>`).join("");
   $("#result-card").classList.add("hidden");
@@ -295,6 +531,7 @@ function render(payload) {
 function renderStats(st) {
   if (!st) return;
   $$("#stats .value").forEach((el) => { el.textContent = st[el.dataset.k] ?? "–"; });
+  renderGoal(st);
 }
 
 function renderSession(sess) {
@@ -359,11 +596,13 @@ function renderLead(lead) {
       ${lead.odoo ? `<div class="info wide"><div class="k">آخر ملاحظة في Odoo Chatter</div><div class="v note-box">${orDash(latestOdooNote(o))}</div></div>` : ""}
     </div>
     ${phoneProblems(lead.phone_check)}
+    ${outcomeAlerts(lead)}
     <div id="match-area"></div>
     <div id="lead-msg"></div>
     </div>
     <div class="action-bar">
       <button class="btn call" id="btn-call">${PHONE_ICON} اتصال الآن <kbd>C</kbd></button>
+      <button class="btn wa" id="btn-wa">${ICON.wa} واتساب <kbd>W</kbd></button>
       <button class="btn primary" id="btn-open">${ICON.open} فتح في Odoo <kbd>O</kbd></button>
       <button class="btn" id="btn-result">${ICON.result} تسجيل النتيجة <kbd>R</kbd></button>
       <button class="btn" id="btn-research">${ICON.search} إعادة البحث <kbd>F</kbd></button>
@@ -376,9 +615,11 @@ function renderLead(lead) {
   bindPhoneProblemButtons();
   $("#btn-copy").onclick = copyPhone;
   $("#btn-call").onclick = (ev) => startCall(ev.currentTarget);
-  $("#btn-open").onclick = (ev) => withBusy(ev.currentTarget, () => leadAction(`/api/lead/${fp}/open`));
+  $("#btn-wa").onclick = () => askWhatsApp(lead);
+  bindOutcomeButtons(lead);
+  $("#btn-open").onclick = (ev) => withBusy(ev.currentTarget, () => openInOdoo(fp));
   $("#btn-research").onclick = () => searchOdoo();
-  $("#btn-refresh").onclick = (ev) => withBusy(ev.currentTarget, () => leadAction(`/api/lead/${fp}/refresh`, {}, "تم تحديث البيانات"));
+  $("#btn-refresh").onclick = (ev) => withBusy(ev.currentTarget, () => refreshAll(fp));
   $("#btn-skip").onclick = () => askSkip(fp);
   $("#btn-result").onclick = () => openResultPanel();
 }
@@ -398,15 +639,28 @@ function renderMatch(lead) {
   if (st === "matched") {
     area.innerHTML = `<div class="alert success">تمت المطابقة مع Odoo: <b>${esc((lead.odoo || {}).name || "")}</b>
       ${lead.odoo && lead.odoo.salesperson ? ` · المسؤول: ${esc(lead.odoo.salesperson)}` : ""}</div>`;
+  } else if (st === "multiple" && WEAK_MATCH.includes(lead.match_strategy)) {
+    area.innerHTML = `<div class="alert error"><b>هذا العميل غير موجود في Odoo</b>
+      <div class="small">لا يوجد Lead بنفس رقم الجوال أو نفس اسم المنشأة. وجدنا ${(lead.candidates || []).length} ${(lead.candidates || []).length > 2 ? "أسماء مشابهة" : "اسم مشابه"} فقط — تأكد أنه ليس منها، أو أضفه إلى Odoo.</div>
+      <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة العميل إلى Odoo <kbd>A</kbd></button>
+      <button class="btn sm" id="btn-choose">عرض الأسماء المشابهة</button><button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
+    $("#btn-create").onclick = () => askCreateLead(lead);
+    $("#btn-choose").onclick = () => chooseCandidate(lead);
+    $("#btn-skip2").onclick = () => askSkip(lead.fingerprint);
   } else if (st === "multiple") {
     area.innerHTML = `<div class="alert warn"><b>وجدنا أكثر من عميل محتمل في Odoo.</b> لن يتم الاختيار تلقائيًا.
-      <div class="actions"><button class="btn primary sm" id="btn-choose">اختيار العميل الصحيح</button></div></div>`;
+      <div class="actions"><button class="btn primary sm" id="btn-choose">اختيار العميل الصحيح</button>
+      <button class="btn sm" id="btn-create">${ICON.plus} ليس منهم؟ إضافته كعميل جديد</button></div></div>`;
     $("#btn-choose").onclick = () => chooseCandidate(lead);
+    $("#btn-create").onclick = () => askCreateLead(lead);
   } else if (st === "not_found") {
-    area.innerHTML = `<div class="alert error"><b>لم يتم العثور على العميل في Odoo</b>
+    area.innerHTML = `<div class="alert error"><b>هذا العميل غير موجود في Odoo</b>
+      <div class="small">لم نجد Lead بنفس رقم الجوال أو اسم المنشأة. يمكنك إضافته الآن إلى Odoo، أو البحث باسم أو رقم آخر.</div>
+      <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة العميل إلى Odoo <kbd>A</kbd></button></div>
       <div class="row" style="margin-top:10px"><input type="text" id="custom-q" placeholder="بحث باسم أو رقم آخر" style="max-width:320px">
       <button class="btn sm" id="btn-re">إعادة البحث</button><button class="btn sm" id="btn-crm">فتح CRM</button>
       <button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
+    $("#btn-create").onclick = () => askCreateLead(lead);
     $("#btn-re").onclick = () => searchOdoo($("#custom-q").value);
     $("#btn-crm").onclick = openCrm;
     $("#btn-skip2").onclick = () => askSkip(lead.fingerprint);
@@ -538,6 +792,7 @@ async function searchOdoo(query = "") {
     const payload = await api("POST", `/api/lead/${fp}/search`, { query });
     render(payload);
     refreshStatus();
+    if (isMissing(payload.lead)) toast("العميل غير موجود في Odoo — يمكنك إضافته إليه من الـAgent.", "warn", 6000);
   } catch (e) {
     if (e.code !== "ODOO_LOGIN_REQUIRED") { S.lead.match_status = "error"; renderMatch(S.lead); }
     handleOdooError(e, () => searchOdoo(query));
@@ -589,6 +844,120 @@ function chooseCandidate(lead) {
       await leadAction(`/api/lead/${lead.fingerprint}/select`, { odoo_id: c.id, ui_index: c.ui_index, ui_query: c.ui_query || "" }, "تم اختيار العميل");
     })),
   });
+}
+
+// ------------------------------------------------------ add missing customer to Odoo
+const NEW_TYPE_AR = { lead: "Lead جديد (قائمة Leads)", opportunity: "فرصة جديدة (Pipeline)" };
+/** Found only by similar names (never by phone or the exact name): the customer itself is missing. */
+const WEAK_MATCH = ["company_partial", "ui_search"];
+function isMissing(lead) {
+  return !!lead && (lead.match_status === "not_found" || (lead.match_status === "multiple" && WEAK_MATCH.includes(lead.match_strategy)));
+}
+
+/** «فتح في Odoo»: open the linked lead; a customer missing from Odoo is offered to be added (never a bare CRM page). */
+async function openInOdoo(fp) {
+  const url = S.lead && S.lead.fingerprint === fp && S.lead.odoo && S.lead.odoo.url;
+  if (S.remote && url) { window.open(url, "_blank", "noopener"); return; }  // on the phone: Odoo in its own browser
+  let payload;
+  try { payload = await api("POST", `/api/lead/${fp}/open`); } catch (e) { handleOdooError(e, () => openInOdoo(fp)); return; }
+  render(payload);
+  refreshStatus();
+  if (payload.open) promptLink(payload.lead);
+}
+
+/** The customer is not linked to a lead: ask to add it, or to pick the right one. */
+function promptLink(lead) {
+  if (!lead) return;
+  if (isMissing(lead)) {
+    toast("هذا العميل غير موجود في Odoo — أضفه إلى Odoo.", "warn", 6000);
+    askCreateLead(lead);
+  } else if (lead.match_status === "multiple") {
+    chooseCandidate(lead);
+  } else {
+    toast("العميل غير مربوط بـLead في Odoo. اضغط «إعادة البحث».", "warn", 6000);
+  }
+}
+
+function askCreateLead(lead) {
+  const dry = !!(S.settings && S.settings.dry_run);
+  const typeAr = NEW_TYPE_AR[(S.settings && S.settings.odoo_new_record_type) || "lead"];
+  Modal.open({
+    title: `إضافة العميل إلى Odoo كـ${typeAr}`,
+    html: `<p class="muted">سيتم البحث في Odoo مرة أخرى بالاسم والرقم قبل الإضافة حتى لا يتكرر العميل. ستكون أنت المسؤول (Salesperson).</p>
+      ${dry ? '<div class="alert warn">Dry Run مفعّل: ستظهر معاينة فقط ولن تتم الإضافة فعليًا. عطّله من الإعدادات للإضافة الحقيقية.</div>' : ""}
+      <label class="field"><span>اسم الشركة *</span><input type="text" id="new-company" maxlength="200" value="${esc(lead.company_name)}"></label>
+      <label class="field"><span>رقم الجوال *</span><input type="text" inputmode="tel" id="new-phone" class="ltr" maxlength="40" value="${esc(lead.phone)}"></label>
+      <label class="field"><span>اسم الشخص المسؤول لدى العميل (اختياري)</span><input type="text" id="new-contact" maxlength="120"></label>
+      <label class="field"><span>المصدر (Source) — من Google Sheet</span><input type="text" id="new-source" maxlength="200" value="${esc(lead.sheet_source)}" placeholder="مثال: Meta || Leads"></label>
+      <div class="small muted" style="margin-top:-6px">يُربط بمصدر موجود في Odoo بنفس الاسم أو حسب Source Mapping في الإعدادات.</div>
+      <div id="new-msg"></div>`,
+    buttons: [
+      { label: dry ? "معاينة الإضافة (Dry Run)" : "إضافة إلى Odoo", cls: "primary", onClick: (btn) => withBusy(btn, () => submitCreateLead(lead, false)) },
+      { label: "إلغاء" },
+    ],
+    onOpen: () => $("#new-company").focus(),
+  });
+}
+
+async function submitCreateLead(lead, force) {
+  const body = { company: $("#new-company").value.trim(), phone: $("#new-phone").value.trim(),
+                 contact_name: $("#new-contact").value.trim(), source: $("#new-source").value.trim(), force };
+  if (!body.company || !body.phone) {
+    $("#new-msg").innerHTML = '<div class="alert error">اسم الشركة ورقم الجوال مطلوبان.</div>';
+    return;
+  }
+  let payload;
+  try {
+    payload = await api("POST", `/api/lead/${lead.fingerprint}/create-odoo`, body);
+  } catch (e) {
+    if (e.code === "ODOO_LOGIN_REQUIRED") { Modal.close(); handleOdooError(e, () => askCreateLead(lead)); return; }
+    $("#new-msg").innerHTML = `<div class="alert error">${esc(e.message)}</div>`;
+    return;
+  }
+  const cr = payload.create || {};
+  if (cr.status === "dry_run") {
+    const v = cr.values || {};
+    $("#new-msg").innerHTML = `<div class="alert warn"><b>Dry Run — لم تتم الإضافة إلى Odoo.</b>
+      <div class="kv" style="margin-top:8px"><div class="k">Name</div><div>${orDash(v.name)}</div>
+      <div class="k">Company</div><div>${orDash(v.partner_name)}</div><div class="k">Phone</div><div class="ltr">${orDash(v.phone)}</div>
+      <div class="k">Contact</div><div>${orDash(v.contact_name)}</div><div class="k">Type</div><div>${orDash(v.type)}</div>
+      <div class="k">Source</div><div>${orDash(v.source_name)}</div><div class="k">Medium</div><div>${orDash(v.medium_name)}</div></div></div>`;
+    return;
+  }
+  if (cr.status === "created") {
+    Modal.close();
+    render(payload);
+    toast(`تمت إضافة العميل إلى Odoo كـ${NEW_TYPE_AR[cr.type] || "Lead جديد"} (#${cr.id})`, "success", 6000);
+    (payload.warnings || []).forEach((w) => toast(w, "warn", 9000));
+    return;
+  }
+  if (cr.status === "exists") {
+    const cands = (payload.lead && payload.lead.candidates) || [];
+    if (cr.match === "matched" || !cr.can_force) {
+      Modal.close();
+      render(payload);
+      toast(cr.match === "matched" ? "العميل موجود بالفعل في Odoo، وتم ربطه بدل إنشاء عميل مكرر."
+                                   : "يوجد أكثر من عميل بنفس البيانات في Odoo؛ اختر الصحيح بدل إنشاء عميل مكرر.", "warn", 7000);
+      return;
+    }
+    render(payload);
+    Modal.open({
+      title: "وجدنا عملاء بأسماء مشابهة في Odoo", wide: true,
+      html: `<p class="muted">تأكد أن العميل ليس واحدًا منهم. إذا وجدته اختره، وإلا أضفه كعميل جديد.</p>${candidateTable(cands, "هذا هو")}
+        <input type="hidden" id="new-company" value="${esc(body.company)}"><input type="hidden" id="new-phone" value="${esc(body.phone)}">
+        <input type="hidden" id="new-contact" value="${esc(body.contact_name)}"><input type="hidden" id="new-source" value="${esc(body.source)}"><div id="new-msg"></div>`,
+      buttons: [
+        { label: "ليس منهم — إضافة كعميل جديد", cls: "primary", onClick: (btn) => withBusy(btn, () => submitCreateLead(lead, true)) },
+        { label: "إلغاء" },
+      ],
+      onKey: digitPicker,
+      onOpen: (m) => $$("button[data-i]", m).forEach((b) => b.onclick = () => withBusy(b, async () => {
+        const c = cands[+b.dataset.i];
+        Modal.close();
+        await leadAction(`/api/lead/${lead.fingerprint}/select`, { odoo_id: c.id, ui_index: c.ui_index, ui_query: c.ui_query || "" }, "تم اختيار العميل");
+      })),
+    });
+  }
 }
 
 function askSkip(fp) {
@@ -671,7 +1040,7 @@ async function startCall(btn, opts = {}) {
   try {
     await withBusy(btn, async () => {
       try {
-        const body = { target: opts.target || "auto", force: !!opts.force };
+        const body = { target: opts.target || "auto", force: !!opts.force, client_dial: !!S.remote };
         const r = manual ? await api("POST", "/api/manual/call", { ...body, odoo_id: manual.id })
                          : await api("POST", `/api/lead/${S.lead.fingerprint}/call`, body);
         S.call.startedAt = new Date(); S.call.endedAt = null;
@@ -679,7 +1048,8 @@ async function startCall(btn, opts = {}) {
         clearInterval(S.call.timer);
         S.call.timer = setInterval(() => { $("#call-timer").textContent = fmtDuration((Date.now() - S.call.startedAt) / 1000); }, 500);
         $("#call-timer").textContent = "00:00";
-        const via = r.method === "fast_tel" ? "مباشرة إلى Phone Link" : "من Odoo";
+        if (r.method === "client_tel") window.location.href = `tel:${r.tel}`;  // the phone dials itself
+        const via = r.method === "client_tel" ? "من هذا الجوال" : r.method === "fast_tel" ? "مباشرة إلى Phone Link" : "من Odoo";
         toast(`جاري الاتصال بـ ${r.tel || r.phone} (${FIELD_AR[r.phone_field] || r.phone_field}) ${via}. أكمل المكالمة من الجوال.`, "success", 6000);
         (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
       } catch (e) {
@@ -690,6 +1060,8 @@ async function startCall(btn, opts = {}) {
           showPhoneInvalid(e, btn);
         } else if (e.code === "PHONE_INVALID") {
           showPhoneInvalid(e, btn);
+        } else if (e.code === "NOT_MATCHED" && S.lead && !manual && ["not_found", "multiple"].includes((e.details || {}).match_status)) {
+          promptLink(S.lead);
         } else handleOdooError(e, () => startCall(btn, opts));
       }
     });
@@ -754,7 +1126,9 @@ async function openResultPanel(prev = null) {
     <div class="more-status hidden" id="r-more"><div class="small muted" style="margin-bottom:6px">حالات أخرى من قائمة «حالة المتابعة» في الـSheet:</div>
       <div class="more-chips" id="r-more-chips"></div></div>
     <div style="margin-top:16px">
-      <label class="field"><span>ملاحظة حرة</span><textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
+      <label class="field"><span class="note-head">ملاحظة حرة ${Dictation.supported() ? `<button type="button" class="btn sm mic" id="r-mic" title="إملاء الملاحظة بالصوت (M)">${MIC_ICON}<span>إملاء بالصوت</span></button>`
+        : S.remote ? '<span class="small muted">للإملاء: اضغط ميكروفون لوحة مفاتيح الجوال 🎤</span>' : ""}</span>
+        <textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
       <div id="r-followup" class="form-grid hidden">
         <label class="field"><span>تاريخ المتابعة</span><input type="date" id="r-fdate"></label>
         <label class="field"><span>الوقت</span><input type="time" id="r-ftime"></label>
@@ -785,7 +1159,8 @@ async function openResultPanel(prev = null) {
   $$(".result-btn", card).forEach((b) => b.onclick = () => selectResult(b.dataset.code));
   ["#r-sheet", "#r-odoo"].forEach((sel) => { $(sel).onchange = updateWriteSummary; });
   updateWriteSummary();
-  $("#r-cancel").onclick = () => card.classList.add("hidden");
+  $("#r-cancel").onclick = () => { Dictation.stop(); card.classList.add("hidden"); };
+  if ($("#r-mic")) $("#r-mic").onclick = () => Dictation.toggle($("#r-note"), $("#r-mic"));
   $("#r-save").onclick = (ev) => saveResult(ev.currentTarget, false);
   $("#r-preview").onclick = (ev) => saveResult(ev.currentTarget, true);
   card.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -907,6 +1282,7 @@ function buildResultBody(previewOnly) {
 }
 
 async function saveResult(btn, previewOnly) {
+  Dictation.stop();
   if (!S.result.code) { toast("اختر نتيجة التواصل أولًا", "warn"); return; }
   if (S.busy) return;               // double-click protection (plus server idempotency key)
   S.busy = true;

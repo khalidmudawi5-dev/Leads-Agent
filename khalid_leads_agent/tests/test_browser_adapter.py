@@ -162,9 +162,10 @@ def test_browser_closed_by_user_is_relaunched(adapter, fake_odoo):
     async def close_ctx():
         await adapter._context.close()
     run(adapter, adapter._rt.submit(close_ctx()))
-    # Session cookie lived only in memory for this test, so a relaunch shows the login page again.
-    st = run(adapter, adapter.login_status())
-    assert st.browser_open and not st.logged_in
+    assert not adapter.browser_started
+    # A visible action relaunches the window (the saved session keeps the user signed in).
+    lead = run(adapter, adapter.open_lead(OdooLead(id=7)))
+    assert adapter.browser_started and lead.company_name == "مؤسسة الاختبار"
 
 
 def test_windows_handler_mode_reads_odoo_call_link(adapter, fake_odoo, monkeypatch):
@@ -218,3 +219,95 @@ def test_dom_chatter_fallback(adapter, fake_odoo):
         return await adapter._w_dom_chatter(await adapter._w_page())
     rows = run(adapter, adapter._rt.submit(dom()))
     assert rows[0]["author"] == "سارة" and "عرض سعر" in rows[0]["body"] and rows[0]["date"] == "2026-09-22 14:10:00"
+
+
+def test_create_lead_via_rpc(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    lead = run(adapter, adapter.create_lead({"name": "مؤسسة جديدة", "partner_name": "مؤسسة جديدة",
+                                             "phone": "+966 55 000 1111", "contact_name": "", "type": "opportunity"}))
+    assert lead.id and lead.company_name == "مؤسسة جديدة" and lead.phone == "+966 55 000 1111"
+    assert lead.lead_type == "opportunity" and lead.salesperson == "Khalid Test"
+    # Empty values are not sent; the logged-in user becomes the salesperson.
+    assert fake_odoo.state.created == [{"name": "مؤسسة جديدة", "partner_name": "مؤسسة جديدة",
+                                        "phone": "+966 55 000 1111", "type": "opportunity", "user_id": 2}]
+    assert [f.id for f in run(adapter, adapter.search_by_phone("966550001111"))] == [lead.id]
+    # Source/medium: linked only when a UTM record with that name exists (case-insensitive).
+    other = run(adapter, adapter.create_lead({"name": "ب", "partner_name": "ب", "phone": "0550002222",
+                                              "source_name": "meta", "medium_name": "Leads"}))
+    assert other.source == "Meta" and other.medium == "Leads"
+    unknown = run(adapter, adapter.create_lead({"name": "ج", "partner_name": "ج", "phone": "0550003333",
+                                                "source_name": "تيك توك", "medium_name": ""}))
+    assert unknown.source == "" and "source_id" not in fake_odoo.state.created[-1]
+
+
+def test_ui_search_fallback_removes_filters_ignores_samples_and_returns(adapter, fake_odoo):
+    """The CRM-screen search (used when RPC is unavailable) must not leave the user on the pipeline."""
+    login(adapter, fake_odoo)
+    run(adapter, adapter.open_lead(OdooLead(id=7)))
+
+    async def search(q):
+        rows = await adapter._w_ui_search(q)
+        return rows, (await adapter._w_page()).url
+
+    rows, url = run(adapter, adapter._rt.submit(search("مؤسسة الاختبار")))
+    assert [r.name for r in rows] == ["مؤسسة | الاختبار"]  # «My Pipeline» removed first; not the sample cards
+    assert url.endswith("/odoo/crm.lead/7")  # back on the lead, not the pipeline
+    rows, url = run(adapter, adapter._rt.submit(search("غير موجود")))
+    assert rows == [] and url.endswith("/odoo/crm.lead/7")
+
+
+
+@pytest.mark.skipif(not os.environ.get("DISPLAY"), reason="needs a display (run under xvfb-run)")
+def test_background_reads_keep_window_minimized(fake_odoo, tmp_path):
+    """Refresh/search launches the browser minimized (no blank window pops up); opening a lead shows it.
+
+    The OS window state is simulated (a bare X server has no window manager to minimize with).
+    """
+    from app.adapters.odoo.browser_adapter import BrowserOdooAdapter
+
+    settings = AppSettings(odoo_base_url=fake_odoo.url, browser_headless=False, browser_executable_path=EXE,
+                           navigation_timeout_ms=8000, action_timeout_ms=4000, retry_attempts=1)
+    ad = BrowserOdooAdapter(lambda: settings, tmp_path / "profile", tmp_path / "shots", tmp_path / "snaps")
+    window = {"state": "normal"}
+
+    async def fake_state(page, state=None):
+        if state:
+            window["state"] = state
+        return window["state"]
+
+    ad._w_window_state = fake_state
+    try:
+        login(ad, fake_odoo)  # launches the browser
+        assert window["state"] == "minimized"
+        assert [f.id for f in run(ad, ad.search_by_phone("966561234567"))] == [7]
+        run(ad, ad.get_lead(7))
+        assert window["state"] == "minimized"  # background reads never show the window
+        run(ad, ad.open_lead(OdooLead(id=7)))
+        assert window["state"] == "maximized"  # «فتح في Odoo» brings it up
+    finally:
+        asyncio.run(ad.close())
+
+
+def test_background_reads_use_saved_session_without_a_browser(adapter, fake_odoo, tmp_path):
+    """After one signed-in read, searches/reads work with the browser closed: no window is opened."""
+    login(adapter, fake_odoo)
+    assert run(adapter, adapter.login_status()).logged_in
+    session_file = tmp_path / "odoo-session.json"
+    assert session_file.exists()
+
+    async def close_window():  # the user closes the agent's Odoo window
+        await adapter._context.close()
+    run(adapter, adapter._rt.submit(close_window()))
+    assert not adapter.browser_started and adapter.quiet_ready
+
+    assert [f.id for f in run(adapter, adapter.search_by_phone("966561234567"))] == [7]
+    assert run(adapter, adapter.get_lead(7)).company_name == "مؤسسة الاختبار"
+    assert run(adapter, adapter.lead_signature(7))  # live sync works too
+    assert not adapter.browser_started  # still no browser window
+
+    # Expired session: polling stays quiet, a real read falls back to the browser (sign-in needed).
+    fake_odoo.state.session_expired = True
+    with pytest.raises(OdooLoginRequired):
+        run(adapter, adapter.lead_signature(7))
+    assert not session_file.exists() and not adapter.browser_started
+    assert run(adapter, adapter.lead_signature(7)) is None  # nothing saved any more: never launches

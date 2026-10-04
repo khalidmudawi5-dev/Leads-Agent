@@ -11,6 +11,7 @@
     <button class="tab" data-tab="status">Status Mapping</button>
     <button class="tab" data-tab="source">Source Mapping</button>
     <button class="tab" data-tab="automation">Automation</button>
+    <button class="tab" data-tab="followup">واتساب والمتابعة</button>
     <button class="tab" data-tab="advanced">Advanced</button>
   </div>
 
@@ -63,6 +64,8 @@
       <label class="field"><span>طريقة الكتابة في Chatter</span><select data-key="odoo_write_method">
         <option value="ui_first">واجهة Odoo أولًا ثم جلسة المتصفح (RPC)</option><option value="rpc_first">جلسة المتصفح (RPC) أولًا ثم الواجهة</option></select></label>
       <label class="field"><span>نوع Activity (XML ID)</span><input type="text" data-key="odoo_activity_type_xmlid" class="ltr"></label>
+      <label class="field"><span>العميل غير الموجود في Odoo يُضاف كـ</span><select data-key="odoo_new_record_type">
+        <option value="lead">Lead — يظهر في CRM › Leads (افتراضي)</option><option value="opportunity">Opportunity — يظهر في CRM › Pipeline</option></select></label>
       <label class="field"><span>طريقة تشغيل الاتصال</span><select data-key="call_launch_mode">
         <option value="fast">سريع: إرسال رقم Odoo مباشرة إلى Windows/Phone Link (افتراضي)</option>
         <option value="odoo_click">فتح العميل في Odoo والضغط على زر Call الموجود فيه</option>
@@ -128,6 +131,32 @@
       <label class="field"><span>عدد رسائل Chatter المعروضة</span><input type="number" min="5" max="200" data-key="chatter_history_limit"></label>
     </div>
     <div class="actions"><button class="btn primary" data-save="automation">حفظ</button></div>
+  </section>
+
+  <section class="tab-panel" data-panel="followup">
+    <h3>قوالب رسائل واتساب</h3>
+    <p class="muted small">المتغيرات: <span class="ltr">{company}</span> اسم المنشأة · <span class="ltr">{owner}</span> اسمك · <span class="ltr">{contact}</span> جهة الاتصال في Odoo · <span class="ltr">{date}</span> تاريخ اليوم.</p>
+    <div data-key="whatsapp_templates" data-type="templates" class="tpl-editor"></div>
+    <div class="actions" style="margin:8px 0 16px"><button class="btn sm" type="button" id="btn-add-tpl">+ إضافة قالب</button></div>
+    <div class="form-grid">
+      <label class="check"><input type="checkbox" data-key="whatsapp_log"> تسجيل رسائل واتساب في Odoo (Log note) وملاحظات Google Sheet</label>
+    </div>
+    <h3 style="margin-top:18px">المتابعات</h3>
+    <div class="form-grid">
+      <label class="check"><input type="checkbox" data-key="followups_first"> متابعات اليوم والمتأخرة تظهر أولًا في القائمة</label>
+      <label class="check"><input type="checkbox" data-key="hide_future_followups"> إخفاء العميل حتى يحين موعد متابعته</label>
+    </div>
+    <h3 style="margin-top:18px">لم يتم الرد</h3>
+    <div class="form-grid">
+      <label class="field"><span>يرجع العميل للقائمة بعد (ساعات) — 0 = لا يرجع في نفس الجلسة</span><input type="number" min="0" max="168" data-key="no_answer_retry_hours"></label>
+      <label class="field"><span>بعد كم محاولة بدون رد أقترح واتساب / رقم غير صحيح (0 = أبدًا)</span><input type="number" min="0" max="20" data-key="no_answer_max_attempts"></label>
+    </div>
+    <h3 style="margin-top:18px">الهدف اليومي والعملاء الجدد</h3>
+    <div class="form-grid">
+      <label class="field"><span>هدف المكالمات اليومي (0 = إخفاء)</span><input type="number" min="0" max="1000" data-key="daily_call_goal"></label>
+      <label class="field"><span>فحص Google Sheet للعملاء الجدد كل (دقائق) — 0 = إيقاف</span><input type="number" min="0" max="120" data-key="sheet_poll_minutes"></label>
+    </div>
+    <div class="actions"><button class="btn primary" data-save="followup">حفظ</button></div>
   </section>
 
   <section class="tab-panel" data-panel="advanced">

@@ -194,8 +194,8 @@ function cyclePalette() {
 }
 function toggleTheme() { setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"); }
 
-const PAGES = ["/", "/history", "/skipped", "/errors", "/settings", "/diagnostics"];
-const PAGE_TITLES = ["الرئيسية", "سجل المتابعات", "العملاء المتخطون", "الأخطاء", "الإعدادات", "التشخيص"];
+const PAGES = ["/", "/history", "/skipped", "/errors", "/settings", "/diagnostics", "/reports"];
+const PAGE_TITLES = ["الرئيسية", "سجل المتابعات", "العملاء المتخطون", "الأخطاء", "الإعدادات", "التشخيص", "التقارير"];
 Shortcuts.register([
   { code: "Slash", label: "?", shift: true, title: "عرض الاختصارات", group: "عام", run: () => Shortcuts.help() },
   { code: "KeyD", label: "D", alt: true, title: "تبديل الوضع الداكن / الفاتح", group: "عام", allowInInputs: true, run: toggleTheme },

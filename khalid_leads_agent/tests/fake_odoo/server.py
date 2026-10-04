@@ -50,6 +50,9 @@ class FakeOdooState:
         self.clock = 0
         self.calls_clicked: list[str] = []
         self.rpc_log_notes = 0
+        self.created: list[dict[str, Any]] = []
+        self.session_expired = False
+        self.utm: dict[str, dict[int, str]] = {"utm.source": {3: "Meta", 6: "Google"}, "utm.medium": {4: "Leads"}}
 
     def now(self) -> str:
         """Monotonic fake timestamps so every write gets a new write_date."""
@@ -88,6 +91,8 @@ def _match(rec: dict, term: list) -> bool:
     field, op, value = term
     if op == "=":
         return rec.get(field) == value
+    if op == "=ilike":
+        return str(rec.get(field) or "").lower() == str(value).lower()
     if op == "ilike":
         v = rec.get(field)
         if isinstance(v, list):
@@ -119,7 +124,7 @@ def make_app(state: FakeOdooState) -> FastAPI:
     app = FastAPI()
 
     def logged(request: Request) -> bool:
-        return request.cookies.get("session_id") == SESSION
+        return not state.session_expired and request.cookies.get("session_id") == SESSION
 
     @app.get("/web/login", response_class=HTMLResponse)
     def login_page():
@@ -164,6 +169,23 @@ def make_app(state: FakeOdooState) -> FastAPI:
             fields = kwargs.get("fields") or list(FIELDS)
             result = [{"id": state.leads[i]["id"], **{f: state.leads[i].get(f, False) for f in fields}}
                       for i in args[0] if i in state.leads]
+        elif model in ("utm.source", "utm.medium") and method == "search_read":
+            table = state.utm[model]
+            result = [{"id": i, "name": n} for i, n in table.items() if eval_domain({"name": n}, kwargs.get("domain", []))]
+        elif model == "crm.lead" and method == "create":
+            vals = args[0]
+            new_id = max(state.leads, default=0) + 1
+            rec = {f: False for f in FIELDS}
+            rec.update({"id": new_id, "active": True, "stage_id": [1, "جديد"], "write_date": state.now()})
+            rec.update({k: v for k, v in vals.items() if k not in ("user_id", "source_id", "medium_id")})
+            for fname, model_name in (("source_id", "utm.source"), ("medium_id", "utm.medium")):
+                if vals.get(fname):
+                    rec[fname] = [vals[fname], state.utm[model_name][vals[fname]]]
+            if vals.get("user_id"):
+                rec["user_id"] = [vals["user_id"], "Khalid Test"]
+            state.leads[new_id] = rec
+            state.created.append(dict(vals))
+            result = new_id
         elif model == "crm.lead" and method == "message_post":
             state.rpc_log_notes += 1
             for lead_id in args[0]:
@@ -205,6 +227,30 @@ def make_app(state: FakeOdooState) -> FastAPI:
     async def called(request: Request):
         state.calls_clicked.append((await request.json())["href"])
         return {"ok": True}
+
+    @app.get("/odoo/crm", response_class=HTMLResponse)
+    def pipeline(request: Request):
+        """CRM pipeline like Odoo 18 for a user in no sales team: a default «My Pipeline» filter
+        and, while it is active, only Odoo's fake sample cards."""
+        if not logged(request):
+            return RedirectResponse("/web/login", status_code=303)
+        names = json.dumps([r["partner_name"] or r["name"] for r in state.leads.values()], ensure_ascii=False)
+        return f"""<html><body><div class="o_web_client">
+          <div class="o_searchview"><span class="o_searchview_facet">My Pipeline <i class="o_facet_remove">x</i></span>
+            <input class="o_searchview_input"></div><div id="view"></div></div><script>
+          const names = {names};
+          document.querySelector(".o_facet_remove").onclick = (e) => e.target.parentElement.remove();
+          document.querySelector(".o_searchview_input").onkeydown = (e) => {{
+            if (e.key !== "Enter") return;
+            const view = document.getElementById("view");
+            if (document.querySelector(".o_searchview_facet")) {{
+              view.innerHTML = '<div class="o_kanban_renderer o_view_sample_data"><div class="o_kanban_record">REF0001</div><div class="o_kanban_record">REF0002</div></div>';
+              return;
+            }}
+            const hits = names.filter((n) => n.includes(e.target.value));
+            view.innerHTML = '<div class="o_kanban_renderer">' + hits.map((n) => '<div class="o_kanban_record">' + n + '</div>').join("") + '</div>';
+          }};
+          </script></body></html>"""
 
     @app.get("/odoo/crm.lead/{lead_id}", response_class=HTMLResponse)
     def form(lead_id: int, request: Request):

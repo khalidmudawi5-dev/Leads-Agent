@@ -143,6 +143,9 @@ class BrowserOdooAdapter(OdooAdapter):
         self._fields_cache: dict[str, dict[str, dict]] = {}
         self._uid: int | None = None
         self._open_lead_id: int | None = None
+        # Window-less HTTP client carrying the saved Odoo session (background reads never open a window).
+        self._quiet = None
+        self._saved_sid: str | None = None
 
     # ------------------------------------------------------------ plumbing
     @property
@@ -156,6 +159,14 @@ class BrowserOdooAdapter(OdooAdapter):
     @property
     def browser_started(self) -> bool:
         return self._context is not None and not self._closed
+
+    @property
+    def quiet_ready(self) -> bool:
+        """Odoo can be read now without opening a window (browser already open, or a saved session)."""
+        return self.browser_started or self._session_file().exists()
+
+    def _session_file(self) -> Path:
+        return self._default_profile.parent / "odoo-session.json"
 
     async def _exec(self, fn: Callable, *args):
         """Run a worker coroutine; relaunch once if the user closed the browser window."""
@@ -192,7 +203,9 @@ class BrowserOdooAdapter(OdooAdapter):
             kwargs["viewport"] = {"width": 1400, "height": 900}
         else:
             kwargs["no_viewport"] = True
-            kwargs["args"] = ["--start-maximized"]
+            # Start out of the way: background reads (search, refresh) never pop up a blank window.
+            # The window is shown only for actions the user sees (open lead, call, login).
+            kwargs["args"] = ["--start-minimized"]
         if s.browser_executable_path:
             kwargs["executable_path"] = s.browser_executable_path
         elif s.browser_channel in ("chrome", "msedge"):
@@ -214,6 +227,36 @@ class BrowserOdooAdapter(OdooAdapter):
         ctx.on("close", lambda *_: self._mark_closed())
         self._context, self._page, self._closed = ctx, None, False
         self._fields_cache.clear()
+        await self._w_restore_session(ctx)
+        if not s.browser_headless:
+            await self._w_window_state(await self._w_page(), "minimized")
+
+    async def _w_window_state(self, page, state: str | None = None) -> str:
+        """Read (and optionally set) the OS window state of ``page``: normal | minimized | maximized."""
+        try:
+            cdp = await self._context.new_cdp_session(page)
+            try:
+                win = await cdp.send("Browser.getWindowForTarget")
+                if state:
+                    if state != "normal" and win["bounds"].get("windowState") not in ("normal", state):
+                        # Chromium only switches minimized → maximized through normal.
+                        await cdp.send("Browser.setWindowBounds", {"windowId": win["windowId"],
+                                                                   "bounds": {"windowState": "normal"}})
+                    await cdp.send("Browser.setWindowBounds", {"windowId": win["windowId"],
+                                                               "bounds": {"windowState": state}})
+                    return state
+                return str(win["bounds"].get("windowState", ""))
+            finally:
+                await cdp.detach()
+        except Exception:  # noqa: BLE001 - cosmetic only
+            log.debug("Could not read/set the browser window state", exc_info=True)
+            return ""
+
+    async def _w_show(self, page) -> None:
+        """Bring the Odoo window in front of the user (restored from the taskbar if minimized)."""
+        if not self.s.browser_headless and await self._w_window_state(page) == "minimized":
+            await self._w_window_state(page, "maximized")
+        await page.bring_to_front()
 
     @staticmethod
     def _launch_error(exc: Exception) -> AgentError:
@@ -237,11 +280,90 @@ class BrowserOdooAdapter(OdooAdapter):
         return self._page
 
     # ------------------------------------------------------------------ RPC
-    async def _w_rpc(self, route: str, params: dict) -> Any:
+    async def _w_quiet_request(self):
+        """Playwright HTTP client (no browser, no window) with the saved Odoo session, or ``None``."""
+        if self._quiet is not None:
+            return self._quiet
+        try:
+            data = json.loads(self._session_file().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if data.get("base") != self.base or not data.get("cookies"):
+            return None
+        from playwright.async_api import async_playwright
+
+        if self._pw is None:
+            self._pw = await async_playwright().start()
+        self._quiet = await self._pw.request.new_context(storage_state={"cookies": data["cookies"], "origins": []})
+        return self._quiet
+
+    async def _w_drop_quiet(self, forget: bool = False) -> None:
+        if self._quiet is not None:
+            try:
+                await self._quiet.dispose()
+            except Exception:  # noqa: BLE001
+                pass
+            self._quiet = None
+        if forget:
+            self._saved_sid = None
+            try:
+                self._session_file().unlink()
+            except OSError:
+                pass
+
+    async def _w_restore_session(self, ctx) -> None:
+        """Give a (re)launched browser the saved session when its profile has none for this Odoo."""
+        try:
+            if any(c["name"] == "session_id" for c in await ctx.cookies(self.base)):
+                return
+            data = json.loads(self._session_file().read_text(encoding="utf-8"))
+            if data.get("base") == self.base and data.get("cookies"):
+                await ctx.add_cookies(data["cookies"])
+        except (OSError, ValueError):
+            return
+        except Exception:  # noqa: BLE001 - best effort only
+            log.info("Could not restore the saved Odoo session", exc_info=True)
+
+    async def _w_save_session(self) -> None:
+        """Remember the browser's Odoo session so later background reads need no window."""
+        try:
+            cookies = await self._context.cookies(self.base)
+        except Exception:  # noqa: BLE001
+            return
+        sid = next((c["value"] for c in cookies if c["name"] == "session_id"), None)
+        if not sid or sid == self._saved_sid:
+            return
+        path = self._session_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"base": self.base, "cookies": cookies}), encoding="utf-8")
+        self._saved_sid = sid
+        await self._w_drop_quiet()  # next quiet request uses the new session
+
+    async def _w_rpc(self, route: str, params: dict, quiet_only: bool = False) -> Any:
+        if not self.browser_started:
+            quiet = await self._w_quiet_request()
+            if quiet is not None:
+                try:
+                    return await self._w_post(quiet, route, params)
+                except OdooLoginRequired:
+                    log.info("Saved Odoo session expired; the browser is needed to sign in again")
+                    await self._w_drop_quiet(forget=True)
+                    if quiet_only:
+                        raise
+                except OdooRpcUnavailable:
+                    if quiet_only:
+                        raise
+            elif quiet_only:
+                raise OdooRpcUnavailable("no saved session")
         ctx = await self._w_context()
+        result = await self._w_post(ctx.request, route, params)
+        await self._w_save_session()
+        return result
+
+    async def _w_post(self, client, route: str, params: dict) -> Any:
         payload = {"jsonrpc": "2.0", "method": "call", "id": 1, "params": params}
         try:
-            resp = await ctx.request.post(
+            resp = await client.post(
                 self.base + route, data=json.dumps(payload), headers={"Content-Type": "application/json"},
                 timeout=self.s.navigation_timeout_ms,
             )
@@ -264,10 +386,12 @@ class BrowserOdooAdapter(OdooAdapter):
             raise OdooRpcError(str(data.get("message") or err.get("message") or name))
         return body.get("result") if isinstance(body, dict) else None
 
-    async def _w_call_kw(self, model: str, method: str, args: list | None = None, kwargs: dict | None = None) -> Any:
+    async def _w_call_kw(self, model: str, method: str, args: list | None = None, kwargs: dict | None = None,
+                         quiet_only: bool = False) -> Any:
         return await self._w_rpc(
             f"/web/dataset/call_kw/{model}/{method}",
             {"model": model, "method": method, "args": args or [], "kwargs": kwargs or {}},
+            quiet_only=quiet_only,
         )
 
     async def _w_fields(self, model: str = "crm.lead") -> dict[str, dict]:
@@ -472,7 +596,7 @@ class BrowserOdooAdapter(OdooAdapter):
     async def _w_open_url(self, url: str) -> None:
         page = await self._w_page()
         await page.goto(url)
-        await page.bring_to_front()
+        await self._w_show(page)
 
     async def open_login(self) -> None:
         await self._exec(self._w_open_url, self.base + "/web/login")
@@ -484,7 +608,8 @@ class BrowserOdooAdapter(OdooAdapter):
     async def _w_search_phone(self, phone_norm: str) -> list[OdooLead]:
         try:
             fields = await self._w_fields()
-        except OdooRpcUnavailable:
+        except OdooRpcUnavailable as exc:
+            log.warning("Odoo RPC unavailable (%s); searching phone through the CRM screen", exc)
             return await self._w_ui_search("0" + national_significant(phone_norm))
         nsn = national_significant(phone_norm)
         terms: list[list] = []
@@ -504,7 +629,8 @@ class BrowserOdooAdapter(OdooAdapter):
     async def _w_search_name(self, text: str) -> list[OdooLead]:
         try:
             fields = await self._w_fields()
-        except OdooRpcUnavailable:
+        except OdooRpcUnavailable as exc:
+            log.warning("Odoo RPC unavailable (%s); searching name through the CRM screen", exc)
             return await self._w_ui_search(text)
         terms = [[f, "ilike", text] for f in ("partner_name", "name", "contact_name", "partner_id") if f in fields]
         return await self._w_search(self._or_domain(terms))
@@ -512,9 +638,24 @@ class BrowserOdooAdapter(OdooAdapter):
     async def search_by_name(self, text: str) -> list[OdooLead]:
         return await self._exec(self._w_search_name, text)
 
-    async def _w_ui_search(self, query: str) -> list[OdooLead]:
-        """Fallback: type into the CRM search box and read visible rows/cards."""
+    async def _w_ui_search(self, query: str, restore: bool = True) -> list[OdooLead]:
+        """Fallback: type into the CRM search box and read visible rows/cards.
+
+        With ``restore`` the tab goes back to the page it showed before (the user is never left
+        on the CRM pipeline just because the agent searched).
+        """
         page = await self._w_page()
+        previous = page.url if page.url.startswith(self.base) and "/web/login" not in page.url else ""
+        try:
+            return await self._w_ui_search_rows(page, query)
+        finally:
+            if restore and previous and page.url != previous:
+                try:
+                    await page.goto(previous)
+                except Exception:  # noqa: BLE001 - best effort only
+                    log.info("Could not return to %s after a UI search", previous, exc_info=True)
+
+    async def _w_ui_search_rows(self, page, query: str) -> list[OdooLead]:
         await page.goto(self.s.crm_url)
         if await self._w_is_login_page(page):
             raise OdooLoginRequired()
@@ -522,9 +663,18 @@ class BrowserOdooAdapter(OdooAdapter):
         if box is None:
             shot = await self._w_screenshot("odoo-search-box-not-found")
             raise AutomationError("ODOO_SEARCH_BOX_NOT_FOUND", "تعذر العثور على مربع البحث في Odoo.", shot)
+        for _ in range(6):
+            facet, _ = await self._first_visible(page, S.FACET_REMOVE)
+            if facet is None:
+                break
+            await facet.click()
+            await page.wait_for_timeout(300)
         await box.fill(query)
         await box.press("Enter")
         await page.wait_for_timeout(1500)
+        for sel in S.SAMPLE_DATA:
+            if await page.locator(sel).count():
+                return []
         for sel in S.LIST_ROWS:
             rows = page.locator(sel)
             n = await rows.count()
@@ -535,7 +685,7 @@ class BrowserOdooAdapter(OdooAdapter):
         return []
 
     async def _w_open_ui_candidate(self, lead: OdooLead) -> int:
-        await self._w_ui_search(lead.ui_query)
+        await self._w_ui_search(lead.ui_query, restore=False)
         page = await self._w_page()
         for sel in S.LIST_ROWS:
             rows = page.locator(sel)
@@ -641,18 +791,19 @@ class BrowserOdooAdapter(OdooAdapter):
         return out
 
     async def _w_signature(self, lead_id: int) -> str | None:
-        if not self.browser_started:
+        if not self.quiet_ready:
             return None  # never launch a browser just to poll
+        q = not self.browser_started
         try:
-            recs = await self._w_call_kw("crm.lead", "read", [[lead_id]], {"fields": ["write_date"]}) or []
+            recs = await self._w_call_kw("crm.lead", "read", [[lead_id]], {"fields": ["write_date"]}, quiet_only=q) or []
             domain = [["model", "=", "crm.lead"], ["res_id", "=", lead_id]]
-            count = await self._w_call_kw("mail.message", "search_count", [domain])
+            count = await self._w_call_kw("mail.message", "search_count", [domain], quiet_only=q)
             last = await self._w_call_kw("mail.message", "search_read", [],
                                          {"domain": domain, "fields": ["write_date"], "limit": 1,
-                                          "order": "write_date desc, id desc"}) or []
+                                          "order": "write_date desc, id desc"}, quiet_only=q) or []
             acts = await self._w_call_kw("mail.activity", "search_read", [],
                                          {"domain": [["res_model", "=", "crm.lead"], ["res_id", "=", lead_id]],
-                                          "fields": ["write_date"], "order": "id asc"}) or []
+                                          "fields": ["write_date"], "order": "id asc"}, quiet_only=q) or []
         except (OdooRpcUnavailable, OdooRpcError):
             return None
         lead_wd = _val(recs[0].get("write_date")) if recs else "missing"
@@ -678,7 +829,7 @@ class BrowserOdooAdapter(OdooAdapter):
                     raise OdooLoginRequired()
                 if last == "form":
                     self._open_lead_id = lead_id
-                    await page.bring_to_front()
+                    await self._w_show(page)
                     return
             log.warning("Lead %s form not detected (attempt %s)", lead_id, attempt + 1)
         shot = await self._w_screenshot("odoo-open-lead-failed")
@@ -742,7 +893,7 @@ class BrowserOdooAdapter(OdooAdapter):
             log.info("Launched %s via Windows handler for lead %s", target, lead_id)
             return ActionOutcome(True, "windows_tel", sel)
         if loc is not None:
-            await page.bring_to_front()
+            await self._w_show(page)
             await loc.click()
             log.info("Clicked Odoo call control (%s) for lead %s", sel, lead_id)
             return ActionOutcome(True, "ui", sel)
@@ -873,6 +1024,39 @@ class BrowserOdooAdapter(OdooAdapter):
     async def schedule_activity(self, lead_id: int, date_deadline: str, summary: str, note: str) -> ActionOutcome:
         return await self._exec(self._w_schedule_activity, lead_id, date_deadline, summary, note)
 
+    # -------------------------------------------------------------- create
+    async def _w_create_lead(self, values: dict[str, Any]) -> OdooLead:
+        try:
+            fields = await self._w_fields()
+            values = dict(values)
+            for key, fname, model in (("source_name", "source_id", "utm.source"), ("medium_name", "medium_id", "utm.medium")):
+                name = (values.pop(key, "") or "").strip()
+                if name and fname in fields:
+                    found = await self._w_call_kw(model, "search_read", [],
+                                                  {"domain": [["name", "=ilike", name]], "fields": ["id"], "limit": 1})
+                    if found:
+                        values[fname] = found[0]["id"]
+            vals = {k: v for k, v in values.items() if k in fields and v not in ("", None)}
+            if "user_id" in fields and "user_id" not in vals:
+                if self._uid is None:
+                    await self._w_login_status()
+                if self._uid:
+                    vals["user_id"] = self._uid
+            new_id = await self._w_call_kw("crm.lead", "create", [vals])
+        except OdooLoginRequired:
+            raise
+        except (OdooRpcError, OdooRpcUnavailable) as exc:
+            log.warning("Creating a lead failed", exc_info=True)
+            raise AgentError("ODOO_CREATE_FAILED", f"تعذر إضافة العميل إلى Odoo: {exc}", actions=["retry"]) from exc
+        if isinstance(new_id, list):
+            new_id = new_id[0] if new_id else None
+        if not new_id:
+            raise AgentError("ODOO_CREATE_FAILED", "لم يرجع Odoo رقم العميل الجديد.", actions=["retry"])
+        return await self._w_get_lead(int(new_id))
+
+    async def create_lead(self, values: dict[str, Any]) -> OdooLead:
+        return await self._exec(self._w_create_lead, values)
+
     # --------------------------------------------------------- diagnostics
     async def _w_diagnostics(self) -> dict[str, Any]:
         page = await self._w_page()
@@ -921,6 +1105,7 @@ class BrowserOdooAdapter(OdooAdapter):
 
     async def _w_close(self) -> None:
         try:
+            await self._w_drop_quiet()
             if self._context is not None:
                 await self._context.close()
             if self._pw is not None:

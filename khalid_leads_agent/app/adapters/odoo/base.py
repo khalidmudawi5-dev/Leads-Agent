@@ -134,6 +134,27 @@ class OdooAdapter(ABC):
         """Fast path: hand a ``tel:`` URI straight to the OS (Windows → Phone Link). No browser involved."""
         raise AgentError("CALL_MODE_UNSUPPORTED", "الاتصال السريع غير مدعوم في هذا الوضع.")
 
+    async def create_lead(self, values: dict[str, Any]) -> OdooLead:
+        """Create a ``crm.lead`` (``name``, ``partner_name``, ``phone``, ``contact_name``, ``type``...).
+
+        ``source_name`` / ``medium_name`` are set only when a UTM source/medium with exactly
+        that name (case-insensitive) already exists in Odoo; nothing is created in UTM.
+
+        Only called after the user explicitly asked for it and a fresh search found nothing.
+        The current Odoo user becomes the salesperson. Returns the lead as read back from Odoo.
+        """
+        raise AgentError("ODOO_CREATE_UNSUPPORTED", "إضافة عميل جديد إلى Odoo غير مدعومة في هذا الوضع.")
+
+    @property
+    def browser_started(self) -> bool:
+        """Whether the Odoo browser window is already open."""
+        return True
+
+    @property
+    def quiet_ready(self) -> bool:
+        """Whether Odoo can be read without opening a browser window."""
+        return True
+
     async def lead_signature(self, lead_id: int) -> str | None:
         """Cheap fingerprint of the lead's current state in Odoo (fields + chatter + activities).
 

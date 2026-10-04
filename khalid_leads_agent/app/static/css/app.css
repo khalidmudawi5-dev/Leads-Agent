@@ -552,6 +552,120 @@ table.hist { table-layout: auto; }
   .sidebar { width: 210px; }
   .nav a kbd { display: none; }
 }
+/* ---------- reports */
+.rep-filters { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--text-2); font: inherit; font-weight: 700; font-size: .88rem; padding: 7px 14px; border-radius: 9px; cursor: pointer; }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+.rep-custom { display: flex; gap: 8px; align-items: flex-end; }
+.rep-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.rtile { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.rt-label { font-size: .82rem; color: var(--text-2); font-weight: 700; }
+.rt-value { font-size: 1.9rem; font-weight: 700; color: var(--text); line-height: 1.2; margin-top: 4px; }
+.rt-sub { font-size: .76rem; color: var(--muted); margin-top: 2px; }
+#rep-days { position: relative; }
+.colchart { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 8px; height: 240px; padding-top: 18px; }
+.cc-axis { display: flex; flex-direction: column; justify-content: space-between; font-size: .72rem; color: var(--muted); padding-bottom: 22px; text-align: left; }
+.cc-plot { position: relative; display: flex; align-items: stretch; gap: 2px; padding-bottom: 22px; }
+.cc-grid { position: absolute; inset: 0 0 22px 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+.cc-grid i { display: block; border-top: 1px solid var(--border); }
+.cc-col { position: relative; flex: 1; display: flex; align-items: flex-end; justify-content: center; cursor: default; outline: none; }
+.cc-col:hover, .cc-col:focus-visible { background: color-mix(in srgb, var(--primary) 6%, transparent); border-radius: 6px; }
+.cc-bar { width: min(24px, 70%); background: var(--primary); border-radius: 4px 4px 0 0; min-height: 0; transition: height .3s ease; }
+.cc-val { position: absolute; font-size: .75rem; font-weight: 700; color: var(--text); }
+.cc-x { position: absolute; bottom: -20px; font-size: .68rem; color: var(--muted); white-space: nowrap; }
+.cc-tip { position: absolute; z-index: 5; background: var(--text); color: var(--surface); font-size: .8rem; padding: 6px 10px; border-radius: 8px; pointer-events: none; white-space: nowrap; }
+.hbars { display: flex; flex-direction: column; gap: 12px; }
+.hb-row { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; }
+.hb-label { font-size: .86rem; font-weight: 600; color: var(--text-2); }
+.hb-track { display: flex; align-items: center; gap: 8px; }
+.hb-bar { height: 18px; background: var(--primary); border-radius: 0 4px 4px 0; }
+[dir="rtl"] .hb-bar { border-radius: 4px 0 0 4px; }
+.hb-val { font-size: .86rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+@media (max-width: 1150px) { .rep-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ---------- voice dictation */
+.note-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.btn.mic svg { width: 16px; height: 16px; }
+.btn.mic.recording { background: #dc2626; border-color: #b91c1c; color: #fff; animation: pulse-mic 1.2s infinite; }
+@keyframes pulse-mic { 50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, .2); } }
+
+/* ---------- daily goal */
+.goal { display: flex; align-items: center; gap: 12px; margin: -6px 0 16px; font-size: .86rem; }
+.goal .g-label { font-weight: 700; color: var(--text-2); white-space: nowrap; }
+.goal .g-track { flex: 1; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 16%, var(--surface-2)); overflow: hidden; }
+.goal .g-fill { height: 100%; border-radius: 999px; background: var(--primary); transition: width .4s ease; }
+.goal.done .g-fill { background: var(--success); }
+.goal.done .g-track { background: color-mix(in srgb, var(--success) 18%, var(--surface-2)); }
+.goal .g-num { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------- WhatsApp + banners */
+.tpl-editor { display: flex; flex-direction: column; gap: 10px; }
+.tpl-row { display: grid; grid-template-columns: minmax(120px, 200px) 1fr auto; gap: 8px; align-items: start; }
+@media (max-width: 760px) { .tpl-row { grid-template-columns: 1fr auto; } .tpl-row .tpl-text { grid-column: 1 / -1; grid-row: 2; } }
+.btn.wa { background: #25d366; border-color: #1fb457; color: #fff; }
+.btn.wa:hover { background: #1fb457; }
+.btn.wa svg { width: 18px; height: 18px; }
+.banner-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+.banner-row > span { flex: 1 1 260px; }
+
+/* ---------- phone (opened over Tailscale): one column, big touch targets, no keyboard hints */
+@media (max-width: 760px) {
+  html, body { overflow-x: hidden; }
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: static; }
+  .brand { padding: 12px 16px 6px; }
+  .brand .logo { width: 34px; height: 34px; border-radius: 11px; }
+  .brand .sub, .nav .nav-label, .sidebar .foot .side-btn, .sidebar .foot .palette-row { display: none; }
+  .nav { display: flex; gap: 4px; overflow-x: auto; padding: 4px 10px 10px; margin: 0; flex: none; scrollbar-width: none; }
+  .nav li { flex-shrink: 0; }
+  .nav a { padding: 8px 12px; margin: 0; white-space: nowrap; font-size: .88rem; }
+  .nav a.active { box-shadow: inset 0 -3px 0 var(--nav-active-bar); }
+  .sidebar .foot { padding: 0 16px 10px; gap: 2px; }
+  kbd { display: none !important; }
+  .topbar { height: auto; padding: 10px 14px; flex-wrap: wrap; position: static; }
+  .topbar h1 { font-size: 1.1rem; }
+  .chip { font-size: .72rem; }
+  .content { padding: 12px 12px 90px; display: flex; flex-direction: column; }
+  .content > .filter-bar { order: 10; margin-top: 16px; }  /* the customer comes first on a phone */
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+  .stat { padding: 8px 6px; gap: 2px; border-radius: 12px; }
+  .stat .ic { display: none; }
+  .stat .label { font-size: .66rem; line-height: 1.25; }
+  .stat .value { font-size: 1.3rem; }
+  .stat .go { display: none; }
+  .toolbar { flex-wrap: wrap; }
+  .toolbar .search-field { flex: 1 1 100%; }
+  .toolbar .btn { flex: 1 1 0; }
+  .fb-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filter-bar .fb-head .small { display: none; }
+  .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .info { padding: 10px 12px; }
+  .info .badge { white-space: normal; max-width: 100%; }
+  .action-bar { position: sticky; bottom: 0; z-index: 15; box-shadow: 0 -8px 20px -12px rgba(15, 23, 42, .35); }
+  .lead-head { flex-direction: column; }
+  .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .grid-2 > * { min-width: 0; }
+  .lead-phone { flex-wrap: wrap; row-gap: 6px; }
+  .lead-name { font-size: 1.2rem; overflow-wrap: anywhere; }
+  .lead-title { gap: 10px; }
+  .action-bar { padding: 12px; gap: 8px; }
+  .action-bar .btn { flex: 1 1 calc(50% - 8px); padding: 12px 10px; }
+  .action-bar .btn.call { flex-basis: 100%; font-size: 1.05rem; padding: 14px; }
+  .action-bar .spacer { display: none; }
+  .kv { grid-template-columns: 110px 1fr; }
+  .modal-backdrop { padding: 8px; align-items: flex-end; }
+  .modal { max-height: 92vh; border-radius: 18px; }
+  .modal header, .modal .body, .modal footer { padding-inline: 16px; }
+  .modal footer { flex-wrap: wrap; }
+  .modal footer .btn { flex: 1 1 auto; }
+  #toasts { left: 10px; right: 10px; bottom: 12px; }
+  .toast { min-width: 0; max-width: none; }
+  .filters { grid-template-columns: 1fr 1fr; }
+  .rep-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hb-row { grid-template-columns: 90px 1fr; }
+  .goal { margin-top: 0; }
+}
 /* table cells keep table layout even when marked LTR (phone numbers) */
 td.ltr, th.ltr { display: table-cell; direction: ltr; text-align: right; }
 .modal .note-box { max-height: none; }

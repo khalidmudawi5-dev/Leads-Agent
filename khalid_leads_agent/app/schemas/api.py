@@ -51,6 +51,21 @@ class SearchIn(BaseModel):
     query: str = ""
 
 
+class WhatsAppIn(BaseModel):
+    tel: str = Field(default="", max_length=40)
+    text: str = Field(default="", max_length=4000)
+    template: str = Field(default="", max_length=100)
+    log: bool | None = None  # None = the «whatsapp_log» setting
+
+
+class CreateLeadIn(BaseModel):
+    company: str = Field(default="", max_length=200)
+    phone: str = Field(default="", max_length=40)
+    contact_name: str = Field(default="", max_length=120)
+    source: str | None = Field(default=None, max_length=200)  # sheet source value; None = the sheet's own
+    force: bool = False
+
+
 class SelectCandidateIn(BaseModel):
     odoo_id: int | None = None
     ui_index: int | None = None
@@ -89,3 +104,5 @@ class CallIn(BaseModel):
     target: Literal["auto", "phone", "mobile", "sheet"] = "auto"
     force: bool = False
     odoo_id: int | None = None
+    # The page dials the returned tel: itself (agent opened from a phone): nothing is launched on the PC.
+    client_dial: bool = False

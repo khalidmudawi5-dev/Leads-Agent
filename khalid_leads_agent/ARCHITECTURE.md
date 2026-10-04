@@ -58,9 +58,11 @@ The workflow is deterministic end to end. No LLM decides customer identity, row 
 
 ### Odoo without version lock-in
 - A persistent Playwright profile (`data/browser-profile`) means the user logs in manually and no password is stored.
+- **Window-less reads:** after a signed-in RPC through the browser, the Odoo session cookies are saved to `data/odoo-session.json`. While the browser window is closed, RPC goes through a Playwright `APIRequestContext` with those cookies (no browser, no window); live-sync polling uses only that path. An expired saved session is deleted and the browser is used (sign-in). A relaunched browser receives the saved cookies if its profile has none. The window starts minimized and is shown only for user-visible actions.
 - Structured reads use the logged-in session's generic web-client endpoint `/web/dataset/call_kw`. Available fields are discovered with `fields_get`, and for phone search `phone_mobile_search` is used when present. Every read also has a DOM fallback driven by `odoo_selectors.py`.
 - **Calls:** the agent opens the lead, then clicks Odoo's own phone/Call link. Windows' `tel:` handler (Phone Link) does the rest. The optional `windows_handler` mode reads the same link from Odoo and hands it to Windows directly.
 - **Log note:** by default the agent uses the UI Log note composer (never "Send message"). If that fails it falls back to `message_post(subtype_xmlid="mail.mt_note")`. Each note carries a `KLA-…` reference, checked before and after every attempt, so it is never posted twice.
+- **New opportunity:** a customer missing from Odoo can be added from the dashboard (`POST /api/lead/{fp}/create-odoo`), only as an explicit user action. The workflow first re-runs matching with the entered name and number: a strong match (phone / exact company) is linked instead of creating a duplicate, and weak (partial name) matches need `force`. It then calls `crm.lead.create` (`name`, `partner_name`, `phone`, `contact_name`, `type` from `odoo_new_record_type`, the current user as `user_id`, and `source_id`/`medium_id` when a `utm.source`/`utm.medium` with the sheet source's name exists — a saved Source Mapping for that sheet value wins; nothing is created in UTM), links the new lead to the sheet row and writes an audit entry. Dry Run only previews. «Open in Odoo» and «Call» on an unlinked customer search first and offer this instead of opening the bare CRM page; `lead_cache.match_strategy` tells a real multiple match from similar names only.
 - **Activity:** created with `activity_schedule`. A failure only produces a warning; the note and the sheet update still complete.
 - There are screenshots on automation errors, limited retries, configurable timeouts, and one relaunch if the user closed the browser window.
 
@@ -71,6 +73,9 @@ The workflow is deterministic end to end. No LLM decides customer identity, row 
 
 ### UI
 - Tajawal font bundled locally in `app/static/fonts` (SIL OFL), a light/dark theme (`Alt+D`, remembered per browser), and a layout-independent keyboard shortcut registry (`Shortcuts` in `app.js`, using `KeyboardEvent.code` so it also works on the Arabic keyboard layout).
+
+### Remote access (optional, Tailscale + PIN)
+`app/remote_access.py`, off unless `REMOTE_ACCESS=true` and `ACCESS_PIN` (6+ digits). `run.py` then listens on 0.0.0.0; the `remote_guard` middleware keeps the PC (loopback, local host names only) unchanged, refuses every non-Tailscale address (100.64.0.0/10, fd7a:115c:a1e0::/48), and requires an HMAC cookie issued after the PIN (rate-limited, 30 days, SameSite=Strict). Shutdown is PC-only. From a phone, calls use `client_dial` (the page opens `tel:` itself) and «Open in Odoo» opens the lead URL in the phone's browser.
 
 ### Dry Run & duplicates
 - Dry Run is ON by default. It produces the same plan as a real save, including fresh sheet values and the appended notes, but writes nothing and records `dry_run` in the audit.

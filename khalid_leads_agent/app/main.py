@@ -4,10 +4,11 @@ from __future__ import annotations
 import logging
 import traceback
 from contextlib import asynccontextmanager
+from urllib.parse import parse_qs
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -15,12 +16,13 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.config import PROJECT_ROOT, EnvSettings
 from app.container import AppContainer, build_container
 from app.errors import AgentError
+from app.remote_access import COOKIE, COOKIE_MAX_AGE, LOCAL_ONLY_PATHS, PUBLIC_PATHS, RemoteAccess, is_loopback, is_tailscale, valid_pin
 from app.repositories.log_repo import LogRepository
 from app.utils.logging import setup_logging
 
 log = logging.getLogger("app")
 APP_DIR = PROJECT_ROOT / "app"
-VERSION = "1.8.0"
+from app.version import VERSION  # noqa: E402,F401 - re-exported
 CSRF_HEADER = "x-kla"
 _QUIET_CODES = {"CONFIG_INCOMPLETE", "QUERY_TOO_SHORT", "FOLLOWUP_DATE_REQUIRED", "STATUS_FILTER_EMPTY", "PHONE_INVALID"}
 
@@ -53,8 +55,60 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
     app.state.templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
     app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 
-    hosts = allowed_hosts or ["127.0.0.1", "localhost"]
+    remote = None
+    if env.remote_access:
+        if valid_pin(env.access_pin):
+            remote = RemoteAccess(env.access_pin, env.data_path / "remote-secret.bin")
+            log.info("Remote access over Tailscale is ON (PIN protected)")
+        else:
+            log.error("REMOTE_ACCESS=true ignored: ACCESS_PIN must be at least 6 digits")
+    app.state.remote = remote
+
+    # Remote mode is reached by Tailscale IP or name: the client-address check below replaces the host list.
+    hosts = allowed_hosts or (["*"] if remote else ["127.0.0.1", "localhost"])
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
+
+    @app.middleware("http")
+    async def remote_guard(request: Request, call_next):
+        """PC (loopback): as before. Tailscale devices: PIN cookie required. Anything else: refused."""
+        client = request.client.host if request.client else ""
+        if remote is None:
+            return await call_next(request)
+        if is_loopback(client):
+            # The PC keeps the local-only host check (blocks DNS-rebinding pages in the PC's browser).
+            if request.url.hostname not in ("127.0.0.1", "localhost"):
+                return PlainTextResponse("Forbidden", status_code=403)
+            return await call_next(request)
+        path = request.url.path
+        if not is_tailscale(client) or path.startswith(LOCAL_ONLY_PATHS):
+            log.warning("Refused %s %s from %s", request.method, path, client)
+            return PlainTextResponse("Forbidden", status_code=403)
+        if path.startswith(PUBLIC_PATHS) or remote.authenticated(request.cookies.get(COOKIE)):
+            return await call_next(request)
+        if path.startswith("/api/"):
+            return JSONResponse({"error": {"code": "LOGIN_REQUIRED", "message": "أدخل رمز الدخول (PIN) أولًا.",
+                                           "actions": []}}, status_code=401)
+        return RedirectResponse("/login", status_code=303)
+
+    @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
+    async def login_page(request: Request, error: str = ""):
+        return app.state.templates.TemplateResponse(request, "login.html", {"error": error, "version": VERSION})
+
+    @app.post("/login", include_in_schema=False)
+    async def login_submit(request: Request):
+        if remote is None:
+            return RedirectResponse("/", status_code=303)
+        client = request.client.host if request.client else ""
+        wait = remote.locked_for(client)
+        if wait:
+            return RedirectResponse(f"/login?error=locked{wait // 60 + 1}", status_code=303)
+        form = (await request.body()).decode("utf-8", "replace")
+        pin = parse_qs(form).get("pin", [""])[0]
+        if not remote.check_pin(client, pin):
+            return RedirectResponse("/login?error=wrong", status_code=303)
+        resp = RedirectResponse("/", status_code=303)
+        resp.set_cookie(COOKIE, remote.token(), max_age=COOKIE_MAX_AGE, httponly=True, samesite="strict")
+        return resp
 
     @app.middleware("http")
     async def csrf_guard(request: Request, call_next):
@@ -90,11 +144,12 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
                                        "message": "حدث خطأ غير متوقع. تم تسجيل التفاصيل في ملف السجل (logs/agent.log).",
                                        "actions": ["retry"]}}, status_code=500)
 
-    from app.api import diagnostics_api, history_api, leads, pages, settings_api
+    from app.api import diagnostics_api, history_api, leads, pages, reports_api, settings_api
 
     app.include_router(leads.router)
     app.include_router(settings_api.router)
     app.include_router(history_api.router)
     app.include_router(diagnostics_api.router)
+    app.include_router(reports_api.router)
     app.include_router(pages.router)
     return app

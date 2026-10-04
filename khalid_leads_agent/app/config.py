@@ -41,6 +41,9 @@ class EnvSettings(BaseSettings):
     data_dir: str = ""
     logs_dir: str = ""
     open_browser_on_start: bool = True
+    # Open the agent from your phone/other devices over Tailscale (see README_AR). Off by default.
+    remote_access: bool = False
+    access_pin: str = ""
     # Development only: use in-memory Google sheet + fake Odoo adapter.
     use_mocks: bool = False
 
@@ -105,6 +108,13 @@ DEFAULT_NOTE_TEMPLATE = (
 )
 
 
+DEFAULT_WHATSAPP_TEMPLATES: list[dict[str, str]] = [
+    {"name": "لم يتم الرد", "text": "السلام عليكم ورحمة الله،\nمعك {owner}. حاولت أتواصل معكم بخصوص طلب {company}، متى يناسبكم نتواصل؟"},
+    {"name": "متابعة", "text": "السلام عليكم ورحمة الله،\nمعك {owner}، أتابع معكم بخصوص طلب {company}. هل عندكم أي استفسار؟"},
+    {"name": "النسخة التجريبية", "text": "السلام عليكم ورحمة الله،\nمعك {owner}. هذا رابط النسخة التجريبية لـ {company}:\n\nبانتظار ملاحظاتكم."},
+]
+
+
 class AppSettings(BaseModel):
     """User-editable settings (Settings screen / setup wizard)."""
 
@@ -128,6 +138,9 @@ class AppSettings(BaseModel):
     odoo_note_template: str = DEFAULT_NOTE_TEMPLATE
     odoo_write_method: Literal["ui_first", "rpc_first"] = "ui_first"
     odoo_activity_type_xmlid: str = "mail.mail_activity_data_todo"
+    # Customers missing from Odoo are added from the agent as a Lead (CRM > Leads, like the other
+    # customers) or as an Opportunity (CRM > Pipeline).
+    odoo_new_record_type: Literal["lead", "opportunity"] = "lead"
     # fast: hand the Odoo number straight to Windows/Phone Link (instant, no browser);
     # odoo_click: open the lead and click Odoo's own Call link; windows_handler: read that link, then Windows.
     call_launch_mode: Literal["fast", "odoo_click", "windows_handler"] = "fast"
@@ -146,6 +159,20 @@ class AppSettings(BaseModel):
     live_sync_enabled: bool = True
     live_sync_interval_seconds: int = Field(default=5, ge=2, le=120)
     chatter_history_limit: int = Field(default=40, ge=5, le=200)
+    # WhatsApp: message templates ({company} {owner} {contact} {date}) and logging the message.
+    whatsapp_templates: list[dict[str, str]] = Field(default_factory=lambda: [dict(t) for t in DEFAULT_WHATSAPP_TEMPLATES])
+    whatsapp_log: bool = True
+    # Follow-ups: due ones first in the queue; future ones wait until their date.
+    followups_first: bool = True
+    hide_future_followups: bool = True
+    # No answer: back in the queue after N hours (0 = off: stays done for the session); after M attempts
+    # suggest WhatsApp / invalid number (0 = never).
+    no_answer_retry_hours: int = Field(default=4, ge=0, le=168)
+    no_answer_max_attempts: int = Field(default=3, ge=0, le=20)
+    # Daily goal (results recorded today); 0 = hidden.
+    daily_call_goal: int = Field(default=40, ge=0, le=1000)
+    # Check the sheet for new customers every N minutes while the dashboard is open (0 = off).
+    sheet_poll_minutes: int = Field(default=5, ge=0, le=120)
     # Advanced
     browser_profile_path: str = ""
     browser_channel: str = "chromium"

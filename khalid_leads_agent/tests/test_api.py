@@ -264,3 +264,24 @@ def test_history_row_can_be_reopened_and_updated(client, sheet, odoo):
     notes = sheet.sheets["Leads"][1][9]
     assert "لم يرد" in notes and "رجع اتصل وهو مهتم" in notes  # history kept, new note appended
     assert len([n for n in odoo.notes if n["lead_id"] == 1]) == 2  # a second Log note in Odoo
+
+
+def test_refresh_picks_up_new_sheet_rows_without_reload(env, sheet, odoo):
+    """«تحديث» (U) reconnects to Google and brings new customers, counts and the filter in one call."""
+    c = make_container(env, sheet, odoo)
+    created = []
+    factory = c.sheets._client_factory
+    c.sheets._client_factory = lambda s: created.append(1) or factory(s)
+    with TestClient(create_app(c, allowed_hosts=["testserver"])) as tc:
+        tc.post("/api/session/start", json={"resume": True}, headers=H)
+        cur = tc.get("/api/lead/current").json()
+        fp, pending = cur["lead"]["fingerprint"], cur["stats"]["pending"]
+        sheet.sheets["Leads"].append(["6", "خالد", "عميل جديد", "", "0567777777", "", "", "", "", "", ""])
+        before = len(created)
+        r = tc.post(f"/api/lead/{fp}/refresh", headers=H).json()
+        assert len(created) == before + 1  # fresh Google connection
+        assert r["refresh"]["new"] == 1 and r["stats"]["pending"] == pending + 1
+        assert r["lead"]["fingerprint"] == fp  # stays on the current customer
+        assert any(o["empty"] and o["count"] == 2 for o in r["filter"]["options"])
+        q = tc.post("/api/queue/refresh", headers=H).json()
+        assert q["refresh"]["new"] == 0 and q["lead"]["fingerprint"] == fp and "filter" in q

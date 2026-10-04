@@ -1,22 +1,26 @@
 """Daily workflow API: status, session, queue, lead actions, results, manual mode."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.api.deps import container
 from app.container import AppContainer
 from app.errors import AgentError
-from app.schemas.api import CallIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
+from app.remote_access import is_loopback
+from app.version import VERSION
+from app.schemas.api import CallIn, CreateLeadIn, WhatsAppIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
 
 router = APIRouter(prefix="/api")
 
 
 @router.get("/status")
-def status(c: AppContainer = Depends(container)) -> dict:
+def status(request: Request, c: AppContainer = Depends(container)) -> dict:
     s = c.settings.get()
     g = c.auth.status(s.google_auth_mode)
     login = c.odoo.last_login
     return {
+        "version": VERSION,
+        "remote": not is_loopback(request.client.host if request.client else ""),
         "owner": s.agent_owner,
         "dry_run": s.dry_run,
         "setup_completed": s.setup_completed,
@@ -54,13 +58,18 @@ async def lead_next(c: AppContainer = Depends(container)) -> dict:
 
 @router.post("/queue/refresh")
 async def queue_refresh(c: AppContainer = Depends(container)) -> dict:
-    await c.workflow._refresh(strict=True)
-    return await c.workflow.current()
+    return await c.workflow.refresh_queue()
+
+
+@router.get("/queue/check")
+async def queue_check(c: AppContainer = Depends(container)) -> dict:
+    """Polled by the dashboard every «sheet_poll_minutes»: new customers in the sheet."""
+    return await c.workflow.check_new()
 
 
 @router.get("/queue/list")
 async def queue_list(kind: str = "pending", c: AppContainer = Depends(container)) -> dict:
-    if kind not in ("pending", "all", "match_errors"):
+    if kind not in ("pending", "all", "match_errors", "followups", "duplicates"):
         raise AgentError("BAD_KIND", "نوع قائمة غير معروف.")
     return await c.workflow.queue_list(kind)
 
@@ -95,6 +104,24 @@ async def lead_select(fingerprint: str, body: SelectCandidateIn, c: AppContainer
     return await c.workflow.select_candidate(fingerprint, body.odoo_id, body.ui_index, body.ui_query)
 
 
+@router.post("/lead/{fingerprint}/create-odoo")
+async def lead_create_odoo(fingerprint: str, body: CreateLeadIn, c: AppContainer = Depends(container)) -> dict:
+    """Add a customer missing from Odoo as a new opportunity/lead (after a fresh duplicate check)."""
+    return await c.workflow.create_in_odoo(fingerprint, body.company, body.phone, body.contact_name, body.force,
+                                           source=body.source)
+
+
+@router.get("/lead/{fingerprint}/whatsapp")
+def lead_whatsapp_options(fingerprint: str, c: AppContainer = Depends(container)) -> dict:
+    return c.whatsapp.options(fingerprint)
+
+
+@router.post("/lead/{fingerprint}/whatsapp")
+async def lead_whatsapp(fingerprint: str, body: WhatsAppIn, c: AppContainer = Depends(container)) -> dict:
+    """Returns the wa.me link (the page opens it) and records the message in Odoo/Sheet when enabled."""
+    return await c.whatsapp.send(fingerprint, body.tel, body.text, body.template, body.log)
+
+
 @router.post("/lead/{fingerprint}/open")
 async def lead_open(fingerprint: str, c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.open_in_odoo(fingerprint)
@@ -103,7 +130,8 @@ async def lead_open(fingerprint: str, c: AppContainer = Depends(container)) -> d
 @router.post("/lead/{fingerprint}/call")
 async def lead_call(fingerprint: str, body: CallIn | None = None, c: AppContainer = Depends(container)) -> dict:
     body = body or CallIn()
-    return await c.workflow.call(fingerprint=fingerprint, target=body.target, force=body.force)
+    return await c.workflow.call(fingerprint=fingerprint, target=body.target, force=body.force,
+                                 client_dial=body.client_dial)
 
 
 @router.post("/lead/{fingerprint}/refresh")
@@ -159,4 +187,5 @@ async def manual_live(odoo_id: int, since: str = "", c: AppContainer = Depends(c
 async def manual_call(body: CallIn, c: AppContainer = Depends(container)) -> dict:
     if not body.odoo_id:
         raise AgentError("NOT_MATCHED", "لا يوجد عميل محدد للاتصال.")
-    return await c.workflow.call(odoo_id=body.odoo_id, target=body.target, force=body.force)
+    return await c.workflow.call(odoo_id=body.odoo_id, target=body.target, force=body.force,
+                                 client_dial=body.client_dial)

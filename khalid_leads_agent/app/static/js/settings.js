@@ -2,13 +2,27 @@
 let CFG = null;
 
 function fieldValue(el) {
+  if (el.dataset.type === "templates") {
+    return $$(".tpl-row", el).map((r) => ({ name: $(".tpl-name", r).value.trim(), text: $(".tpl-text", r).value }))
+      .filter((tp) => tp.text.trim());
+  }
   if (el.type === "checkbox") return el.checked;
   if (el.type === "number") return Number(el.value);
   if (el.dataset.type === "lines") return el.value.split("\n").map((v) => v.trim()).filter((v, i, a) => v !== "" || false)
     .map((v) => v === CFG.empty_token ? "" : v);
   return el.value;
 }
+function tplRow(tp) {
+  const row = document.createElement("div");
+  row.className = "tpl-row";
+  row.innerHTML = `<input type="text" class="tpl-name" placeholder="اسم القالب" value="${esc(tp.name || "")}">
+    <textarea class="tpl-text" rows="3" placeholder="نص الرسالة">${esc(tp.text || "")}</textarea>
+    <button type="button" class="btn sm ghost tpl-del" title="حذف">✕</button>`;
+  $(".tpl-del", row).onclick = () => row.remove();
+  return row;
+}
 function setField(el, value) {
+  if (el.dataset.type === "templates") { el.innerHTML = ""; (value || []).forEach((tp) => el.appendChild(tplRow(tp))); return; }
   if (el.type === "checkbox") el.checked = !!value;
   else if (el.dataset.type === "lines") el.value = (value || []).map((v) => v === "" ? CFG.empty_token : v).join("\n");
   else el.value = value ?? "";
@@ -321,3 +335,8 @@ Shortcuts.register([
   { code: "KeyS", label: "S", ctrl: true, allowInInputs: true, title: "حفظ القسم الحالي في الإعدادات", group: "الإعدادات",
     run: () => { const b = $(".tab-panel.active [data-save], .tab-panel.active .actions .btn.primary"); if (b) b.click(); } },
 ]);
+
+document.addEventListener("DOMContentLoaded", () => {
+  const add = $("#btn-add-tpl");
+  if (add) add.onclick = () => $('[data-key="whatsapp_templates"]').appendChild(tplRow({ name: "", text: "" }));
+});
