@@ -3,338 +3,467 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>أنظمة رصد السحابية</title>
-<meta name="description" content="أنظمة رصد السحابية: رصد التواجد لإدارة حضور وانصراف الموظفين، ورصد الفوترة للفواتير الإلكترونية المعتمدة من هيئة الزكاة والضريبة والجمارك.">
-<meta name="theme-color" content="#3c6aa7">
+<title>منظومة رصد السحابية</title>
+<meta name="description" content="منظومة رصد السحابية: منظومة أعمال متكاملة تضم رصد الفوترة المعتمد من هيئة الزكاة والضريبة والجمارك، ورصد التواجد لإدارة حضور وانصراف الموظفين.">
+<meta name="theme-color" content="#060d1c">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap">
 <style>
 @font-face {
   font-family: "Montserrat-Arabic";
   src: url("assets/fonts/Montserrat-Arabic-Regular.woff2") format("woff2");
   font-weight: 400; font-style: normal; font-display: swap;
 }
-/* Layout: blue brand hero → systems overview → رصد التواجد section → رصد الفوترة section → pricing matrix (tabs per system) → apps → partners → about → FAQ → contact → footer.
-   Brand taken from rassd.sa: blue #3C6AA7, teal #00B0B9, ink #23293F, soft #F7F8FC, Montserrat Arabic. Single light theme by choice, matching the brand site. */
+/* Layout: dark premium suite page.
+   Hero (thesis + live ERP window mock) → partner marquee → suite apps → integration orbit → system showcase tabs → pricing cards + full comparison → mobile apps → about → FAQ → CTA → footer (staff-only portal link).
+   Brand from rassd.sa (blue #3C6AA7, teal #00B0B9, Montserrat Arabic), lifted for a dark ground. Single dark theme by choice. */
 :root {
-  --blue: #3c6aa7;
-  --blue-deep: #2c5288;
-  --blue-bright: #1f6fd0;
-  --teal: #00b0b9;
-  --teal-deep: #00939b;
-  --teal-soft: #e0f6f7;
-  --sky: #caebf9;
-  --ink: #23293f;
-  --slate: #2b3d4c;
-  --muted: #5d6b80;
-  --line: #e3e7ef;
-  --soft: #f7f8fc;
-  --white: #ffffff;
-  --no: #8a8f99;
-  --shadow: 0 18px 50px -20px rgba(35, 41, 63, .28);
+  --bg: #060d1c;
+  --bg-2: #0a1528;
+  --panel: #0e1b33;
+  --glass: rgba(255, 255, 255, .045);
+  --glass-2: rgba(255, 255, 255, .075);
+  --line: rgba(255, 255, 255, .09);
+  --line-2: rgba(255, 255, 255, .16);
+  --text: #eaf1fb;
+  --muted: #93a3bd;
+  --dim: #64748f;
+  --brand: #3c6aa7;
+  --blue: #5b93df;
+  --teal: #19c3cc;
+  --teal-brand: #00b0b9;
+  --ok: #2fd39a;
+  --warn: #f2b84b;
+  --grad: linear-gradient(120deg, #19c3cc 0%, #5b93df 55%, #8aa8ff 100%);
   --f-brand: "Montserrat-Arabic", "IBM Plex Sans Arabic", Tahoma, system-ui, sans-serif;
   --f-body: "IBM Plex Sans Arabic", "Montserrat-Arabic", Tahoma, system-ui, sans-serif;
-  --wrap: 1180px;
-  --radius: 18px;
-  color-scheme: light;
+  --wrap: 1200px;
+  color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
-body { margin: 0; background: var(--white); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.8; -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--f-body); font-size: 16px; line-height: 1.8; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 img { max-width: 100%; height: auto; display: block; }
 [hidden] { display: none !important; }
 a { color: inherit; }
-h1, h2, h3, h4 { font-family: var(--f-brand); font-weight: 400; line-height: 1.45; margin: 0; text-wrap: balance; }
+h1, h2, h3, h4 { font-family: var(--f-brand); font-weight: 400; line-height: 1.4; margin: 0; text-wrap: balance; }
 p { margin: 0; }
 .num { font-variant-numeric: tabular-nums; }
-:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; border-radius: 8px; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 8px; }
+.grad-text { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
 .wrap { max-width: var(--wrap); margin-inline: auto; padding-inline: 20px; }
-section { padding-block: 96px; }
-.chip { display: inline-block; justify-self: center; font-family: var(--f-brand); font-size: 14px; padding: 6px 18px; border-radius: 8px; background: var(--teal-soft); color: var(--teal-deep); }
-.on-blue .chip { background: rgba(255,255,255,.14); color: var(--white); }
-.head { display: grid; gap: 14px; text-align: center; justify-items: center; max-width: 720px; margin: 0 auto 56px; }
-.head h2 { font-size: clamp(26px, 3.6vw, 40px); }
-.head p { color: var(--muted); font-size: 17px; }
-.on-blue .head p { color: rgba(255,255,255,.82); }
+section { padding-block: 110px; position: relative; }
+.eyebrow { display: inline-flex; align-items: center; gap: 10px; font-family: var(--f-brand); font-size: 14px; color: var(--teal); letter-spacing: .02em; }
+.eyebrow::before { content: ""; width: 26px; height: 1px; background: currentColor; }
+.head { display: grid; gap: 16px; max-width: 760px; margin-bottom: 60px; }
+.head.center { text-align: center; justify-items: center; margin-inline: auto; }
+.head.center .eyebrow::after { content: ""; width: 26px; height: 1px; background: currentColor; }
+.head h2 { font-size: clamp(30px, 4.2vw, 50px); }
+.head p { color: var(--muted); font-size: 18px; }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--f-brand); font-size: 16px; padding: 13px 24px; border-radius: 10px; border: 1.5px solid transparent; text-decoration: none; cursor: pointer; transition: transform .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease; white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-family: var(--f-brand); font-size: 16px; padding: 14px 26px; border-radius: 12px; border: 1px solid transparent; text-decoration: none; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease, background-color .2s ease, border-color .2s ease; white-space: nowrap; }
 .btn:hover { transform: translateY(-2px); }
-.btn-teal { background: var(--teal); color: var(--white); }
-.btn-teal:hover { background: var(--teal-deep); }
-.btn-white { background: var(--white); color: var(--blue); }
-.btn-line { border-color: rgba(255,255,255,.75); color: var(--white); background: transparent; }
-.btn-line:hover { background: rgba(255,255,255,.1); }
-.btn-soft { background: var(--teal-soft); color: var(--teal-deep); }
-.btn-soft:hover { background: var(--teal); color: var(--white); }
-.btn-outline { border-color: var(--blue); color: var(--blue); background: transparent; }
-.btn-outline:hover { background: var(--blue); color: var(--white); }
+.btn-primary { background: var(--grad); color: #04121c; box-shadow: 0 10px 30px -10px rgba(25, 195, 204, .6); }
+.btn-primary:hover { box-shadow: 0 16px 40px -12px rgba(25, 195, 204, .8); }
+.btn-ghost { background: var(--glass); border-color: var(--line-2); color: var(--text); }
+.btn-ghost:hover { background: var(--glass-2); border-color: rgba(255,255,255,.28); }
+.btn svg { flex: none; }
 
 /* Header */
-.site-header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--blue); color: var(--white); transition: box-shadow .2s; }
-.site-header.scrolled { box-shadow: 0 8px 24px -12px rgba(0,0,0,.35); }
+.site-header { position: fixed; top: 0; inset-inline: 0; z-index: 40; padding-top: env(safe-area-inset-top, 0px); transition: background-color .3s, border-color .3s, backdrop-filter .3s; border-bottom: 1px solid transparent; }
+.site-header.scrolled { background: rgba(6, 13, 28, .78); backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%); border-color: var(--line); }
 .site-header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 20px; height: 80px; }
-.logo { display: flex; align-items: center; flex: none; }
-.logo img { height: 44px; width: auto; filter: brightness(0) invert(1); }
-.nav { display: flex; align-items: center; gap: 26px; }
-.nav a { text-decoration: none; font-family: var(--f-brand); font-size: 15px; color: rgba(255,255,255,.88); }
-.nav a:hover { color: var(--white); }
+.logo { display: flex; align-items: center; gap: 12px; text-decoration: none; flex: none; }
+.logo img { height: 40px; width: auto; filter: brightness(0) invert(1); }
+.logo span { font-family: var(--f-brand); font-size: 13px; color: var(--muted); border-inline-start: 1px solid var(--line-2); padding-inline-start: 12px; line-height: 1.3; }
+.nav { display: flex; align-items: center; gap: 4px; background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 5px; }
+.nav a { text-decoration: none; font-family: var(--f-brand); font-size: 14px; color: var(--muted); padding: 8px 14px; border-radius: 10px; transition: color .2s, background-color .2s; }
+.nav a:hover { color: var(--text); background: var(--glass-2); }
 .header-cta { display: flex; align-items: center; gap: 10px; }
-.menu-btn { display: none; background: transparent; border: 1.5px solid rgba(255,255,255,.5); border-radius: 10px; width: 44px; height: 44px; color: var(--white); cursor: pointer; }
-.mobile-nav { background: var(--blue-deep); }
-.mobile-nav .wrap { display: grid; gap: 2px; padding-block: 10px 18px; }
-.mobile-nav a { text-decoration: none; padding: 10px 0; font-family: var(--f-brand); color: var(--white); border-bottom: 1px solid rgba(255,255,255,.1); }
+.header-cta .btn { padding: 11px 20px; font-size: 15px; }
+.menu-btn { display: none; background: var(--glass); border: 1px solid var(--line-2); border-radius: 12px; width: 46px; height: 46px; color: var(--text); cursor: pointer; place-items: center; }
+.mobile-nav { background: rgba(6, 13, 28, .96); backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
+.mobile-nav .wrap { display: grid; gap: 2px; padding-block: 8px 20px; }
+.mobile-nav a { text-decoration: none; padding: 12px 0; font-family: var(--f-brand); border-bottom: 1px solid var(--line); }
 
 /* Hero */
-.hero { position: relative; overflow: hidden; background: radial-gradient(120% 90% at 85% 0%, #4b7cbc 0%, var(--blue) 45%, var(--blue-deep) 100%); color: var(--white); padding-block: 64px 0; }
-.hero::before { content: ""; position: absolute; width: 1100px; height: 1100px; border-radius: 50%; inset-inline-start: -380px; top: -520px; background: rgba(255,255,255,.06); pointer-events: none; }
-.hero::after { content: ""; position: absolute; width: 520px; height: 520px; border-radius: 50%; inset-inline-end: -160px; bottom: -260px; background: radial-gradient(circle, rgba(0,176,185,.35), transparent 70%); pointer-events: none; }
-.hero .wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; }
-.hero-copy { display: grid; gap: 22px; min-width: 0; padding-bottom: 64px; }
-.hero h1 { font-size: clamp(34px, 5vw, 56px); line-height: 1.35; }
-.hero h1 span { color: var(--sky); }
-.hero .lead { font-size: 18px; color: rgba(255,255,255,.88); max-width: 36em; }
-.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-.marks { display: flex; flex-wrap: wrap; gap: 10px; }
-.mark { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,.12); }
-.mark svg { color: var(--sky); flex: none; }
-.hero-art { align-self: end; min-width: 0; }
-.hero-art img { width: 100%; max-width: 560px; margin-inline: auto; }
+.hero { padding-block: 150px 40px; overflow: hidden; isolation: isolate; }
+.hero-bg { position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 80% 10%, rgba(60, 106, 167, .45), transparent 70%),
+    radial-gradient(45% 40% at 15% 30%, rgba(25, 195, 204, .22), transparent 70%),
+    radial-gradient(70% 50% at 50% 100%, rgba(91, 147, 223, .18), transparent 70%); }
+.hero-bg::after { content: ""; position: absolute; inset: 0;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 64px 64px; opacity: .45;
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 30%, #000 30%, transparent 80%); mask-image: radial-gradient(70% 60% at 50% 30%, #000 30%, transparent 80%); }
+.hero-copy { display: grid; justify-items: center; text-align: center; gap: 26px; max-width: 900px; margin-inline: auto; }
+.pill { display: inline-flex; align-items: center; gap: 10px; padding: 7px 8px 7px 16px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line-2); font-size: 14px; color: var(--muted); }
+.pill b { font-weight: 500; font-size: 12px; color: #04121c; background: var(--teal); padding: 2px 10px; border-radius: 999px; }
+.hero h1 { font-size: clamp(38px, 6.4vw, 78px); line-height: 1.25; letter-spacing: -.01em; }
+.hero .lead { font-size: clamp(17px, 1.6vw, 20px); color: var(--muted); max-width: 46em; font-weight: 300; }
+.hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.hero-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 26px; font-size: 14px; color: var(--muted); }
+.hero-meta span { display: inline-flex; align-items: center; gap: 8px; }
+.hero-meta svg { color: var(--teal); }
 
-/* Systems overview */
-.systems { background: var(--soft); }
-.sys-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-.sys { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
-.sys-top { padding: 28px 28px 24px; color: var(--white); display: grid; gap: 6px; min-height: 132px; align-content: center; }
-.sys-top img { height: 52px; width: auto; }
-.sys-top small { font-family: var(--f-brand); font-size: 14px; opacity: .85; }
-.sys.twajd .sys-top { background: linear-gradient(135deg, var(--blue), var(--blue-deep)); }
-.sys.fawtara .sys-top { background: linear-gradient(135deg, var(--blue-bright), #1758ad); }
-.sys.hub .sys-top { background: linear-gradient(135deg, var(--teal), var(--teal-deep)); }
-.sys-top .hub-title { font-family: var(--f-brand); font-size: 26px; line-height: 1.3; }
-.sys-body { padding: 24px 28px 28px; display: grid; gap: 18px; grid-template-rows: auto 1fr auto; }
-.sys-body p { color: var(--muted); }
-.ticks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; align-content: start; }
-.ticks li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; font-size: 15px; }
-.tick { width: 22px; height: 22px; border-radius: 50%; background: var(--teal); color: var(--white); display: grid; place-items: center; margin-top: 3px; }
-.sys-body .btn { justify-self: start; }
+/* ERP window mock */
+.stage { position: relative; margin-top: 70px; }
+.stage::before { content: ""; position: absolute; inset: 10% 8% -6%; background: var(--grad); filter: blur(90px); opacity: .28; border-radius: 40px; z-index: -1; }
+.window { position: relative; border-radius: 22px; background: linear-gradient(180deg, rgba(20, 36, 66, .92), rgba(10, 21, 40, .96)); border: 1px solid var(--line-2); box-shadow: 0 50px 120px -40px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.08); overflow: hidden; animation: rise 1.2s cubic-bezier(.2,.7,.2,1) .2s backwards; }
+@keyframes rise { from { transform: translateY(40px); } }
+.win-bar { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.dots { display: flex; gap: 7px; }
+.dots i { width: 11px; height: 11px; border-radius: 50%; background: rgba(255,255,255,.14); }
+.win-title { flex: 1; text-align: center; font-size: 13px; color: var(--dim); }
+.win-tag { font-size: 11px; color: var(--dim); border: 1px solid var(--line); padding: 2px 10px; border-radius: 999px; }
+.win-body { display: grid; grid-template-columns: 220px 1fr; min-height: 480px; }
+.side { border-inline-end: 1px solid var(--line); padding: 18px 14px; display: grid; align-content: start; gap: 4px; }
+.side .s-logo { display: flex; align-items: center; gap: 10px; padding: 4px 10px 16px; }
+.side .s-logo img { height: 26px; width: auto; filter: brightness(0) invert(1); }
+.side .s-label { font-size: 11px; color: var(--dim); padding: 12px 10px 4px; }
+.side a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; font-size: 14px; color: var(--muted); text-decoration: none; }
+.side a.on { background: var(--glass-2); color: var(--text); }
+.side a.on svg { color: var(--teal); }
+.side .badge-n { margin-inline-start: auto; font-size: 11px; background: rgba(25,195,204,.16); color: var(--teal); padding: 0 8px; border-radius: 999px; }
+.main { padding: 22px; display: grid; gap: 16px; align-content: start; min-width: 0; }
+.main-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.main-top h3 { font-size: 20px; }
+.main-top small { display: block; color: var(--dim); font-size: 13px; font-family: var(--f-body); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font-size: 12px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.chip.live { color: var(--ok); border-color: rgba(47,211,154,.35); display: inline-flex; align-items: center; gap: 6px; }
+.chip.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: blink 1.6s infinite; }
+@keyframes blink { 50% { opacity: .3; } }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.kpi { background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 4px; min-width: 0; }
+.kpi small { font-size: 12px; color: var(--dim); }
+.kpi b { font-family: var(--f-brand); font-weight: 400; font-size: 24px; font-variant-numeric: tabular-nums; }
+.kpi em { font-style: normal; font-size: 12px; color: var(--ok); }
+.kpi em.t { color: var(--teal); }
+.grid-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; }
+.card { background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.card h4 { font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+.card h4 small { color: var(--dim); font-size: 12px; font-family: var(--f-body); }
+.bars { display: flex; align-items: flex-end; gap: 10px; height: 120px; }
+.bars div { flex: 1; border-radius: 6px 6px 3px 3px; background: linear-gradient(180deg, var(--blue), rgba(91,147,223,.25)); transform-origin: bottom; animation: grow 1s cubic-bezier(.2,.7,.2,1) both; }
+.bars div.hi { background: linear-gradient(180deg, var(--teal), rgba(25,195,204,.25)); }
+@keyframes grow { from { transform: scaleY(0); } }
+.bar-x { display: flex; gap: 10px; margin-top: 6px; }
+.bar-x span { flex: 1; text-align: center; font-size: 11px; color: var(--dim); }
+.donut-wrap { display: flex; align-items: center; gap: 16px; }
+.donut { width: 110px; height: 110px; flex: none; }
+.legend { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.legend span { display: flex; align-items: center; gap: 8px; }
+.legend i { width: 8px; height: 8px; border-radius: 50%; }
+.inv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.inv-table th { text-align: start; color: var(--dim); font-weight: 400; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.inv-table td { padding: 9px 4px; border-bottom: 1px solid var(--line); }
+.inv-table tr:last-child td { border-bottom: 0; }
+.st { font-size: 11px; padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+.st.ok { background: rgba(47,211,154,.14); color: var(--ok); }
+.st.rep { background: rgba(91,147,223,.16); color: var(--blue); }
+.feed { display: grid; gap: 10px; font-size: 13px; }
+.feed div { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; }
+.av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; background: rgba(91,147,223,.2); color: var(--blue); }
+.av.t { background: rgba(25,195,204,.18); color: var(--teal); }
+.av.w { background: rgba(242,184,75,.16); color: var(--warn); }
+.feed small { display: block; color: var(--dim); font-size: 11px; }
+.feed time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-/* System detail sections */
-.detail-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; margin-bottom: 64px; }
-.detail-head .copy { display: grid; gap: 18px; min-width: 0; }
-.detail-head h2 { font-size: clamp(28px, 3.8vw, 44px); }
-.detail-head h2 span { color: var(--teal); }
-.detail-head p { color: var(--muted); font-size: 17px; }
-.detail-head .art { min-width: 0; }
-.detail-head .art img { margin-inline: auto; max-height: 420px; width: auto; }
-.badge-row { display: flex; flex-wrap: wrap; gap: 10px; }
-.badge { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; padding: 7px 14px; border-radius: 999px; background: var(--teal-soft); color: var(--teal-deep); font-weight: 500; }
+.toast { position: absolute; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 14px; background: rgba(14, 27, 51, .88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line-2); box-shadow: 0 20px 50px -20px rgba(0,0,0,.8); font-size: 13px; animation: float 6s ease-in-out infinite; }
+.toast b { display: block; font-weight: 500; font-size: 14px; }
+.toast small { color: var(--muted); }
+.toast .ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.toast.t1 { top: 16%; inset-inline-end: -34px; }
+.toast.t1 .ic { background: rgba(47,211,154,.16); color: var(--ok); }
+.toast.t2 { bottom: 8%; inset-inline-start: -30px; animation-delay: -3s; }
+.toast.t2 .ic { background: rgba(25,195,204,.16); color: var(--teal); }
+@keyframes float { 50% { transform: translateY(-10px); } }
+.demo-note { text-align: center; color: var(--dim); font-size: 12px; margin-top: 18px; }
 
-.feat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-.feat { background: var(--soft); border-radius: 16px; padding: 26px 22px; display: grid; gap: 10px; align-content: start; transition: transform .2s, box-shadow .2s, background-color .2s; }
-.feat:hover { transform: translateY(-4px); background: var(--white); box-shadow: var(--shadow); }
-.feat-ico { width: 52px; height: 52px; border-radius: 14px; background: var(--white); display: grid; place-items: center; color: var(--blue); box-shadow: 0 6px 16px -10px rgba(60,106,167,.6); }
-.feat h3 { font-size: 18px; }
-.feat p { color: var(--muted); font-size: 15px; }
+/* Marquee */
+.trust { padding-block: 40px 30px; }
+.trust p { text-align: center; color: var(--dim); font-size: 14px; margin-bottom: 22px; }
+.marquee { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
+.track { display: flex; gap: 16px; width: max-content; animation: slide 45s linear infinite; }
+.marquee:hover .track { animation-play-state: paused; }
+@keyframes slide { to { transform: translateX(50%); } }
+.logo-chip { width: 150px; height: 76px; border-radius: 14px; background: rgba(255,255,255,.92); display: flex; align-items: center; justify-content: center; padding: 10px 14px; flex: none; }
+.logo-chip img { height: 52px; width: 100%; object-fit: contain; filter: grayscale(1) contrast(1.1); opacity: .8; }
 
-.pains { margin-top: 88px; background: var(--ink); color: var(--white); border-radius: 24px; padding: 56px 48px; }
-.pains .head h2 { color: var(--white); }
-.pain-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
-.pain { display: grid; gap: 10px; align-content: start; border-top: 2px solid rgba(255,255,255,.14); padding-top: 18px; }
-.pain h3 { font-size: 18px; color: var(--sky); }
-.pain p { color: rgba(255,255,255,.75); font-size: 15px; }
+/* Suite apps */
+.apps { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; }
+.app-card { position: relative; grid-column: span 6; border-radius: 24px; padding: 36px; background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.015)); border: 1px solid var(--line); overflow: hidden; display: grid; gap: 18px; align-content: start; min-width: 0; transition: border-color .3s, transform .3s; }
+.app-card:hover { border-color: var(--line-2); transform: translateY(-4px); }
+.app-card::before { content: ""; position: absolute; width: 360px; height: 360px; border-radius: 50%; inset-inline-end: -140px; top: -160px; filter: blur(30px); opacity: .55; pointer-events: none; }
+.app-card.inv::before { background: radial-gradient(circle, rgba(91,147,223,.45), transparent 65%); }
+.app-card.att::before { background: radial-gradient(circle, rgba(25,195,204,.4), transparent 65%); }
+.app-card > * { position: relative; }
+.app-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.app-top img { height: 46px; width: auto; }
+.status { font-size: 12px; padding: 4px 12px; border-radius: 999px; background: rgba(47,211,154,.12); color: var(--ok); border: 1px solid rgba(47,211,154,.3); }
+.app-card h3 { font-size: 28px; }
+.app-card > p { color: var(--muted); font-size: 16px; }
+.feat-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; }
+.feat-list li { display: grid; grid-template-columns: 20px 1fr; gap: 10px; font-size: 15px; color: #cfdbec; }
+.feat-list svg { margin-top: 5px; color: var(--teal); }
+.app-card .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.mini { grid-column: span 4; border-radius: 20px; padding: 26px; background: var(--glass); border: 1px solid var(--line); display: grid; gap: 10px; align-content: start; min-width: 0; }
+.mini .ic { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: rgba(91,147,223,.14); color: var(--blue); }
+.mini h4 { font-size: 18px; }
+.mini p { color: var(--muted); font-size: 15px; }
 
-.benefits { margin-top: 88px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.benefit { border: 1px solid var(--line); border-radius: var(--radius); padding: 32px; display: grid; gap: 18px; align-content: start; }
-.benefit h3 { font-size: 22px; color: var(--blue); }
+/* Integration orbit */
+.orbit-sec { background: linear-gradient(180deg, var(--bg), var(--bg-2) 30%, var(--bg-2) 70%, var(--bg)); }
+.orbit-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 60px; align-items: center; }
+.orbit-copy { display: grid; gap: 22px; min-width: 0; }
+.orbit-copy .head { margin-bottom: 0; }
+.steps { display: grid; gap: 0; counter-reset: s; }
+.steps div { display: grid; grid-template-columns: 44px 1fr; gap: 16px; padding-block: 16px; border-top: 1px solid var(--line); }
+.steps div::before { counter-increment: s; content: counter(s); width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-family: var(--f-brand); color: var(--teal); background: rgba(25,195,204,.1); border: 1px solid rgba(25,195,204,.25); }
+.steps b { font-family: var(--f-brand); font-weight: 400; font-size: 17px; display: block; }
+.steps span { color: var(--muted); font-size: 15px; }
+.orbit { position: relative; width: 100%; max-width: 540px; aspect-ratio: 1; margin-inline: auto; }
+.orbit svg.rings { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.ring { fill: none; stroke: var(--line-2); stroke-dasharray: 3 6; }
+.ring.spin { transform-origin: 50% 50%; animation: spin 60s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spoke { stroke: url(#spokeGrad); stroke-width: 1.2; }
+.pulse { fill: var(--teal); }
+.core { position: absolute; top: 50%; left: 50%; width: 34%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; display: grid; place-items: center; text-align: center; background: radial-gradient(circle at 30% 30%, rgba(91,147,223,.5), rgba(10,21,40,.95) 70%); border: 1px solid var(--line-2); box-shadow: 0 0 80px -10px rgba(25,195,204,.5), inset 0 0 40px rgba(25,195,204,.15); }
+.core img { width: 62%; filter: brightness(0) invert(1); margin-inline: auto; }
+.core small { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.node { position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 6px; text-align: center; width: 120px; }
+.node .ic { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: rgba(14, 27, 51, .95); border: 1px solid var(--line-2); color: var(--teal); box-shadow: 0 12px 30px -12px rgba(0,0,0,.7); }
+.node.b .ic { color: var(--blue); }
+.node span { font-size: 13px; color: var(--text); line-height: 1.4; }
 
-.fawtara-sec { background: var(--soft); }
-.fawtara-sec .detail-head h2 span { color: var(--blue-bright); }
-.win-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-.win { background: var(--white); border-radius: 16px; padding: 26px 22px; display: grid; gap: 10px; align-content: start; box-shadow: 0 10px 30px -22px rgba(35,41,63,.5); }
-.win .feat-ico { color: var(--blue-bright); background: var(--soft); box-shadow: none; }
-.win h3 { font-size: 18px; }
-.win p { color: var(--muted); font-size: 15px; }
-.two-lists { margin-top: 72px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; align-items: center; }
-.two-lists .list { background: var(--white); border-radius: var(--radius); padding: 30px; display: grid; gap: 18px; min-width: 0; }
-.two-lists h3 { font-size: 21px; }
-.two-lists h3 small { display: block; font-size: 14px; color: var(--muted); font-family: var(--f-body); }
-.two-lists .art img { margin-inline: auto; }
+/* Showcase */
+.show-tabs { display: inline-flex; gap: 6px; padding: 6px; border-radius: 16px; background: var(--glass); border: 1px solid var(--line); margin-bottom: 34px; }
+.show-tabs button, .sys-tabs button { font: 15px var(--f-brand); border: 0; background: transparent; color: var(--muted); padding: 11px 24px; border-radius: 11px; cursor: pointer; transition: color .2s, background-color .2s; }
+.show-tabs button[aria-selected="true"], .sys-tabs button[aria-selected="true"] { background: var(--grad); color: #04121c; }
+.show-panel { display: grid; grid-template-columns: 1fr 1.15fr; gap: 50px; align-items: center; }
+.show-copy { display: grid; gap: 20px; min-width: 0; }
+.show-copy h3 { font-size: clamp(26px, 3.2vw, 38px); }
+.show-copy > p { color: var(--muted); font-size: 17px; }
+.points { display: grid; gap: 0; }
+.points div { display: grid; grid-template-columns: 22px 1fr; gap: 12px; padding-block: 14px; border-top: 1px solid var(--line); }
+.points svg { margin-top: 5px; color: var(--teal); }
+.points b { font-weight: 500; display: block; }
+.points span { color: var(--muted); font-size: 15px; }
+.shot-frame { position: relative; border-radius: 22px; padding: 18px; background: linear-gradient(160deg, rgba(91,147,223,.25), rgba(25,195,204,.08)); border: 1px solid var(--line-2); min-width: 0; }
+.shot-frame img { border-radius: 14px; background: #f4f7fb; width: 100%; }
+.shot-frame .seal { position: absolute; inset-inline-start: -18px; bottom: 26px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; background: rgba(14,27,51,.92); border: 1px solid var(--line-2); font-size: 13px; backdrop-filter: blur(10px); }
+.shot-frame .seal img { width: 34px; height: 34px; background: transparent; border-radius: 0; }
+
+/* Pains (attendance) */
+.pains { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 70px; }
+.pain { border-radius: 18px; padding: 24px; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(242,184,75,.06), transparent 60%); display: grid; gap: 8px; align-content: start; }
+.pain b { font-family: var(--f-brand); font-weight: 400; font-size: 17px; color: #f6d79a; }
+.pain span { color: var(--muted); font-size: 14px; }
+.pains-title { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
+.pains-title h3 { font-size: 24px; }
 
 /* Pricing */
-.pricing { background: radial-gradient(110% 80% at 20% 0%, #4b7cbc 0%, var(--blue) 50%, var(--blue-deep) 100%); color: var(--white); }
-.price-controls { display: grid; justify-items: center; gap: 18px; margin-bottom: 40px; }
-.tabs { display: inline-flex; gap: 4px; background: rgba(255,255,255,.14); padding: 5px; border-radius: 14px; }
-.tabs button { font: 16px var(--f-brand); border: 0; background: transparent; color: rgba(255,255,255,.85); padding: 10px 26px; border-radius: 10px; cursor: pointer; }
-.tabs button[aria-selected="true"] { background: var(--white); color: var(--blue); }
-.period { position: relative; display: inline-flex; background: var(--white); border-radius: 999px; padding: 5px; }
-.period button { font: 16px var(--f-brand); border: 0; background: transparent; color: var(--ink); padding: 9px 30px; border-radius: 999px; cursor: pointer; }
-.period button[aria-pressed="true"] { background: linear-gradient(90deg, var(--teal), var(--blue-bright)); color: var(--white); }
+.pricing { background: radial-gradient(60% 50% at 50% 0%, rgba(60,106,167,.35), transparent 70%), var(--bg); }
+.price-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px; margin-bottom: 46px; }
+.sys-tabs { display: inline-flex; gap: 6px; padding: 6px; border-radius: 16px; background: var(--glass); border: 1px solid var(--line); }
+.period { display: inline-flex; gap: 4px; padding: 6px; border-radius: 16px; background: var(--glass); border: 1px solid var(--line); }
+.period button { font: 15px var(--f-brand); border: 0; background: transparent; color: var(--muted); padding: 11px 22px; border-radius: 11px; cursor: pointer; }
+.period button[aria-pressed="true"] { background: var(--glass-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
+.plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: stretch; }
+.plan { position: relative; border-radius: 24px; padding: 32px 28px; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); border: 1px solid var(--line); display: grid; grid-template-rows: auto auto auto 1fr auto; gap: 20px; min-width: 0; }
+.plan.top { background: linear-gradient(180deg, rgba(25,195,204,.14), rgba(91,147,223,.05) 60%, rgba(255,255,255,.02)); border-color: rgba(25,195,204,.45); box-shadow: 0 30px 80px -40px rgba(25,195,204,.6); }
+.plan h3 { font-size: 21px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.plan h3 small { font-family: var(--f-body); font-size: 12px; color: #04121c; background: var(--teal); padding: 2px 10px; border-radius: 999px; }
+.plan .sub { color: var(--muted); font-size: 14px; margin-top: -12px; }
+.price { display: flex; align-items: baseline; gap: 8px; }
+.price b { font-family: var(--f-brand); font-weight: 400; font-size: 56px; line-height: 1; font-variant-numeric: tabular-nums; }
+.price span { color: var(--muted); font-size: 14px; }
+.price-note { color: var(--muted); font-size: 13px; margin-top: -10px; min-height: 1.7em; }
+.plan ul { list-style: none; margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); display: grid; gap: 11px; align-content: start; }
+.plan li { display: grid; grid-template-columns: 20px 1fr; gap: 10px; font-size: 15px; color: #cfdbec; }
+.plan li svg { margin-top: 5px; color: var(--teal); }
+.plan li.off { color: var(--dim); }
+.plan li.off svg { color: var(--dim); }
+.plan .btn { width: 100%; }
+.price-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 28px; margin-top: 26px; color: var(--muted); font-size: 14px; }
+.compare { margin-top: 34px; border: 1px solid var(--line); border-radius: 20px; background: var(--glass); }
+.compare summary { list-style: none; cursor: pointer; padding: 20px 26px; font-family: var(--f-brand); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.compare summary::-webkit-details-marker { display: none; }
+.compare summary::after { content: ""; width: 10px; height: 10px; border-inline-end: 2px solid var(--teal); border-bottom: 2px solid var(--teal); transform: rotate(45deg); transition: transform .2s; }
+.compare[open] summary::after { transform: rotate(-135deg); }
+.table-wrap { overflow-x: auto; padding: 0 12px 16px; }
+table.matrix { width: 100%; border-collapse: collapse; min-width: 640px; font-size: 14px; }
+.matrix th, .matrix td { padding: 13px 14px; text-align: center; border-top: 1px solid var(--line); }
+.matrix thead th { color: var(--muted); font-weight: 500; border-top: 0; font-family: var(--f-brand); }
+.matrix tbody th { text-align: start; font-weight: 400; color: #cfdbec; }
+.matrix .y { color: var(--teal); }
+.matrix .n { color: var(--dim); }
+.custom { margin-top: 26px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; padding: 26px 30px; border-radius: 20px; border: 1px dashed var(--line-2); }
+.custom h3 { font-size: 21px; }
+.custom p { color: var(--muted); }
 
-.matrix-card { background: var(--white); color: var(--ink); border-radius: 22px; box-shadow: 0 30px 70px -30px rgba(0,0,0,.45); overflow: hidden; }
-.table-wrap { overflow-x: auto; }
-table.matrix { width: 100%; border-collapse: collapse; min-width: 760px; }
-.matrix th, .matrix td { padding: 16px 18px; text-align: center; font-size: 15px; }
-.matrix thead th { vertical-align: bottom; padding-block: 32px 22px; }
-.matrix thead th:first-child { text-align: start; }
-.matrix .plan-name { font-family: var(--f-brand); font-size: 18px; margin-bottom: 8px; }
-.matrix .plan-price { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
-.matrix .plan-price b { font-family: var(--f-brand); font-weight: 400; font-size: 46px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
-.matrix .plan-price span { color: var(--muted); font-size: 14px; }
-.matrix .plan-total { font-size: 14px; color: var(--muted); margin-top: 8px; min-height: 1.6em; }
-.matrix .plan-vat { font-size: 14px; font-weight: 600; margin-top: 2px; }
-.matrix .featured-col { background: rgba(0,176,185,.06); }
-.matrix .flag { display: inline-block; font-size: 12px; font-family: var(--f-brand); background: var(--teal); color: var(--white); padding: 2px 12px; border-radius: 999px; margin-bottom: 10px; }
-.matrix tbody tr:nth-child(odd) { background: var(--soft); }
-.matrix tbody tr:nth-child(odd) .featured-col { background: rgba(0,176,185,.1); }
-.matrix tbody th { text-align: start; font-weight: 500; color: var(--slate); min-width: 220px; }
-.matrix .yes, .matrix .no-i { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; color: var(--white); vertical-align: middle; }
-.matrix .yes { background: var(--teal); }
-.matrix .no-i { background: var(--no); }
-.matrix tfoot td { padding-block: 22px 28px; }
-.matrix tfoot .btn { width: 100%; max-width: 220px; }
-.matrix-note { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; padding: 22px 28px; border-top: 1px solid var(--line); }
-.matrix-note p { color: var(--muted); font-size: 14px; }
-
-.custom-plan { margin-top: 28px; display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 18px; padding: 26px 30px; }
-.custom-plan h3 { font-size: 22px; }
-.custom-plan p { color: rgba(255,255,255,.82); }
-
-/* Apps */
-.apps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.app { background: var(--soft); border-radius: 22px; padding: 36px 36px 0; display: grid; grid-template-columns: 1.1fr .9fr; gap: 20px; overflow: hidden; min-width: 0; }
-.app .copy { display: grid; gap: 14px; align-content: center; padding-bottom: 36px; min-width: 0; }
-.app h3 { font-size: 24px; }
-.app p { color: var(--muted); font-size: 15px; }
+/* Mobile apps */
+.mob { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.mob-card { border-radius: 24px; border: 1px solid var(--line); background: var(--glass); padding: 34px 34px 0; display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; overflow: hidden; min-width: 0; }
+.mob-card .copy { display: grid; gap: 14px; align-content: center; padding-bottom: 34px; min-width: 0; }
+.mob-card h3 { font-size: 24px; }
+.mob-card p { color: var(--muted); font-size: 15px; }
 .stores { display: flex; flex-wrap: wrap; gap: 10px; }
-.stores a { display: block; }
-.stores img { height: 46px; width: auto; }
-.app .shot { align-self: end; min-width: 0; }
-.app .shot img { max-height: 300px; width: auto; margin-inline: auto; }
-
-/* Partners */
-.partners { background: var(--soft); }
-.logo-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
-.logo-cell { background: var(--white); border-radius: 14px; height: 104px; display: flex; align-items: center; justify-content: center; padding: 14px; min-width: 0; }
-.logo-cell img { height: 70px; width: 100%; object-fit: contain; filter: grayscale(1); opacity: .75; transition: filter .2s, opacity .2s; }
-.logo-cell:hover img { filter: none; opacity: 1; }
+.stores a { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-radius: 12px; border: 1px solid var(--line-2); background: rgba(0,0,0,.25); text-decoration: none; font-size: 13px; line-height: 1.3; transition: border-color .2s; }
+.stores a:hover { border-color: var(--teal); }
+.stores small { display: block; color: var(--muted); font-size: 11px; }
+.mob-card .shot { align-self: end; min-width: 0; }
+.mob-card .shot img { max-height: 290px; width: auto; margin-inline: auto; }
 
 /* About */
-.about .wrap { display: grid; grid-template-columns: 1.1fr 1fr; gap: 64px; align-items: start; }
-.about .copy { display: grid; gap: 18px; min-width: 0; }
-.about h2 { font-size: clamp(26px, 3.6vw, 40px); }
-.about .copy p { color: var(--muted); font-size: 17px; }
-.facts { display: grid; gap: 0; border-top: 1px solid var(--line); }
-.fact { display: grid; grid-template-columns: 130px 1fr; gap: 20px; padding-block: 20px; border-bottom: 1px solid var(--line); }
-.fact b { font-family: var(--f-brand); font-weight: 400; color: var(--blue); font-size: 17px; }
-.fact span { color: var(--slate); }
+.about-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 60px; align-items: start; }
+.about-grid .head { margin-bottom: 0; }
+.about-copy { display: grid; gap: 18px; min-width: 0; }
+.about-copy p { color: var(--muted); font-size: 17px; }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.fact { border-radius: 18px; padding: 22px; border: 1px solid var(--line); background: var(--glass); display: grid; gap: 6px; align-content: start; min-width: 0; }
+.fact small { color: var(--dim); font-size: 13px; }
+.fact b { font-family: var(--f-brand); font-weight: 400; font-size: 17px; }
+.fact.wide { grid-column: 1 / -1; }
+.fact a { color: var(--teal); text-decoration: none; }
 
 /* FAQ */
-.faq { background: var(--soft); }
-.faq-list { max-width: 860px; margin-inline: auto; display: grid; gap: 12px; }
-details { background: var(--white); border-radius: 14px; padding-inline: 24px; }
-summary { list-style: none; cursor: pointer; padding-block: 20px; font-family: var(--f-brand); font-size: 17px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
-summary::-webkit-details-marker { display: none; }
-summary::after { content: "+"; font-size: 24px; line-height: 1; color: var(--teal); flex: none; transition: transform .2s; }
-details[open] summary::after { transform: rotate(45deg); }
-details p { color: var(--muted); padding-bottom: 22px; max-width: 70ch; }
-details a { color: var(--teal-deep); }
+.faq-list { max-width: 880px; margin-inline: auto; display: grid; gap: 10px; }
+.faq-list details { border: 1px solid var(--line); border-radius: 16px; background: var(--glass); padding-inline: 24px; transition: border-color .2s; }
+.faq-list details[open] { border-color: var(--line-2); }
+.faq-list summary { list-style: none; cursor: pointer; padding-block: 20px; font-family: var(--f-brand); font-size: 17px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+.faq-list summary::-webkit-details-marker { display: none; }
+.faq-list summary::after { content: "+"; font-size: 24px; line-height: 1; color: var(--teal); flex: none; transition: transform .2s; }
+.faq-list details[open] summary::after { transform: rotate(45deg); }
+.faq-list p { color: var(--muted); padding-bottom: 22px; max-width: 70ch; }
+.faq-list a { color: var(--teal); }
 
-/* Contact */
-.contact-box { background: linear-gradient(135deg, var(--blue), var(--blue-deep)); color: var(--white); border-radius: 26px; padding: 52px; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; position: relative; overflow: hidden; }
-.contact-box::before { content: ""; position: absolute; width: 480px; height: 480px; border-radius: 50%; inset-inline-end: -200px; top: -220px; background: rgba(255,255,255,.07); pointer-events: none; }
-.contact-box > * { position: relative; }
-.contact-box h2 { font-size: clamp(26px, 3.4vw, 36px); margin-top: 14px; }
-.contact-box .chip { background: rgba(255,255,255,.14); color: var(--white); }
-.contact-box .intro { color: rgba(255,255,255,.85); margin-top: 14px; font-size: 17px; }
-.contact-lines { display: grid; gap: 16px; margin-top: 28px; }
-.contact-lines div { display: grid; gap: 2px; justify-items: start; }
-.contact-lines small { color: rgba(255,255,255,.7); font-size: 13px; }
-.contact-lines a, .contact-lines span { font-size: 17px; text-decoration: none; }
-form { display: grid; gap: 14px; min-width: 0; background: var(--white); color: var(--ink); border-radius: 18px; padding: 28px; }
-form h3 { font-size: 20px; }
-.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-label { display: grid; gap: 6px; font-size: 14px; color: var(--slate); }
-input, select, textarea { font: inherit; font-size: 15px; color: var(--ink); background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; width: 100%; min-width: 0; }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--teal); outline-offset: 1px; background: var(--white); }
-.form-ok { background: var(--teal-soft); color: var(--teal-deep); border-radius: 10px; padding: 12px 14px; font-size: 15px; }
+/* CTA */
+.cta { position: relative; overflow: hidden; border-radius: 32px; padding: 70px 50px; text-align: center; display: grid; justify-items: center; gap: 22px; background: radial-gradient(80% 120% at 50% 0%, rgba(91,147,223,.55), rgba(10,21,40,.9) 70%); border: 1px solid var(--line-2); }
+.cta::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 48px 48px; -webkit-mask-image: radial-gradient(60% 70% at 50% 0%, #000, transparent 75%); mask-image: radial-gradient(60% 70% at 50% 0%, #000, transparent 75%); pointer-events: none; }
+.cta > * { position: relative; }
+.cta h2 { font-size: clamp(30px, 4.4vw, 52px); }
+.cta p { color: var(--muted); font-size: 18px; max-width: 40em; }
+.contact-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 30px; margin-top: 8px; color: var(--muted); font-size: 15px; }
+.contact-row a { color: var(--text); text-decoration: none; }
 
 /* Footer */
-footer { background: var(--ink); color: rgba(255,255,255,.75); padding-block: 64px 28px; font-size: 15px; }
-.foot { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1.2fr; gap: 36px; padding-bottom: 36px; border-bottom: 1px solid rgba(255,255,255,.12); }
+footer { border-top: 1px solid var(--line); padding-block: 64px 28px; color: var(--muted); font-size: 15px; }
+.foot { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1.2fr; gap: 36px; padding-bottom: 36px; border-bottom: 1px solid var(--line); }
 .foot .brand { display: grid; gap: 16px; align-content: start; }
-.foot .brand img { height: 52px; width: auto; filter: brightness(0) invert(1); }
-.foot h4 { margin: 0 0 14px; color: var(--white); font-size: 17px; }
+.foot .brand img { height: 46px; width: auto; filter: brightness(0) invert(1); }
+.foot h4 { margin: 0 0 14px; color: var(--text); font-size: 16px; }
 .foot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
-.foot a { text-decoration: none; }
-.foot a:hover { color: var(--white); }
-.social { display: flex; gap: 10px; }
-.social a { width: 40px; height: 40px; border-radius: 10px; background: rgba(255,255,255,.08); display: grid; place-items: center; color: var(--white); transition: background-color .2s; }
-.social a:hover { background: var(--teal); }
-.foot-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 24px; font-size: 14px; }
-.foot-bottom a { color: var(--sky); text-decoration: none; }
+.foot a { text-decoration: none; transition: color .2s; }
+.foot a:hover { color: var(--text); }
+.social { display: flex; gap: 8px; }
+.social a { width: 40px; height: 40px; border-radius: 11px; border: 1px solid var(--line); display: grid; place-items: center; color: var(--text); transition: border-color .2s, background-color .2s; }
+.social a:hover { border-color: var(--teal); background: rgba(25,195,204,.1); }
+.foot-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding-top: 24px; font-size: 13px; color: var(--dim); }
+.foot-bottom a { text-decoration: none; }
+.staff-link { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); border: 1px solid var(--line); padding: 4px 12px; border-radius: 999px; transition: color .2s, border-color .2s; }
+.staff-link:hover { color: var(--text); border-color: var(--line-2); }
 
-.to-top { position: fixed; inset-inline-start: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); width: 44px; height: 44px; border-radius: 12px; border: 0; background: var(--teal); color: var(--white); cursor: pointer; display: grid; place-items: center; box-shadow: var(--shadow); z-index: 20; }
+/* Reveal on scroll (content stays visible without JS) */
+.js .reveal { transform: translateY(18px); transition: transform .9s cubic-bezier(.2,.7,.2,1); }
+.js .reveal.in { opacity: 1; transform: none; }
 
 /* Responsive */
-@media (max-width: 1080px) {
-  .nav, .header-cta .btn-line { display: none; }
-  .menu-btn { display: grid; place-items: center; }
-  .hero .wrap, .detail-head, .about .wrap, .contact-box { grid-template-columns: 1fr; }
-  .hero-copy { padding-bottom: 0; }
-  .sys-grid { grid-template-columns: 1fr; max-width: 620px; margin-inline: auto; }
-  .feat-grid, .win-grid, .pain-grid { grid-template-columns: 1fr 1fr; }
-  .two-lists { grid-template-columns: 1fr 1fr; }
-  .two-lists .art { grid-column: 1 / -1; order: -1; }
-  .apps-grid { grid-template-columns: 1fr; }
-  .logo-grid { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1100px) {
+  .nav, .header-cta .btn-ghost { display: none; }
+  .menu-btn { display: grid; }
+  .win-body { grid-template-columns: 64px 1fr; }
+  .side .s-logo, .side .s-label, .side a span, .side .badge-n { display: none; }
+  .side a { justify-content: center; }
+  .toast.t1 { inset-inline-end: 10px; top: -26px; }
+  .toast.t2 { inset-inline-start: 10px; bottom: -26px; }
+  .app-card { grid-column: span 12; }
+  .mini { grid-column: span 6; }
+  .orbit-grid, .show-panel, .about-grid { grid-template-columns: 1fr; }
+  .plans { grid-template-columns: 1fr; max-width: 520px; margin-inline: auto; }
+  .pains { grid-template-columns: 1fr 1fr; }
+  .mob { grid-template-columns: 1fr; }
   .foot { grid-template-columns: 1fr 1fr; }
 }
-@media (max-width: 600px) {
-  section { padding-block: 64px; }
+@media (max-width: 700px) {
+  section { padding-block: 76px; }
   .wrap { padding-inline: 16px; }
-  .site-header .wrap { height: 68px; }
-  .logo img { height: 36px; }
-  .header-cta .btn-teal { padding: 10px 14px; font-size: 14px; }
-  .feat-grid, .win-grid, .pain-grid, .two-lists, .benefits, .row2 { grid-template-columns: 1fr; }
-  .pains { padding: 40px 20px; }
-  .app { grid-template-columns: 1fr; padding: 28px 24px 0; }
-  .app .copy { padding-bottom: 0; }
-  .logo-grid { grid-template-columns: repeat(2, 1fr); }
-  .custom-plan { grid-template-columns: 1fr; }
-  .contact-box { padding: 32px 20px; }
-  form { padding: 22px 18px; }
-  .fact { grid-template-columns: 1fr; gap: 4px; }
+  .hero { padding-block: 120px 30px; }
+  .logo span { display: none; }
+  .header-cta .btn-primary { padding: 10px 14px; font-size: 14px; }
+  .window { animation: none; }
+  .win-body { grid-template-columns: 1fr; min-height: 0; }
+  .side { display: none; }
+  .main { padding: 14px; }
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .hide-sm { display: none; }
+  .toast { display: none; }
+  .mini { grid-column: span 12; }
+  .feat-list { grid-template-columns: 1fr; }
+  .app-card { padding: 26px 22px; }
+  .pains { grid-template-columns: 1fr; }
+  .mob-card { grid-template-columns: 1fr; padding: 26px 22px 0; }
+  .mob-card .copy { padding-bottom: 0; }
+  .facts { grid-template-columns: 1fr; }
+  .cta { padding: 48px 20px; border-radius: 24px; }
   .foot { grid-template-columns: 1fr; }
-  .tabs button { padding: 10px 16px; }
+  .node { width: 84px; }
+  .node .ic { width: 44px; height: 44px; border-radius: 12px; }
+  .node .ic svg { width: 20px; height: 20px; }
+  .node span { font-size: 11px; }
+  .shot-frame .seal { inset-inline-start: 10px; bottom: 10px; }
+  .show-tabs, .sys-tabs { width: 100%; }
+  .show-tabs button, .sys-tabs button { flex: 1; padding-inline: 10px; }
 }
 </style>
 </head>
 <body>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-  <symbol id="i-x" viewBox="0 0 16 16"><path d="M5 5l6 6M11 5l-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-dash" viewBox="0 0 16 16"><path d="M4.5 8h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M10 3.5L5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-invoice" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l3 3v15l-2.5-1.5L13 21l-2.5-1.5L8 21l-2-1.5V3z"/><path d="M9 9h6M9 13h6M9 17h3"/></g></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5A6.5 6.5 0 0 1 21.5 20"/></g></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></g></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></g></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></g></symbol>
+  <symbol id="i-pos" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M9 7h6M9 11h6M11 18h2"/></g></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></g></symbol>
+  <symbol id="i-ledger" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/><path d="M8 9h8M8 13h5"/></g></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></g></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></g></symbol>
 </svg>
 
-<header class="site-header" id="top">
+<header class="site-header" id="siteHeader">
   <div class="wrap">
-    <a class="logo" href="#home" aria-label="أنظمة رصد السحابية، الرئيسية"><img src="assets/img/footer-logo.svg" alt="رصد" width="161" height="63"></a>
+    <a class="logo" href="#home" aria-label="منظومة رصد السحابية، الرئيسية">
+      <img src="assets/img/footer-logo.svg" alt="رصد" width="161" height="63">
+      <span>منظومة<br>سحابية</span>
+    </a>
     <nav class="nav" aria-label="القائمة الرئيسية">
-      <a href="#home">الرئيسية</a>
-      <a href="#twajd">رصد التواجد</a>
-      <a href="#fawtara">رصد الفوترة</a>
-      <a href="#pricing">باقات الاشتراك</a>
-      <a href="#partners">شركاؤنا</a>
+      <a href="#suite">المنظومة</a>
+      <a href="#showcase">الأنظمة</a>
+      <a href="#integrations">التكامل</a>
+      <a href="#pricing">الأسعار</a>
       <a href="#about">من نحن</a>
-      <a href="#contact">تواصل معنا</a>
+      <a href="#faq">الأسئلة الشائعة</a>
     </nav>
     <div class="header-cta">
-      <a class="btn btn-line" href="https://rassd.sa/blog-list">المدونة</a>
-      <a class="btn btn-teal" href="https://rassd.sa/profile">تسجيل الدخول</a>
+      <a class="btn btn-ghost" href="https://rassd.sa/profile">تسجيل الدخول</a>
+      <a class="btn btn-primary" href="#pricing">ابدأ مجانًا</a>
       <button class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="mobileNav" aria-label="فتح القائمة">
         <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
@@ -342,14 +471,13 @@ footer { background: var(--ink); color: rgba(255,255,255,.75); padding-block: 64
   </div>
   <div class="mobile-nav" id="mobileNav" hidden>
     <div class="wrap">
-      <a href="#home">الرئيسية</a>
-      <a href="#twajd">رصد التواجد</a>
-      <a href="#fawtara">رصد الفوترة</a>
-      <a href="#pricing">باقات الاشتراك</a>
-      <a href="#partners">شركاؤنا</a>
+      <a href="#suite">المنظومة</a>
+      <a href="#showcase">الأنظمة</a>
+      <a href="#integrations">التكامل</a>
+      <a href="#pricing">الأسعار</a>
       <a href="#about">من نحن</a>
-      <a href="#contact">تواصل معنا</a>
-      <a href="https://rassd.sa/blog-list">المدونة</a>
+      <a href="#faq">الأسئلة الشائعة</a>
+      <a href="https://rassd.sa/profile">تسجيل الدخول</a>
     </div>
   </div>
 </header>
@@ -357,373 +485,429 @@ footer { background: var(--ink); color: rgba(255,255,255,.75); padding-block: 64
 <main>
   <!-- Hero -->
   <section class="hero" id="home">
+    <div class="hero-bg" aria-hidden="true"></div>
     <div class="wrap">
       <div class="hero-copy">
-        <div class="marks">
-          <span class="mark"><svg width="16" height="16"><use href="#i-check"/></svg>معتمد رسميًا من هيئة الزكاة والضريبة والجمارك</span>
-        </div>
-        <h1>أنظمة رصد السحابية<br><span>إدارة منشأتك في مكان واحد</span></h1>
-        <p class="lead">مجموعة صممناها في الحاضر والمستقبل بين أعيننا، لنجعل من إدارة منشأتك تجربة متكاملة ومرنة، من الفواتير الإلكترونية المرتبطة بهيئة الزكاة والضريبة والجمارك إلى رصد الحضور والانصراف لموظفي منشأتك.</p>
+        <span class="pill"><b>ZATCA</b>معتمد رسميًا ومتوافق مع المرحلة الثانية للفوترة الإلكترونية</span>
+        <h1>منظومة أعمال سحابية<br><span class="grad-text">تدير فواتيرك وفريقك من مكان واحد</span></h1>
+        <p class="lead">رصد منظومة سحابية متكاملة لرقمنة العمليات الإدارية والمالية في منشأتك. فواتير إلكترونية مرتبطة مباشرة بهيئة الزكاة والضريبة والجمارك، وحضور وانصراف ذكي من الجوال يغنيك عن أجهزة البصمة.</p>
         <div class="hero-actions">
-          <a class="btn btn-teal" href="#pricing">اشترك مجاناً لمدة 10 أيام</a>
-          <a class="btn btn-white" href="#systems">تعرّف على الأنظمة</a>
+          <a class="btn btn-primary" href="#pricing">جرّب المنظومة مجانًا 10 أيام <svg width="16" height="16"><use href="#i-arrow"/></svg></a>
+          <a class="btn btn-ghost" href="#showcase">استكشف الأنظمة</a>
         </div>
-        <div class="marks">
-          <span class="mark"><svg width="16" height="16"><use href="#i-check"/></svg>متوافق مع المرحلة الثانية للفوترة الإلكترونية</span>
-          <span class="mark"><svg width="16" height="16"><use href="#i-check"/></svg>بديل أجهزة البصمة</span>
-          <span class="mark"><svg width="16" height="16"><use href="#i-check"/></svg>تطبيقات iOS و Android</span>
+        <div class="hero-meta">
+          <span><svg width="16" height="16"><use href="#i-check"/></svg>بدون أجهزة أو تركيب</span>
+          <span><svg width="16" height="16"><use href="#i-check"/></svg>تطبيقات iOS و Android</span>
+          <span><svg width="16" height="16"><use href="#i-check"/></svg>بيانات مشفرة وآمنة</span>
         </div>
       </div>
-      <div class="hero-art">
-        <img src="assets/img/system-twajd-2.png" alt="لوحة تحكم رصد التواجد على الحاسب والجوال" width="1118" height="1074">
+
+      <div class="stage">
+        <div class="window" role="img" aria-label="مثال توضيحي للوحة تحكم منظومة رصد">
+          <div class="win-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <div class="win-title">منظومة رصد السحابية · لوحة التحكم</div>
+            <span class="win-tag">بيانات توضيحية</span>
+          </div>
+          <div class="win-body">
+            <aside class="side" aria-hidden="true">
+              <div class="s-logo"><img src="assets/img/footer-logo.svg" alt="" width="161" height="63"></div>
+              <a class="on"><svg width="18" height="18"><use href="#i-home"/></svg><span>لوحة التحكم</span></a>
+              <div class="s-label">رصد الفوترة</div>
+              <a><svg width="18" height="18"><use href="#i-invoice"/></svg><span>الفواتير والإشعارات</span><b class="badge-n">12</b></a>
+              <a><svg width="18" height="18"><use href="#i-ledger"/></svg><span>المطالبات المالية</span></a>
+              <a><svg width="18" height="18"><use href="#i-users"/></svg><span>العملاء</span></a>
+              <div class="s-label">رصد التواجد</div>
+              <a><svg width="18" height="18"><use href="#i-clock"/></svg><span>الحضور والانصراف</span></a>
+              <a><svg width="18" height="18"><use href="#i-cal"/></svg><span>الإجازات والاستئذانات</span><b class="badge-n">3</b></a>
+              <div class="s-label">عام</div>
+              <a><svg width="18" height="18"><use href="#i-chart"/></svg><span>التقارير</span></a>
+            </aside>
+            <div class="main">
+              <div class="main-top">
+                <h3>صباح الخير، مؤسسة المثال<small>الأحد · الفرع الرئيسي، بريدة</small></h3>
+                <div class="chips"><span class="chip live">متصل بالهيئة</span><span class="chip hide-sm">هذا الشهر</span></div>
+              </div>
+              <div class="kpis">
+                <div class="kpi"><small>فواتير هذا الشهر</small><b>248</b><em>+18% عن الشهر الماضي</em></div>
+                <div class="kpi"><small>المبيعات (ر.س)</small><b>184,320</b><em>شامل الضريبة</em></div>
+                <div class="kpi"><small>حاضرون الآن</small><b>42/45</b><em class="t">3 في إجازة</em></div>
+                <div class="kpi"><small>ساعات العمل اليوم</small><b>318</b><em class="t">2 تأخير</em></div>
+              </div>
+              <div class="grid-2">
+                <div class="card">
+                  <h4>المبيعات الأسبوعية <small>آخر 7 أيام</small></h4>
+                  <div class="bars" aria-hidden="true">
+                    <div style="height:46%;animation-delay:.5s"></div>
+                    <div style="height:62%;animation-delay:.58s"></div>
+                    <div style="height:54%;animation-delay:.66s"></div>
+                    <div style="height:78%;animation-delay:.74s"></div>
+                    <div style="height:70%;animation-delay:.82s"></div>
+                    <div style="height:58%;animation-delay:.9s"></div>
+                    <div class="hi" style="height:92%;animation-delay:.98s"></div>
+                  </div>
+                  <div class="bar-x"><span>سبت</span><span>أحد</span><span>اثنين</span><span>ثلاثاء</span><span>أربعاء</span><span>خميس</span><span>جمعة</span></div>
+                </div>
+                <div class="card">
+                  <h4>الحضور اليوم <small>45 موظفًا</small></h4>
+                  <div class="donut-wrap">
+                    <svg class="donut" viewBox="0 0 42 42" aria-hidden="true">
+                      <circle cx="21" cy="21" r="15.9" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="5"/>
+                      <circle cx="21" cy="21" r="15.9" fill="none" stroke="#19c3cc" stroke-width="5" stroke-dasharray="82 18" stroke-dashoffset="25" stroke-linecap="round"/>
+                      <circle cx="21" cy="21" r="15.9" fill="none" stroke="#f2b84b" stroke-width="5" stroke-dasharray="5 95" stroke-dashoffset="-59" stroke-linecap="round"/>
+                      <text x="21" y="23.5" text-anchor="middle" fill="#eaf1fb" font-size="8" font-family="Montserrat-Arabic, sans-serif">93%</text>
+                    </svg>
+                    <div class="legend">
+                      <span><i style="background:#19c3cc"></i>في الموعد 40</span>
+                      <span><i style="background:#f2b84b"></i>متأخر 2</span>
+                      <span><i style="background:rgba(255,255,255,.2)"></i>إجازة 3</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="grid-2">
+                <div class="card">
+                  <h4>آخر الفواتير <small>ZATCA</small></h4>
+                  <table class="inv-table">
+                    <thead><tr><th>الفاتورة</th><th>العميل</th><th class="hide-sm">المبلغ</th><th>الحالة</th></tr></thead>
+                    <tbody>
+                      <tr><td class="num">INV-1046</td><td>شركة الأفق</td><td class="num hide-sm">2,760.00</td><td><span class="st ok">معتمدة</span></td></tr>
+                      <tr><td class="num">INV-1045</td><td>مؤسسة النخبة</td><td class="num hide-sm">1,150.00</td><td><span class="st ok">معتمدة</span></td></tr>
+                      <tr><td class="num">SIM-0381</td><td>عميل نقدي</td><td class="num hide-sm">86.25</td><td><span class="st rep">مُبلّغ عنها</span></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="card">
+                  <h4>نشاط الحضور <small>مباشر</small></h4>
+                  <div class="feed">
+                    <div><span class="av t">س</span><span>سارة العتيبي<small>دخول · المقر الرئيسي</small></span><time>07:58</time></div>
+                    <div><span class="av">ف</span><span>فهد القحطاني<small>دخول · موقع ميداني</small></span><time>08:02</time></div>
+                    <div><span class="av w">ن</span><span>نورة الشهري<small>تأخير 21 دقيقة</small></span><time>08:21</time></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="toast t1" aria-hidden="true">
+          <span class="ic"><svg width="18" height="18"><use href="#i-shield"/></svg></span>
+          <div><b>تم اعتماد الفاتورة INV-1046</b><small>من هيئة الزكاة والضريبة والجمارك</small></div>
+        </div>
+        <div class="toast t2" aria-hidden="true">
+          <span class="ic"><svg width="18" height="18"><use href="#i-pin"/></svg></span>
+          <div><b>سارة سجّلت حضورها 07:58</b><small>داخل نطاق المقر الرئيسي</small></div>
+        </div>
+      </div>
+      <p class="demo-note">واجهة توضيحية بأرقام افتراضية</p>
+    </div>
+  </section>
+
+  <!-- Partner marquee -->
+  <div class="trust" id="partners">
+    <p>منشآت وغرف تجارية تثق في أنظمة رصد</p>
+    <div class="marquee">
+      <div class="track" id="track">
+        <div class="logo-chip"><img src="assets/partners/qassim.svg" alt="غرفة القصيم"></div>
+        <div class="logo-chip"><img src="assets/partners/madina.svg" alt="غرفة المدينة المنورة"></div>
+        <div class="logo-chip"><img src="assets/partners/abha.svg" alt="غرفة أبها"></div>
+        <div class="logo-chip"><img src="assets/partners/goof.png" alt="غرفة الجوف"></div>
+        <div class="logo-chip"><img src="assets/partners/mkshaty.png" alt="مكشاتي"></div>
+        <div class="logo-chip"><img src="assets/partners/fka.svg" alt="شركة فاتن خالد الخليلي للمقاولات"></div>
+        <div class="logo-chip"><img src="assets/partners/sana.svg" alt="شركة السنا للرخام والسيراميك"></div>
+        <div class="logo-chip"><img src="assets/partners/partner1.png" alt="شركة سرايا طويق"></div>
+        <div class="logo-chip"><img src="assets/partners/partner2.png" alt="مشروع القليو الزراعي"></div>
+        <div class="logo-chip"><img src="assets/partners/partner3.png" alt="شركة تشييد الخزامى للمقاولات"></div>
+        <div class="logo-chip"><img src="assets/partners/partner5.png" alt="شركة مواقع النجوم"></div>
+        <div class="logo-chip"><img src="assets/partners/partner6.png" alt="شركة تنفيذ الأولى للمحاماة"></div>
+        <div class="logo-chip"><img src="assets/partners/partner7.png" alt="مؤسسة الاستمرار لخدمات الأعمال"></div>
+        <div class="logo-chip"><img src="assets/partners/partner4.png" alt="شريك نجاح"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suite -->
+  <section id="suite">
+    <div class="wrap">
+      <div class="head reveal">
+        <span class="eyebrow">تطبيقات المنظومة</span>
+        <h2>كل نظام يعمل وحده بكفاءة،<br><span class="grad-text">ومعًا يصبحون منظومة واحدة</span></h2>
+        <p>اشترك في النظام الذي تحتاجه اليوم، وأضف الآخر متى شئت. نفس الحساب، ونفس الهوية، ونفس التجربة.</p>
+      </div>
+
+      <div class="apps">
+        <article class="app-card inv reveal">
+          <div class="app-top"><img src="assets/img/invoices-logo-white.svg" alt="رصد الفوترة" width="160" height="60"><span class="status">متاح الآن</span></div>
+          <h3>الفوترة الإلكترونية المعتمدة</h3>
+          <p>أنشئ فواتيرك وإشعاراتك ومطالباتك المالية، وأرسلها للهيئة فورًا، وشاركها مع عملائك بثلاث خطوات.</p>
+          <ul class="feat-list">
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>ربط وتكامل مع ZATCA</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>مطالبات تتحول إلى فواتير</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>معلومات الإقرار الضريبي</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>مشاركة عبر واتساب والبريد</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>SoftPOS وبوابات ميسر وتمارا</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>قوالب طباعة بهوية منشأتك</li>
+          </ul>
+          <div class="links">
+            <a class="btn btn-ghost" href="#showcase" data-show="fawtara">تفاصيل النظام</a>
+            <a class="btn btn-ghost" href="#pricing" data-price="fawtara">الأسعار من 43 ر.س</a>
+          </div>
+        </article>
+
+        <article class="app-card att reveal">
+          <div class="app-top"><img src="assets/img/twajd-logo.svg" alt="رصد التواجد" width="160" height="60"><span class="status">متاح الآن</span></div>
+          <h3>الحضور والانصراف الذكي</h3>
+          <p>إثبات لحظي للحضور بالتوقيت والمكان من جوال الموظف، مع الإجازات والاستئذانات والتعاميم في تطبيق واحد.</p>
+          <ul class="feat-list">
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>حضور بالموقع الجغرافي</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>بصمة الوجه</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>دوامات ومقرات متعددة</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>إجازات واستئذانات</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>تنبيهات وتعاميم مخصصة</li>
+            <li><svg width="16" height="16"><use href="#i-check"/></svg>تزامن مع أنظمة الموارد البشرية</li>
+          </ul>
+          <div class="links">
+            <a class="btn btn-ghost" href="#showcase" data-show="twajd">تفاصيل النظام</a>
+            <a class="btn btn-ghost" href="#pricing" data-price="twajd">الأسعار من 150 ر.س</a>
+          </div>
+        </article>
+
+        <div class="mini reveal">
+          <span class="ic"><svg width="22" height="22"><use href="#i-lock"/></svg></span>
+          <h4>حساب واحد ودخول موحد</h4>
+          <p>سجّل دخولك مرة واحدة وتنقّل بين أنظمتك المشترك فيها بدون حسابات متعددة.</p>
+        </div>
+        <div class="mini reveal">
+          <span class="ic"><svg width="22" height="22"><use href="#i-users"/></svg></span>
+          <h4>مديرون وصلاحيات</h4>
+          <p>أضف مديرين للنظام، وخصص صلاحيات كل مدير حسب الفرع أو القسم.</p>
+        </div>
+        <div class="mini reveal">
+          <span class="ic"><svg width="22" height="22"><use href="#i-chart"/></svg></span>
+          <h4>تقارير جاهزة للقرار</h4>
+          <p>تقارير مفصلة عن الفواتير والتحصيل والحضور والغياب، قابلة للتصدير.</p>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Systems overview -->
-  <section class="systems" id="systems">
-    <div class="wrap">
-      <div class="head">
-        <span class="chip">أنظمة رصد</span>
-        <h2>التكامل والمتانة التي تحتاجها</h2>
-        <p>نظامان متخصصان يعملان من خلال حساب اشتراك واحد. اشترك في النظام الذي تحتاجه اليوم، وأضف الآخر متى شئت.</p>
+  <!-- Integrations -->
+  <section class="orbit-sec" id="integrations">
+    <div class="wrap orbit-grid">
+      <div class="orbit-copy reveal">
+        <div class="head">
+          <span class="eyebrow">التكامل</span>
+          <h2>متصلة بالجهات والأنظمة<br>التي تعمل معها يوميًا</h2>
+          <p>المنظومة ترتبط بهيئة الزكاة والضريبة والجمارك، وبوسائل الدفع، وبأنظمتك المالية والموارد البشرية، فتنتقل بياناتك تلقائيًا بدون إدخال مكرر.</p>
+        </div>
+        <div class="steps">
+          <div><span><b>اشترك وجرّب مجانًا</b><span>فعّل التجربة المجانية لمدة 10 أيام للنظام الذي تحتاجه.</span></span></div>
+          <div><span><b>اربط منشأتك</b><span>أضف الفروع والمستخدمين والموظفين، وفعّل الربط مع الهيئة.</span></span></div>
+          <div><span><b>ابدأ العمل من أي مكان</b><span>من الكمبيوتر أو الجوال أو اللوحي، والتقارير جاهزة لحظيًا.</span></span></div>
+        </div>
       </div>
-      <div class="sys-grid">
-        <article class="sys twajd">
-          <div class="sys-top"><img src="assets/img/twajd-logo.svg" alt="رصد التواجد" width="160" height="60"></div>
-          <div class="sys-body">
-            <p>أحد أنظمتنا المتخصصة برصد وإدارة حضور موظفي منشأتك الصغيرة أو المتوسطة وتواجدهم وخروجهم من مقر العمل كبديل لأنظمة البصمة.</p>
-            <ul class="ticks">
-              <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>حضور وانصراف بالتوقيت والمكان</li>
-              <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>طلبات الإجازات والاستئذانات</li>
-              <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>تقارير يومية وشهرية لحظية</li>
-            </ul>
-            <a class="btn btn-outline" href="#twajd">تعرف أكثر على النظام</a>
-          </div>
-        </article>
 
-        <article class="sys fawtara">
-          <div class="sys-top"><img src="assets/img/invoices-logo-white.svg" alt="رصد الفوترة" width="160" height="60"></div>
-          <div class="sys-body">
-            <p>نظام متكامل مع هيئة الزكاة والضريبة والجمارك لإنشاء وإدارة الفواتير الإلكترونية والمطالبات المالية بكل سهولة ومرونة.</p>
-            <ul class="ticks">
-              <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>فواتير وإشعارات متوافقة مع ZATCA</li>
-              <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>مطالبات مالية تتحول إلى فواتير</li>
-              <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>مشاركة عبر واتساب والبريد الإلكتروني</li>
-            </ul>
-            <a class="btn btn-outline" href="#fawtara">تعرف أكثر على النظام</a>
-          </div>
-        </article>
-
-        <article class="sys hub">
-          <div class="sys-top"><span class="hub-title">حساب رصد الموحد</span><small>بوابة الاشتراكات</small></div>
-          <div class="sys-body">
-            <p>من حساب واحد تدير اشتراكاتك في رصد التواجد ورصد الفوترة: التفعيل، والتجديد، والترقية، وفواتير الاشتراك.</p>
-            <ul class="ticks">
-              <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>تجربة مجانية 10 أيام لكل نظام</li>
-              <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>اشتراك شهري أو سنوي</li>
-              <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>تسجيل دخول واحد لكل الأنظمة</li>
-            </ul>
-            <a class="btn btn-outline" href="https://rassd.sa/profile">الدخول إلى حسابي</a>
-          </div>
-        </article>
+      <div class="orbit reveal" aria-label="تكاملات منظومة رصد">
+        <svg class="rings" viewBox="0 0 540 540" aria-hidden="true">
+          <defs>
+            <linearGradient id="spokeGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#19c3cc" stop-opacity=".7"/>
+              <stop offset="1" stop-color="#5b93df" stop-opacity=".15"/>
+            </linearGradient>
+          </defs>
+          <circle class="ring" cx="270" cy="270" r="200"/>
+          <circle class="ring spin" cx="270" cy="270" r="250" stroke-opacity=".5"/>
+          <circle class="ring" cx="270" cy="270" r="140" stroke-opacity=".5"/>
+          <g id="spokes"></g>
+        </svg>
+        <div class="core"><div><img src="assets/img/footer-logo.svg" alt="منظومة رصد" width="161" height="63"><small>منظومة رصد</small></div></div>
+        <div id="nodes"></div>
       </div>
     </div>
   </section>
 
-  <!-- رصد التواجد -->
-  <section id="twajd">
+  <!-- Showcase -->
+  <section id="showcase">
     <div class="wrap">
-      <div class="detail-head">
-        <div class="copy">
-          <span class="chip" style="justify-self:start">نظام وتطبيق رصد التواجد</span>
-          <h2>وفِّر وأدر ساعات موظَّفيك<br><span>إدارة كاملة بسهولة</span></h2>
-          <p>إثبات لحظي لمواعيد الحضور والانصراف في تقارير مفصّلة، مع القدرة على تحديد أكثر من دوام، واستقبال طلبات الإجازات والاستئذانات، والإبلاغ بالقرارات والتنبيهات فوريًا.</p>
-          <div class="hero-actions">
-            <a class="btn btn-teal" href="https://rassd.sa/trial-subscription/twajd/RDUwOENGOTctOTJGMy00QUMzLUEzODctQkVCMUY2NUU4MTky">اشترك مجاناً لمدة 10 أيام</a>
-            <a class="btn btn-outline" href="#pricing" data-goto="twajd">باقات رصد التواجد</a>
+      <div class="head center reveal">
+        <span class="eyebrow">الأنظمة من الداخل</span>
+        <h2>صُممت لتفاصيل عملك اليومي</h2>
+      </div>
+      <div style="text-align:center">
+        <div class="show-tabs" role="tablist" aria-label="اختر النظام">
+          <button role="tab" id="st-fawtara" aria-selected="true" aria-controls="sp-fawtara" data-tab="fawtara">رصد الفوترة</button>
+          <button role="tab" id="st-twajd" aria-selected="false" aria-controls="sp-twajd" data-tab="twajd">رصد التواجد</button>
+        </div>
+      </div>
+
+      <div class="show-panel" role="tabpanel" id="sp-fawtara" aria-labelledby="st-fawtara">
+        <div class="show-copy">
+          <span class="eyebrow">رصد الفوترة</span>
+          <h3>ودّع التعقيد في إدارة الفواتير</h3>
+          <p>نظام متكامل مع هيئة الزكاة والضريبة والجمارك لإنشاء وإدارة الفواتير الإلكترونية والمطالبات المالية، من إنشاء الفاتورة إلى تحليل الأداء.</p>
+          <div class="points">
+            <div><svg width="16" height="16"><use href="#i-check"/></svg><span><b>تحقيق متطلبات الهيئة</b><span>فواتير وإشعارات متزامنة فوريًا مع الهيئة، مع معلومات الإقرار الضريبي الدوري.</span></span></div>
+            <div><svg width="16" height="16"><use href="#i-check"/></svg><span><b>مطالبات مالية للعملاء</b><span>يطلع عليها العميل قبل اعتمادها، ثم تتحول إلى فاتورة بضغطة.</span></span></div>
+            <div><svg width="16" height="16"><use href="#i-check"/></svg><span><b>تطبيق جوال لعملائك</b><span>يطلعون على فواتيرهم ويحملونها ويشاركونها، فيزيد رضاهم واطمئنانهم.</span></span></div>
+            <div><svg width="16" height="16"><use href="#i-check"/></svg><span><b>أرباح أعلى وتكاليف أقل</b><span>تعامل ورقي أقل وأخطاء بشرية أقل، بسعر مناسب لحجم منشأتك.</span></span></div>
+          </div>
+          <div class="hero-actions" style="justify-content:flex-start">
+            <a class="btn btn-primary" href="https://rassd.sa/trial-subscription/fawtara/NEZGNUZEOTAtRUM2RS00ODJGLTgwQkUtNTE2NjU2QzExQjFF">جرّب رصد الفوترة مجانًا</a>
           </div>
         </div>
-        <div class="art"><img src="assets/img/lap-app.png" alt="رصد التواجد على الحاسب والجوال" width="1122" height="974" loading="lazy"></div>
-      </div>
-
-      <div class="head" style="margin-bottom:40px">
-        <h2>تحكُّم شامل في حضور وانصراف الموظفين</h2>
-      </div>
-      <div class="feat-grid">
-        <div class="feat">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span>
-          <h3>متابعة شاملة للحضور</h3><p>رَصْد الحضور والانصراف والتواجد بالتوقيت والمكان.</p>
-        </div>
-        <div class="feat">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg></span>
-          <h3>تسهيل عملية الطلبات</h3><p>استقبال وإدارة طلبات الإجازات والاستئذانات.</p>
-        </div>
-        <div class="feat">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
-          <h3>تقارير يومية وشهرية</h3><p>اطّلاع لحظي على تقارير الحضور والانصراف.</p>
-        </div>
-        <div class="feat">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
-          <h3>إرسال التنبيهات</h3><p>إرسال تنبيهات مخصصة للموظفين على تطبيق رصد التواجد للجوال.</p>
-        </div>
-        <div class="feat">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-7-7 18-2-8-9-3z"/></svg></span>
-          <h3>تبليغ الموظفين</h3><p>إرسال القرارات الهامة للفروع أو الأقسام أو الموظفين.</p>
-        </div>
-        <div class="feat">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg></span>
-          <h3>تحديد أكثر من مكان</h3><p>السماح بعمل البصمات من الشركة، أو المنزل، أو مكان ميداني.</p>
-        </div>
-        <div class="feat">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-          <h3>تحديد أكثر من دوام</h3><p>المرونة في تحديد فترات العمل، صباحية أو مسائية أو كما يناسب طبيعة عملك.</p>
-        </div>
-        <div class="feat">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M17 11l1.5 1.5L22 9"/></svg></span>
-          <h3>تسهيل وصول المديرين</h3><p>إمكانية إضافة مديرين للنظام، مع تخصيص الصلاحيات لكل مدير.</p>
+        <div class="shot-frame">
+          <img src="assets/img/invoices-lap.png" alt="شاشة إصدار الفواتير في رصد الفوترة" width="930" height="560" loading="lazy">
+          <div class="seal"><img src="assets/img/zatca.svg" alt="" width="34" height="34">معتمد من هيئة الزكاة<br>والضريبة والجمارك</div>
         </div>
       </div>
 
-      <div class="pains">
-        <div class="head" style="margin-bottom:40px">
-          <span class="chip" style="background:rgba(255,255,255,.12);color:#fff">ماذا تنتظر؟</span>
-          <h2>تخلّص من أنظمة البصمة التقليدية</h2>
-        </div>
-        <div class="pain-grid">
-          <div class="pain"><h3>تحديات الاستئذان والإجازات</h3><p>الإدخال اليدوي لطلبات الاستئذان والإجازات يؤدي للأخطاء والتأخير، وبالتالي التأخر في تنفيذ الطلبات.</p></div>
-          <div class="pain"><h3>ضعف الأداء والنظافة</h3><p>انقطاع الاتصال أو خدوش الشاشة أو صعوبة قراءة البصمات، أو تعرض الموظفين للجراثيم عند ملامسة الجهاز بشكل متكرر.</p></div>
-          <div class="pain"><h3>التلاعب بالبيانات</h3><p>يمكن للموظفين التلاعب بأنظمة البصمة من خلال تزييف البصمات وتسجيل الحضور لزميل آخر.</p></div>
-          <div class="pain"><h3>تكاليف الصيانة</h3><p>تتطلب أجهزة البصمة التقليدية توصيلات وتركيبات وصيانة دورية بتكلفة مرتفعة بسبب الأعطال المستمرة.</p></div>
-        </div>
-      </div>
-
-      <div class="benefits">
-        <div class="benefit">
-          <h3>الفوائد للشركات</h3>
-          <ul class="ticks">
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>متابعة مواعيد الحضور والانصراف</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>منح الإجازات والاستئذانات</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>إرسال القرارات والتعاميم للفروع والأقسام</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>الاستغناء عن أجهزة البصمة وصيانتها</li>
-          </ul>
-        </div>
-        <div class="benefit">
-          <h3>الفوائد للموظفين</h3>
-          <ul class="ticks">
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>متابعة سجل التواجد اليومي</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>وصول كامل لبيانات الموظف المهنية والوظيفية</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>تقديم طلبات الإجازة والاستئذان من الجوال</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>استلام التنبيهات والقرارات فورًا</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- رصد الفوترة -->
-  <section class="fawtara-sec" id="fawtara">
-    <div class="wrap">
-      <div class="detail-head">
-        <div class="copy">
-          <span class="chip" style="justify-self:start">نظام رصد الفوترة</span>
-          <h2>إنشاء فواتير إلكترونية متكاملة<br><span>مع هيئة الزكاة والضريبة</span></h2>
-          <p>نظام متكامل مع هيئة الزكاة والضريبة والجمارك ZATCA لإنشاء وإدارة الفواتير الإلكترونية والمطالبات المالية بكل سهولة. أصدر فواتيرك بثلاث خطوات: أنشئ، أرسل، وشارك، وخصصها على هوية منشأتك.</p>
-          <div class="badge-row">
-            <span class="badge"><svg width="14" height="14"><use href="#i-check"/></svg>معتمد رسميًا من هيئة الزكاة والضريبة والجمارك</span>
-            <span class="badge"><svg width="14" height="14"><use href="#i-check"/></svg>متوافق مع متطلبات المرحلة الثانية</span>
+      <div class="show-panel" role="tabpanel" id="sp-twajd" aria-labelledby="st-twajd" hidden>
+        <div class="show-copy">
+          <span class="eyebrow">رصد التواجد</span>
+          <h3>ودِّع أجهزة البصمة، وأدر حضور فريقك بذكاء</h3>
+          <p>نظام حضور مرن عبر الجوال يغنيك عن التعقيدات التقليدية، ويتيح لك متابعة فريقك وإصدار التقارير بلمسة واحدة.</p>
+          <div class="points">
+            <div><svg width="16" height="16"><use href="#i-check"/></svg><span><b>حضور بالتوقيت والمكان</b><span>بصمات من الشركة أو المنزل أو المواقع الميدانية، مع أكثر من دوام صباحي أو مسائي.</span></span></div>
+            <div><svg width="16" height="16"><use href="#i-check"/></svg><span><b>إجازات واستئذانات بلا أوراق</b><span>اقبل أو ارفض الطلبات فورًا وحافظ على تنظيم أيام العمل.</span></span></div>
+            <div><svg width="16" height="16"><use href="#i-check"/></svg><span><b>تعاميم وتنبيهات فورية</b><span>أرسل القرارات للفروع أو الأقسام أو الموظفين لتصلهم في ثوانٍ.</span></span></div>
+            <div><svg width="16" height="16"><use href="#i-check"/></svg><span><b>تقارير يومية وشهرية</b><span>أوقات الحضور والخروج والغياب والإنتاجية بصيغ جاهزة للتحليل.</span></span></div>
           </div>
-          <div class="hero-actions">
-            <a class="btn btn-teal" href="https://rassd.sa/trial-subscription/fawtara/NEZGNUZEOTAtRUM2RS00ODJGLTgwQkUtNTE2NjU2QzExQjFF">اشترك مجاناً لمدة 10 أيام</a>
-            <a class="btn btn-outline" href="#pricing" data-goto="fawtara">باقات رصد الفوترة</a>
+          <div class="hero-actions" style="justify-content:flex-start">
+            <a class="btn btn-primary" href="https://rassd.sa/trial-subscription/twajd/RDUwOENGOTctOTJGMy00QUMzLUEzODctQkVCMUY2NUU4MTky">جرّب رصد التواجد مجانًا</a>
           </div>
         </div>
-        <div class="art"><img src="assets/img/system-invoices-2.png" alt="رصد الفوترة على الحاسب والجوال" width="1108" height="1226" loading="lazy"></div>
-      </div>
-
-      <div class="head" style="margin-bottom:40px">
-        <span class="chip">مميزات النظام</span>
-        <h2>ماذا تربح مع نظام رصد الفوترة؟</h2>
-      </div>
-      <div class="win-grid">
-        <div class="win">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></span>
-          <h3>تحقيق متطلبات الهيئة</h3><p>فواتير وإشعارات متوافقة ومتزامنة فوريًا مع متطلبات هيئة الزكاة والضريبة والجمارك، مع توفير معلومات الإقرار الضريبي الدوري.</p>
-        </div>
-        <div class="win">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></span>
-          <h3>زيادة أرباحك وتقليل تكاليفك</h3><p>سعر مناسب، وتعامل ورقي أقل، وعمالة أقل، للقضاء على الأخطاء البشرية وعمليات الاحتيال.</p>
-        </div>
-        <div class="win">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l3 3v15l-2.5-1.5L13 21l-2.5-1.5L8 21l-2-1.5V3z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg></span>
-          <h3>إنشاء مطالبات للعملاء</h3><p>مطالبات مالية بالقيمة المستحقة، يطلع عليها العميل قبل اعتمادها وتحويلها إلى فاتورة.</p>
-        </div>
-        <div class="win">
-          <span class="feat-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg></span>
-          <h3>تحسين العلاقة مع العملاء</h3><p>تطبيق جوال لعملائك للاطلاع على فواتيرهم وتحميلها وطباعتها ومشاركتها، لزيادة رضاهم واطمئنانهم.</p>
+        <div class="shot-frame">
+          <img src="assets/img/lap-app.png" alt="رصد التواجد على الحاسب والجوال" width="1122" height="974" loading="lazy" style="background:transparent">
         </div>
       </div>
 
-      <div class="two-lists">
-        <div class="list">
-          <h3><small>مع نظام رصد الفوترة</small>تطوير متكامل لشركتك</h3>
-          <ul class="ticks">
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>سهولة في إنشاء مطالبات وفواتير وإشعارات إلكترونية</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>تحويل المطالبات إلى فواتير</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>تقارير عن الفواتير والمطالبات والعملاء وعمليات السداد</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>مشاركة المطالبات والفواتير مع العملاء عبر واتساب والبريد الإلكتروني</li>
-          </ul>
-        </div>
-        <div class="art"><img src="assets/img/invoices-inv-zatca.png" alt="فاتورة إلكترونية معتمدة من هيئة الزكاة والضريبة والجمارك" width="928" height="688" loading="lazy"></div>
-        <div class="list">
-          <h3><small>مع نظام رصد الفوترة</small>تكامل كامل مع الهيئة</h3>
-          <ul class="ticks">
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>إصدار فواتير وإشعارات متوافقة مع هيئة الزكاة والضريبة والجمارك</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>مشاركة الفواتير والإشعارات مع الهيئة</li>
-            <li><span class="tick"><svg width="12" height="12"><use href="#i-check"/></svg></span>توفير معلومات الإقرار الضريبي المطلوب بشكل دوري</li>
-          </ul>
-        </div>
+      <div class="pains reveal">
+        <div class="pains-title"><h3>لماذا تتخلص من أجهزة البصمة التقليدية؟</h3></div>
+        <div class="pain"><b>التلاعب بالبيانات</b><span>تزييف البصمات وتسجيل الحضور لزميل آخر.</span></div>
+        <div class="pain"><b>تكاليف الصيانة</b><span>توصيلات وتركيبات وأعطال متكررة بتكلفة مرتفعة.</span></div>
+        <div class="pain"><b>ضعف الأداء والنظافة</b><span>انقطاع الاتصال وصعوبة قراءة البصمة وملامسة الجهاز المتكررة.</span></div>
+        <div class="pain"><b>الإجازات الورقية</b><span>الإدخال اليدوي للطلبات يسبب الأخطاء والتأخير.</span></div>
       </div>
     </div>
   </section>
 
   <!-- Pricing -->
-  <section class="pricing on-blue" id="pricing">
+  <section class="pricing" id="pricing">
     <div class="wrap">
-      <div class="head">
-        <span class="chip">الباقات</span>
-        <h2>باقات صممت لتلبي احتياجاتك</h2>
-        <p>جميع الأسعار بالريال السعودي وغير شاملة ضريبة القيمة المضافة. ابدأ بتجربة مجانية لمدة 10 أيام.</p>
+      <div class="head center reveal">
+        <span class="eyebrow">الأسعار</span>
+        <h2>باقات واضحة تنمو مع منشأتك</h2>
+        <p>جميع الباقات تبدأ بتجربة مجانية لمدة 10 أيام. الأسعار بالريال السعودي وغير شاملة ضريبة القيمة المضافة.</p>
       </div>
 
       <div class="price-controls">
-        <div class="tabs" role="tablist" aria-label="اختر النظام">
-          <button role="tab" id="tab-twajd" aria-selected="true" aria-controls="matrix" data-sys="twajd">رصد التواجد</button>
-          <button role="tab" id="tab-fawtara" aria-selected="false" aria-controls="matrix" data-sys="fawtara">رصد الفوترة</button>
+        <div class="sys-tabs" role="tablist" aria-label="اختر النظام">
+          <button role="tab" id="pt-fawtara" aria-selected="true" aria-controls="plans" data-sys="fawtara">رصد الفوترة</button>
+          <button role="tab" id="pt-twajd" aria-selected="false" aria-controls="plans" data-sys="twajd">رصد التواجد</button>
         </div>
         <div class="period" role="group" aria-label="مدة الاشتراك">
-          <button type="button" id="p-monthly" aria-pressed="true" data-period="monthly">شهري</button>
-          <button type="button" id="p-yearly" aria-pressed="false" data-period="yearly">سنوي</button>
+          <button type="button" aria-pressed="true" data-period="monthly">شهري</button>
+          <button type="button" aria-pressed="false" data-period="yearly">سنوي</button>
         </div>
       </div>
 
-      <div class="matrix-card" id="matrix" role="tabpanel" aria-labelledby="tab-twajd">
-        <div class="table-wrap">
-          <table class="matrix" id="matrixTable"></table>
-        </div>
-        <div class="matrix-note">
-          <p>الأسعار غير شاملة ضريبة القيمة المضافة 15%.</p>
-          <p id="periodNote">الاشتراك الشهري يُجدد كل شهر.</p>
-        </div>
+      <div class="plans" id="plans" role="tabpanel" aria-labelledby="pt-fawtara" aria-live="polite"></div>
+
+      <div class="price-foot">
+        <span>الأسعار غير شاملة ضريبة القيمة المضافة 15%</span>
+        <span>تجربة مجانية 10 أيام</span>
+        <span>ترقية الباقة في أي وقت</span>
       </div>
 
-      <div class="custom-plan">
+      <details class="compare">
+        <summary>المقارنة الكاملة بين الباقات</summary>
+        <div class="table-wrap"><table class="matrix" id="matrix"></table></div>
+      </details>
+
+      <div class="custom">
         <div>
-          <h3>لم تجد الباقة التي تناسب احتياجاتك؟</h3>
-          <p>نحن هنا لمساعدتك! يمكنك التواصل معنا وطلب باقة مخصصة.</p>
+          <h3>تحتاج باقة بحجم منشأتك؟</h3>
+          <p>عدد موظفين أو فواتير أكبر، أو فروع أكثر؟ صمّم باقتك المخصصة.</p>
         </div>
-        <a class="btn btn-white" href="https://customize-plan.rassd.sa/">طلب باقة مخصصة</a>
+        <a class="btn btn-ghost" href="https://customize-plan.rassd.sa/">طلب باقة مخصصة</a>
       </div>
     </div>
   </section>
 
-  <!-- Apps -->
+  <!-- Mobile apps -->
   <section id="apps">
     <div class="wrap">
-      <div class="head">
-        <span class="chip">التطبيقات</span>
-        <h2>أنظمة رصد في جوالك</h2>
-        <p>منصة سحابية متاحة لك أينما كنت، من الكمبيوتر أو الجوال أو اللوحي دون تعقيدات.</p>
+      <div class="head center reveal">
+        <span class="eyebrow">تطبيقات الجوال</span>
+        <h2>المنظومة في جيبك</h2>
+        <p>منصة سحابية متاحة لك أينما كنت، ومعها تطبيقات جوال لك ولموظفيك ولعملائك.</p>
       </div>
-      <div class="apps-grid">
-        <article class="app">
-          <div class="copy">
-            <h3>تطبيق رصد التواجد</h3>
-            <p>بإمكانك وبإمكان موظفيك تحميل تطبيق رصد التواجد لتسجيل الحضور والانصراف، وتقديم الطلبات، واستلام التنبيهات.</p>
-            <div class="stores">
-              <a href="https://apps.apple.com/us/app/%D8%B1%D8%B5%D8%AF-%D8%A7%D9%84%D8%AA%D9%88%D8%A7%D8%AC%D8%AF/id6456840349" aria-label="تحميل رصد التواجد من App Store"><img src="assets/img/appstore-twajd.svg" alt="App Store" width="150" height="46"></a>
-              <a href="https://play.google.com/store/apps/details?id=com.worldofss.MotwagedRassdApp" aria-label="تحميل رصد التواجد من Google Play"><img src="assets/img/googleplay-twajd.svg" alt="Google Play" width="150" height="46"></a>
-            </div>
-          </div>
-          <div class="shot"><img src="assets/img/app-twajd.png" alt="شاشات تطبيق رصد التواجد" width="1017" height="1054" loading="lazy"></div>
-        </article>
-        <article class="app">
+      <div class="mob">
+        <article class="mob-card reveal">
           <div class="copy">
             <h3>تطبيق رصد الفوترة</h3>
-            <p>أنشئ الفواتير وصنّف المنتجات بكفاءة. شارك الفواتير أو اطبعها أو احفظها كمسودة، وسددها نقدًا أو بالبطاقة الائتمانية.</p>
+            <p>أنشئ الفواتير وصنّف المنتجات، وشارك الفواتير أو اطبعها أو احفظها كمسودة، وسددها نقدًا أو بالبطاقة.</p>
             <div class="stores">
-              <a href="https://apps.apple.com/eg/app/%D8%B1%D8%B5%D8%AF-%D8%A7%D9%84%D9%81%D9%88%D8%AA%D8%B1%D8%A9/id6478158183" aria-label="تحميل رصد الفوترة من App Store"><img src="assets/img/appstore-twajd.svg" alt="App Store" width="150" height="46"></a>
-              <a href="https://play.google.com/store/apps/details?id=com.worldofss.rassd_billing" aria-label="تحميل رصد الفوترة من Google Play"><img src="assets/img/googleplay-twajd.svg" alt="Google Play" width="150" height="46"></a>
+              <a href="https://apps.apple.com/eg/app/%D8%B1%D8%B5%D8%AF-%D8%A7%D9%84%D9%81%D9%88%D8%AA%D8%B1%D8%A9/id6478158183"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.8 1.2 1.8 2.6 3.1 2.5 1.3-.1 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.5.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.6-1-2.6-4.1zM13.9 4.9c.7-.8 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z"/></svg><span><small>حمّل من</small>App Store</span></a>
+              <a href="https://play.google.com/store/apps/details?id=com.worldofss.rassd_billing"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.6 2.2c-.3.3-.4.7-.4 1.2v17.2c0 .5.1.9.4 1.2l9.6-9.8-9.6-9.8zm10.6 10.8l2.6 2.6-11 6.3 8.4-8.9zm0-2L5.8 2.1l11 6.3-2.6 2.6zm3.8.1l3 1.7c.8.5.8 1.3 0 1.8l-3 1.7-2.8-2.6 2.8-2.6z"/></svg><span><small>متوفر على</small>Google Play</span></a>
             </div>
           </div>
           <div class="shot"><img src="assets/img/fawtraApp.png" alt="شاشات تطبيق رصد الفوترة" width="1452" height="2548" loading="lazy"></div>
         </article>
-      </div>
-    </div>
-  </section>
-
-  <!-- Partners -->
-  <section class="partners" id="partners">
-    <div class="wrap">
-      <div class="head">
-        <span class="chip">شركاؤنا</span>
-        <h2>عملاؤنا شركاء نجاحاتنا</h2>
-        <p>نعتز بشركائنا، هؤلاء من يفضلون خدماتنا.</p>
-      </div>
-      <div class="logo-grid">
-        <div class="logo-cell"><img src="assets/partners/qassim.svg" alt="غرفة القصيم" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/madina.svg" alt="غرفة المدينة المنورة" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/abha.svg" alt="غرفة أبها" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/goof.png" alt="غرفة الجوف" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/mkshaty.png" alt="مكشاتي" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/fka.svg" alt="شركة فاتن خالد الخليلي للمقاولات" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/sana.svg" alt="شركة السنا للرخام والسيراميك" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/partner1.png" alt="شركة سرايا طويق" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/partner2.png" alt="مشروع القليو الزراعي" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/partner3.png" alt="شركة تشييد الخزامى للمقاولات" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/partner4.png" alt="شريك" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/partner5.png" alt="شركة مواقع النجوم" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/partner6.png" alt="شركة تنفيذ الأولى للمحاماة" loading="lazy"></div>
-        <div class="logo-cell"><img src="assets/partners/partner7.png" alt="مؤسسة الاستمرار لخدمات الأعمال" loading="lazy"></div>
+        <article class="mob-card reveal">
+          <div class="copy">
+            <h3>تطبيق رصد التواجد</h3>
+            <p>تطبيق موظفيك لتسجيل الحضور والانصراف، وتقديم طلبات الإجازة والاستئذان، واستلام التنبيهات والتعاميم.</p>
+            <div class="stores">
+              <a href="https://apps.apple.com/us/app/%D8%B1%D8%B5%D8%AF-%D8%A7%D9%84%D8%AA%D9%88%D8%A7%D8%AC%D8%AF/id6456840349"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.8 1.2 1.8 2.6 3.1 2.5 1.3-.1 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.5.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.6-1-2.6-4.1zM13.9 4.9c.7-.8 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z"/></svg><span><small>حمّل من</small>App Store</span></a>
+              <a href="https://play.google.com/store/apps/details?id=com.worldofss.MotwagedRassdApp"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.6 2.2c-.3.3-.4.7-.4 1.2v17.2c0 .5.1.9.4 1.2l9.6-9.8-9.6-9.8zm10.6 10.8l2.6 2.6-11 6.3 8.4-8.9zm0-2L5.8 2.1l11 6.3-2.6 2.6zm3.8.1l3 1.7c.8.5.8 1.3 0 1.8l-3 1.7-2.8-2.6 2.8-2.6z"/></svg><span><small>متوفر على</small>Google Play</span></a>
+            </div>
+          </div>
+          <div class="shot"><img src="assets/img/app-twajd.png" alt="شاشات تطبيق رصد التواجد" width="1017" height="1054" loading="lazy"></div>
+        </article>
       </div>
     </div>
   </section>
 
   <!-- About -->
-  <section class="about" id="about">
-    <div class="wrap">
-      <div class="copy">
-        <span class="chip" style="justify-self:start">من نحن</span>
-        <h2>ليس مجرد نظام.. بل شريك في نجاح أعمالك</h2>
-        <p>شركة أنظمة رصد السحابية لرقمنة العمليات الإدارية والمالية والإنتاجية للشركات، إحدى شركات عالم النظم والبرامج.</p>
-        <p>صممنا أنظمة رصد في الحاضر والمستقبل بين أعيننا، لنجعل من إدارة منشأتك تجربة متكاملة ومرنة: من الإدارة المالية والمحاسبية والمخازن والموارد البشرية، إلى رصد الحضور والانصراف لموظفي منشأتك.</p>
-        <p>نضمن لك حماية بياناتك بأعلى معايير التشفير، ونطور أنظمتنا باستمرار لتبقى متوافقة مع متطلبات هيئة الزكاة والضريبة والجمارك.</p>
+  <section id="about">
+    <div class="wrap about-grid">
+      <div class="about-copy reveal">
+        <div class="head">
+          <span class="eyebrow">من نحن</span>
+          <h2>ليس مجرد نظام..<br><span class="grad-text">بل شريك في نجاح أعمالك</span></h2>
+        </div>
+        <p>شركة أنظمة رصد السحابية متخصصة في رقمنة العمليات الإدارية والمالية والإنتاجية للشركات، وهي إحدى شركات عالم النظم والبرامج.</p>
+        <p>صممنا منظومة رصد في الحاضر والمستقبل بين أعيننا، لنجعل من إدارة منشأتك تجربة متكاملة ومرنة. نحمي بياناتك بأعلى معايير التشفير، ونطور أنظمتنا باستمرار لتبقى متوافقة مع متطلبات هيئة الزكاة والضريبة والجمارك.</p>
       </div>
-      <div class="facts">
-        <div class="fact"><b>الشركة</b><span>شركة أنظمة رصد السحابية</span></div>
-        <div class="fact"><b>الشركة الأم</b><span><a href="https://www.worldofss.com/">عالم النظم والبرامج</a></span></div>
-        <div class="fact"><b>الأنظمة</b><span>رصد التواجد، رصد الفوترة</span></div>
-        <div class="fact"><b>الاعتماد</b><span>معتمد من هيئة الزكاة والضريبة والجمارك، متوافق مع المرحلة الثانية</span></div>
-        <div class="fact"><b>المقر</b><span>السعودية، القصيم، بريدة، حي النهضة، طريق عمر بن الخطاب، مقابل بنك الإنماء، 52388</span></div>
+      <div class="facts reveal">
+        <div class="fact"><small>الاعتماد</small><b>معتمد من هيئة الزكاة والضريبة والجمارك</b></div>
+        <div class="fact"><small>الفوترة الإلكترونية</small><b>متوافق مع المرحلة الثانية</b></div>
+        <div class="fact"><small>الشركة الأم</small><b><a href="https://www.worldofss.com/">عالم النظم والبرامج</a></b></div>
+        <div class="fact"><small>الرقم الموحد</small><b><a href="tel:920032894" dir="ltr">920032894</a></b></div>
+        <div class="fact wide"><small>المقر الرئيسي</small><b>السعودية، القصيم، بريدة، حي النهضة، طريق عمر بن الخطاب، مقابل بنك الإنماء، 52388</b></div>
       </div>
     </div>
   </section>
 
   <!-- FAQ -->
-  <section class="faq" id="faq">
+  <section id="faq">
     <div class="wrap">
-      <div class="head">
-        <span class="chip">الأسئلة الشائعة</span>
-        <h2>إجابات سريعة قبل أن تبدأ</h2>
+      <div class="head center reveal">
+        <span class="eyebrow">الأسئلة الشائعة</span>
+        <h2>إجابات قبل أن تبدأ</h2>
       </div>
       <div class="faq-list">
         <details open>
           <summary>هل يمكنني تجربة الأنظمة قبل الاشتراك؟</summary>
-          <p>نعم. يمكنك الاشتراك مجانًا لمدة 10 أيام في رصد التواجد أو رصد الفوترة، وتجربة النظام قبل اختيار الباقة.</p>
+          <p>نعم. يمكنك الاشتراك مجانًا لمدة 10 أيام في رصد الفوترة أو رصد التواجد، وتجربة النظام قبل اختيار الباقة.</p>
         </details>
         <details>
           <summary>هل رصد الفوترة معتمد من هيئة الزكاة والضريبة والجمارك؟</summary>
           <p>نعم. رصد الفوترة معتمد رسميًا من الهيئة ومتوافق مع متطلبات المرحلة الثانية للفوترة الإلكترونية، ويتوفر التكامل مع ZATCA في الباقة الاقتصادية وباقة الأعمال.</p>
+        </details>
+        <details>
+          <summary>هل أستطيع الاشتراك في نظام واحد فقط؟</summary>
+          <p>نعم. كل نظام له باقاته الخاصة، وتستطيع إضافة النظام الآخر لاحقًا من نفس حسابك.</p>
         </details>
         <details>
           <summary>كيف يسجل الموظفون الحضور في رصد التواجد؟</summary>
@@ -734,52 +918,28 @@ footer { background: var(--ink); color: rgba(255,255,255,.75); padding-block: 64
           <p>لا. جميع أسعار الباقات بالريال السعودي وغير شاملة ضريبة القيمة المضافة 15%.</p>
         </details>
         <details>
-          <summary>عدد موظفيني أو فواتيري أكبر من الباقات المتاحة؟</summary>
-          <p>يمكنك طلب باقة مخصصة تناسب حجم منشأتك من صفحة <a href="https://customize-plan.rassd.sa/">طلب باقة مخصصة</a>، أو التواصل معنا على الرقم الموحد 920032894.</p>
-        </details>
-        <details>
-          <summary>هل يتكامل رصد التواجد مع أنظمة الموارد البشرية؟</summary>
-          <p>نعم، التزامن مع أنظمة الموارد البشرية متاح في باقة الأعمال، إلى جانب استيراد بيانات الموظفين وتصدير التقارير المفصلة في جميع الباقات.</p>
+          <summary>منشأتي أكبر من الباقات المتاحة، ماذا أفعل؟</summary>
+          <p>اطلب باقة مخصصة من صفحة <a href="https://customize-plan.rassd.sa/">طلب باقة مخصصة</a>، أو تواصل معنا على الرقم الموحد 920032894.</p>
         </details>
       </div>
     </div>
   </section>
 
-  <!-- Contact -->
-  <section id="contact">
+  <!-- CTA -->
+  <section id="contact" style="padding-top:20px">
     <div class="wrap">
-      <div class="contact-box">
-        <div>
-          <span class="chip">تواصل معنا</span>
-          <h2>جاهز تبدأ مع أنظمة رصد؟</h2>
-          <p class="intro">فريقنا جاهز لمساعدتك في اختيار الباقة المناسبة وتجهيز حسابك.</p>
-          <div class="contact-lines">
-            <div><small>الرقم الموحد</small><a href="tel:920032894" class="num" dir="ltr">920032894</a></div>
-            <div><small>البريد الإلكتروني والدعم الفني</small><a href="mailto:info@rassd.sa" dir="ltr">info@rassd.sa</a></div>
-            <div><small>العنوان</small><span>القصيم، بريدة، حي النهضة، طريق عمر بن الخطاب، مقابل بنك الإنماء، 52388</span></div>
-          </div>
+      <div class="cta reveal">
+        <span class="eyebrow">ابدأ اليوم</span>
+        <h2>جاهز تنقل منشأتك<br><span class="grad-text">إلى منظومة رصد؟</span></h2>
+        <p>فعّل تجربتك المجانية الآن، أو تواصل مع فريقنا لمساعدتك في اختيار الباقة المناسبة.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#pricing">ابدأ التجربة المجانية</a>
+          <a class="btn btn-ghost" href="tel:920032894">اتصل بنا 920032894</a>
         </div>
-        <form id="leadForm" novalidate>
-          <h3>اطلب التواصل معك</h3>
-          <div class="row2">
-            <label for="f-name">الاسم<input id="f-name" name="name" required placeholder="اسمك الكامل"></label>
-            <label for="f-company">اسم المنشأة<input id="f-company" name="company" required placeholder="اسم الشركة أو المؤسسة"></label>
-          </div>
-          <div class="row2">
-            <label for="f-phone">رقم الجوال<input id="f-phone" name="phone" type="tel" dir="ltr" required placeholder="05XXXXXXXX"></label>
-            <label for="f-email">البريد الإلكتروني<input id="f-email" name="email" type="email" dir="ltr" placeholder="name@company.sa"></label>
-          </div>
-          <label for="f-system">النظام المطلوب
-            <select id="f-system" name="system">
-              <option>رصد التواجد</option>
-              <option>رصد الفوترة</option>
-              <option>رصد التواجد ورصد الفوترة</option>
-            </select>
-          </label>
-          <label for="f-msg">ملاحظات<textarea id="f-msg" name="message" rows="3" placeholder="عدد الموظفين، عدد الفروع، أو أي تفاصيل تهمك"></textarea></label>
-          <button class="btn btn-teal" type="submit">أرسل الطلب</button>
-          <div class="form-ok" id="formOk" role="status" hidden></div>
-        </form>
+        <div class="contact-row">
+          <span>البريد: <a href="mailto:info@rassd.sa" dir="ltr">info@rassd.sa</a></span>
+          <span>الدعم الفني: <a href="mailto:info@rassd.sa" dir="ltr">info@rassd.sa</a></span>
+        </div>
       </div>
     </div>
   </section>
@@ -792,29 +952,28 @@ footer { background: var(--ink); color: rgba(255,255,255,.75); padding-block: 64
         <img src="assets/img/footer-logo.svg" alt="رصد" width="161" height="63">
         <p>شركة أنظمة رصد السحابية لرقمنة العمليات الإدارية والمالية والإنتاجية للشركات.</p>
         <div class="social">
-          <a href="https://twitter.com/CloudRassd" aria-label="X (تويتر)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.8 3h3.1l-6.8 7.7L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.2-8.3L1.8 3h6.4l4.4 5.8L17.8 3zm-1.1 16.2h1.7L7.4 4.7H5.6l11.1 14.5z"/></svg></a>
-          <a href="https://www.instagram.com/cloudrassd/" aria-label="إنستغرام"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></a>
-          <a href="https://www.linkedin.com/company/worldofss/" aria-label="لينكدإن"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.1c.5-1 1.8-2 3.8-2 4 0 4.8 2.6 4.8 6V21h-4v-5.6c0-1.3 0-3-1.9-3s-2.1 1.4-2.1 2.9V21H9z"/></svg></a>
-          <a href="https://www.facebook.com/cloudrassd/" aria-label="فيسبوك"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M14 8.5V6.8c0-.8.5-1 .9-1H17V2h-3c-3.3 0-4 2.4-4 4v2.5H8V12h2v10h4V12h2.7l.3-3.5H14z"/></svg></a>
+          <a href="https://twitter.com/CloudRassd" aria-label="X"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M17.8 3h3.1l-6.8 7.7L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.2-8.3L1.8 3h6.4l4.4 5.8L17.8 3zm-1.1 16.2h1.7L7.4 4.7H5.6l11.1 14.5z"/></svg></a>
+          <a href="https://www.instagram.com/cloudrassd/" aria-label="إنستغرام"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></a>
+          <a href="https://www.linkedin.com/company/worldofss/" aria-label="لينكدإن"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.1c.5-1 1.8-2 3.8-2 4 0 4.8 2.6 4.8 6V21h-4v-5.6c0-1.3 0-3-1.9-3s-2.1 1.4-2.1 2.9V21H9z"/></svg></a>
+          <a href="https://www.facebook.com/cloudrassd/" aria-label="فيسبوك"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M14 8.5V6.8c0-.8.5-1 .9-1H17V2h-3c-3.3 0-4 2.4-4 4v2.5H8V12h2v10h4V12h2.7l.3-3.5H14z"/></svg></a>
         </div>
       </div>
       <div>
-        <h4>الأنظمة</h4>
+        <h4>المنظومة</h4>
         <ul>
-          <li><a href="#twajd">رصد التواجد</a></li>
-          <li><a href="#fawtara">رصد الفوترة</a></li>
-          <li><a href="#pricing">باقات الاشتراك</a></li>
-          <li><a href="https://customize-plan.rassd.sa/">طلب باقة مخصصة</a></li>
+          <li><a href="#showcase" data-show="fawtara">رصد الفوترة</a></li>
+          <li><a href="#showcase" data-show="twajd">رصد التواجد</a></li>
+          <li><a href="#integrations">التكامل</a></li>
+          <li><a href="#pricing">الأسعار</a></li>
         </ul>
       </div>
       <div>
         <h4>روابط تهمك</h4>
         <ul>
           <li><a href="#about">من نحن</a></li>
-          <li><a href="#partners">شركاؤنا</a></li>
           <li><a href="https://rassd.sa/blog-list">المدونة</a></li>
           <li><a href="#faq">الأسئلة الشائعة</a></li>
-          <li><a href="https://rassd.sa/profile">تسجيل الدخول</a></li>
+          <li><a href="https://customize-plan.rassd.sa/">طلب باقة مخصصة</a></li>
         </ul>
       </div>
       <div>
@@ -822,35 +981,26 @@ footer { background: var(--ink); color: rgba(255,255,255,.75); padding-block: 64
         <ul>
           <li>الهاتف: <a href="tel:920032894" dir="ltr">920032894</a></li>
           <li>البريد: <a href="mailto:info@rassd.sa" dir="ltr">info@rassd.sa</a></li>
-          <li>الدعم الفني: <a href="mailto:info@rassd.sa" dir="ltr">info@rassd.sa</a></li>
           <li>القصيم، بريدة، حي النهضة</li>
         </ul>
       </div>
     </div>
     <div class="foot-bottom">
       <span>جميع الحقوق محفوظة لشركة <a href="https://www.worldofss.com/">عالم النظم والبرامج</a> © <span class="num" id="year">2026</span></span>
-      <span>أنظمة رصد السحابية</span>
+      <!-- Staff-only entry to the internal subscriptions system. Replace the href with the real staff portal URL. -->
+      <a class="staff-link" href="https://login.rassd.sa/" rel="nofollow"><svg width="13" height="13"><use href="#i-lock"/></svg>دخول الموظفين</a>
     </div>
   </div>
 </footer>
 
-<button class="to-top" id="toTop" aria-label="العودة للأعلى" hidden>
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
-</button>
-
 <script>
+document.documentElement.classList.add('js');
 (function () {
-  // Header shadow, back-to-top
-  var header = document.querySelector('.site-header');
-  var toTop = document.getElementById('toTop');
-  function onScroll() {
-    var y = window.scrollY;
-    header.classList.toggle('scrolled', y > 8);
-    toTop.hidden = y < 600;
-  }
+  // Header on scroll
+  var header = document.getElementById('siteHeader');
+  function onScroll() { header.classList.toggle('scrolled', window.scrollY > 10); }
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
-  toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
 
   // Mobile menu
   var menuBtn = document.getElementById('menuBtn');
@@ -859,111 +1009,172 @@ footer { background: var(--ink); color: rgba(255,255,255,.75); padding-block: 64
     var open = mobileNav.hidden;
     mobileNav.hidden = !open;
     menuBtn.setAttribute('aria-expanded', String(open));
+    header.classList.add('scrolled');
   });
   mobileNav.addEventListener('click', function (e) {
     if (e.target.tagName === 'A') { mobileNav.hidden = true; menuBtn.setAttribute('aria-expanded', 'false'); }
   });
 
+  // Reveal on scroll
+  var revealEls = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    revealEls.forEach(function (el) { io.observe(el); });
+  } else {
+    revealEls.forEach(function (el) { el.classList.add('in'); });
+  }
+
+  // Partner marquee: duplicate logos for a seamless loop
+  var track = document.getElementById('track');
+  track.innerHTML += track.innerHTML;
+  Array.prototype.slice.call(track.children, track.children.length / 2).forEach(function (n) { n.setAttribute('aria-hidden', 'true'); });
+
+  // Integration orbit
+  var NODES = [
+    { label: 'هيئة الزكاة والضريبة والجمارك', icon: 'i-shield' },
+    { label: 'بوابات الدفع ميسر وتمارا', icon: 'i-card', b: true },
+    { label: 'المدفوعات SoftPOS', icon: 'i-pos' },
+    { label: 'أنظمة الموارد البشرية', icon: 'i-users', b: true },
+    { label: 'تطبيقات الجوال', icon: 'i-phone' },
+    { label: 'النظام المالي', icon: 'i-ledger', b: true }
+  ];
+  var nodesEl = document.getElementById('nodes');
+  var spokes = document.getElementById('spokes');
+  var R = 200, C = 270, svgNS = 'http://www.w3.org/2000/svg';
+  NODES.forEach(function (n, i) {
+    var a = (-90 + i * 60) * Math.PI / 180;
+    var x = C + R * Math.cos(a), y = C + R * Math.sin(a);
+    var line = document.createElementNS(svgNS, 'line');
+    line.setAttribute('x1', C); line.setAttribute('y1', C); line.setAttribute('x2', x); line.setAttribute('y2', y);
+    line.setAttribute('class', 'spoke');
+    spokes.appendChild(line);
+    var dot = document.createElementNS(svgNS, 'circle');
+    dot.setAttribute('r', '3'); dot.setAttribute('class', 'pulse');
+    var anim = document.createElementNS(svgNS, 'animateMotion');
+    anim.setAttribute('dur', (3 + i * 0.4) + 's'); anim.setAttribute('repeatCount', 'indefinite');
+    anim.setAttribute('path', 'M' + x + ',' + y + ' L' + C + ',' + C);
+    dot.appendChild(anim);
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) spokes.appendChild(dot);
+    var el = document.createElement('div');
+    el.className = 'node' + (n.b ? ' b' : '');
+    el.style.left = (x / 540 * 100) + '%';
+    el.style.top = (y / 540 * 100) + '%';
+    el.innerHTML = '<span class="ic"><svg width="24" height="24"><use href="#' + n.icon + '"/></svg></span><span>' + n.label + '</span>';
+    nodesEl.appendChild(el);
+  });
+
+  // Showcase tabs
+  function showTab(id) {
+    document.querySelectorAll('.show-tabs button').forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.tab === id)); });
+    document.getElementById('sp-fawtara').hidden = id !== 'fawtara';
+    document.getElementById('sp-twajd').hidden = id !== 'twajd';
+  }
+  document.querySelectorAll('.show-tabs button').forEach(function (b) { b.addEventListener('click', function () { showTab(b.dataset.tab); }); });
+  document.querySelectorAll('[data-show]').forEach(function (a) { a.addEventListener('click', function () { showTab(a.dataset.show); }); });
+
   // Pricing data from rassd.sa (SAR / month, excluding VAT). Yearly total = monthly × 12.
-  // A row value can be: true / false, a string, or {monthly, yearly} when it differs by period.
   var TRIAL = {
     twajd: 'https://rassd.sa/trial-subscription/twajd/RDUwOENGOTctOTJGMy00QUMzLUEzODctQkVCMUY2NUU4MTky',
     fawtara: 'https://rassd.sa/trial-subscription/fawtara/NEZGNUZEOTAtRUM2RS00ODJGLTgwQkUtNTE2NjU2QzExQjFF'
   };
   var PRICING = {
+    fawtara: {
+      plans: [
+        { name: 'الباقة التوفيرية', sub: 'للمحلات والمنشآت الناشئة', price: 43,
+          key: [['فرع واحد ومستخدم واحد', 1], [{ monthly: '83 فاتورة شهريًا', yearly: '1,000 فاتورة سنويًا' }, 1], ['100 منتج و3 مكائن دفع', 1], ['بوابات الدفع ميسر وتمارا', 1], ['تكامل مع ZATCA', 0], ['SoftPOS', 0]] },
+        { name: 'الباقة الاقتصادية', sub: 'للمنشآت الصغيرة والمتوسطة', price: 78, top: true,
+          key: [['فرعان ومستخدمان', 1], [{ monthly: '250 فاتورة شهريًا', yearly: '3,000 فاتورة سنويًا' }, 1], ['منتجات غير محدودة و5 مكائن دفع', 1], ['تكامل مع ZATCA', 1], ['SoftPOS وبوابات الدفع', 1], ['دعم بالتذاكر والدردشة المباشرة', 1]] },
+        { name: 'باقة الأعمال', sub: 'للشركات متعددة الفروع', price: 325,
+          key: [['3 فروع و5 مستخدمين', 1], [{ monthly: '1,250 فاتورة شهريًا', yearly: '15,000 فاتورة سنويًا' }, 1], ['10 مكائن دفع وقوالب احترافية', 1], ['تكامل مع ZATCA والنظام المالي', 1], ['SoftPOS وبوابات الدفع', 1], ['دعم متقدم ومدير حساب مخصص', 1]] }
+      ],
+      rows: [
+        ['عدد الفروع', ['1', '2', '3']],
+        ['الربط والتكامل مع الفوترة الإلكترونية', [false, true, true]],
+        ['عدد الفواتير', [{ monthly: '83 شهريًا', yearly: '1,000 سنويًا' }, { monthly: '250 شهريًا', yearly: '3,000 سنويًا' }, { monthly: '1,250 شهريًا', yearly: '15,000 سنويًا' }]],
+        ['عدد العملاء', ['غير محدود', 'غير محدود', 'غير محدود']],
+        ['تصنيفات المنتجات', ['غير محدود', 'غير محدود', 'غير محدود']],
+        ['مكائن الدفع', ['3', '5', '10']],
+        ['المستخدمين', ['1', '2', '5']],
+        ['عدد المنتجات', ['100', 'غير محدود', 'غير محدود']],
+        ['تخصيص قوالب الطباعة', ['افتراضي', 'افتراضي، رسمي', 'افتراضي، رسمي، احترافي']],
+        ['التكامل مع النظام المالي', [false, false, true]],
+        ['تكامل مع ZATCA', [false, true, true]],
+        ['دعم فني أساسي', ['التذاكر', 'التذاكر والدردشة', 'التذاكر والدردشة']],
+        ['المدفوعات الإلكترونية SoftPOS', [false, true, true]],
+        ['بوابات الدفع (ميسر، تمارا)', [true, true, true]],
+        ['دعم متقدم ومدير حساب مخصص', [false, 'التذاكر', true]]
+      ]
+    },
     twajd: {
       plans: [
-        { name: 'الباقة التوفيرية', price: 150 },
-        { name: 'الباقة الاقتصادية', price: 399 },
-        { name: 'باقة الأعمال', price: 699, featured: true }
+        { name: 'الباقة التوفيرية', sub: 'حتى 20 موظفًا', price: 150,
+          key: [['20 موظفًا ومديران للنظام', 1], ['تطبيق الجوال للموظفين', 1], ['مقرات عمل وفروع غير محدودة', 1], ['الإجازات والاستئذانات', 1], ['التعاميم والتنبيهات', 1], ['بصمة الوجه', 0]] },
+        { name: 'الباقة الاقتصادية', sub: 'حتى 50 موظفًا', price: 399,
+          key: [['50 موظفًا و5 مدراء للنظام', 1], ['تطبيق الجوال للموظفين', 1], ['مقرات عمل وفروع غير محدودة', 1], ['استيراد البيانات وتصدير التقارير', 1], ['التعاميم والتنبيهات', 1], ['بصمة الوجه', 0]] },
+        { name: 'باقة الأعمال', sub: 'حتى 100 موظف', price: 699, top: true,
+          key: [['100 موظف و10 مدراء للنظام', 1], ['إثبات التواجد ببصمة الوجه', 1], ['التزامن مع أنظمة الموارد البشرية', 1], ['مقرات عمل وفروع غير محدودة', 1], ['استيراد البيانات وتصدير التقارير', 1], ['التعاميم والتنبيهات', 1]] }
       ],
       rows: [
         ['عدد مدراء النظام', ['2', '5', '10']],
         ['عدد الموظفين', ['20', '50', '100']],
         ['تطبيق رصد التواجد للموظفين', [true, true, true]],
         ['طلبات الإجازات والاستئذانات', [true, true, true]],
-        ['عدد لا محدود من مقرات العمل والفروع', [true, true, true]],
-        ['إثبات تواجد الموظفين من خلال بصمة الوجه', [false, false, true]],
+        ['مقرات عمل وفروع غير محدودة', [true, true, true]],
+        ['إثبات التواجد ببصمة الوجه', [false, false, true]],
         ['التزامن مع أنظمة الموارد البشرية', [false, false, true]],
         ['تنبيهات وإنذارات مخصصة', [true, true, true]],
         ['تعاميم مخصصة', [true, true, true]],
         ['استيراد بيانات الموظفين', [true, true, true]],
         ['تصدير التقارير المفصلة', [true, true, true]]
       ]
-    },
-    fawtara: {
-      plans: [
-        { name: 'الباقة التوفيرية', price: 43 },
-        { name: 'الباقة الاقتصادية', price: 78, featured: true },
-        { name: 'باقة الأعمال', price: 325 }
-      ],
-      rows: [
-        ['عدد الفروع', ['1', '2', '3']],
-        ['الربط والتكامل مع الفوترة الإلكترونية', [false, true, true]],
-        ['عدد الفواتير', [{ monthly: '83 شهريًا', yearly: '1,000 سنويًا' }, { monthly: '250 شهريًا', yearly: '3,000 سنويًا' }, { monthly: '1,250 شهريًا', yearly: '15,000 سنويًا' }]],
-        ['عدد العملاء', ['لا محدود', 'لا محدود', 'لا محدود']],
-        ['تصنيفات المنتجات', ['لا محدود', 'لا محدود', 'لا محدود']],
-        ['مكائن الدفع', ['3', '5', '10']],
-        ['المستخدمين', ['1', '2', '5']],
-        ['عدد المنتجات', ['100', 'لا محدود', 'لا محدود']],
-        ['تخصيص قوالب الطباعة', ['قالب افتراضي', 'قالب افتراضي، رسمي', 'قالب افتراضي، رسمي، احترافي']],
-        ['التكامل مع النظام المالي', [false, false, true]],
-        ['تكامل مع ZATCA', [false, true, true]],
-        ['دعم فني أساسي', ['عبر التذاكر', 'عبر التذاكر والدردشة المباشرة', 'عبر التذاكر والدردشة المباشرة']],
-        ['التكامل مع المدفوعات الإلكترونية (SoftPOS)', [false, true, true]],
-        ['التكامل مع بوابات الدفع (ميسر، تمارا)', [true, true, true]],
-        ['دعم فني متقدم وتخصيص مدير للحساب', [false, 'عبر التذاكر', true]]
-      ]
     }
   };
 
-  var current = 'twajd';
+  var current = 'fawtara';
   var period = 'monthly';
-  var table = document.getElementById('matrixTable');
-  var panel = document.getElementById('matrix');
-  var periodNote = document.getElementById('periodNote');
+  var plansEl = document.getElementById('plans');
+  var matrixEl = document.getElementById('matrix');
   var fmt = new Intl.NumberFormat('en-US');
-
-  function cell(v) {
-    if (v === true) return '<span class="yes" role="img" aria-label="متوفر"><svg width="13" height="13"><use href="#i-check"/></svg></span>';
-    if (v === false) return '<span class="no-i" role="img" aria-label="غير متوفر"><svg width="13" height="13"><use href="#i-x"/></svg></span>';
-    if (typeof v === 'object') return v[period];
-    return v;
-  }
+  function txt(v) { return typeof v === 'object' ? v[period] : v; }
 
   function render() {
     var d = PRICING[current];
-    var cls = function (p) { return p.featured ? ' class="featured-col"' : ''; };
-    var head = '<thead><tr><th scope="col"><span class="plan-name" style="color:var(--muted);font-size:15px">مقارنة الباقات</span></th>' +
-      d.plans.map(function (p) {
-        return '<th scope="col"' + cls(p) + '>' +
-          '<div class="plan-name">' + p.name + '</div>' +
-          '<div class="plan-price"><b>' + fmt.format(p.price) + '</b><span>ريال / شهر</span></div>' +
-          '<div class="plan-total">' + (period === 'yearly' ? 'إجمالي سعر الباقة <span class="num">' + fmt.format(p.price * 12) + '</span> ريال سنويًا' : 'يُدفع شهريًا') + '</div>' +
-          '<div class="plan-vat">السعر غير شامل الضريبة</div>' +
-          '</th>';
-      }).join('') + '</tr></thead>';
-    var body = '<tbody>' + d.rows.map(function (r) {
-      return '<tr><th scope="row">' + r[0] + '</th>' + r[1].map(function (v, i) {
-        return '<td' + cls(d.plans[i]) + '>' + cell(v) + '</td>';
-      }).join('') + '</tr>';
-    }).join('') + '</tbody>';
-    var foot = '<tfoot><tr><td></td>' + d.plans.map(function (p) {
-      return '<td' + cls(p) + '><a class="btn ' + (p.featured ? 'btn-teal' : 'btn-soft') + '" href="' + TRIAL[current] + '">اشترك الآن</a></td>';
-    }).join('') + '</tr></tfoot>';
-    table.innerHTML = head + body + foot;
-    panel.setAttribute('aria-labelledby', 'tab-' + current);
-    periodNote.textContent = period === 'yearly' ? 'الاشتراك السنوي يُدفع مرة واحدة عن 12 شهرًا.' : 'الاشتراك الشهري يُجدد كل شهر.';
+    plansEl.setAttribute('aria-labelledby', 'pt-' + current);
+    plansEl.innerHTML = d.plans.map(function (p) {
+      var note = period === 'yearly'
+        ? 'إجمالي <span class="num">' + fmt.format(p.price * 12) + '</span> ر.س سنويًا'
+        : 'يُدفع شهريًا، ويمكنك الإلغاء أو الترقية';
+      return '<article class="plan' + (p.top ? ' top' : '') + '">' +
+        '<h3>' + p.name + (p.top ? '<small>موصى بها</small>' : '') + '</h3>' +
+        '<p class="sub">' + p.sub + '</p>' +
+        '<div><div class="price"><b>' + fmt.format(p.price) + '</b><span>ر.س / شهريًا</span></div></div>' +
+        '<ul>' + p.key.map(function (k) {
+          return '<li' + (k[1] ? '' : ' class="off"') + '><svg width="16" height="16"><use href="#' + (k[1] ? 'i-check' : 'i-dash') + '"/></svg>' + txt(k[0]) + '</li>';
+        }).join('') + '</ul>' +
+        '<div style="display:grid;gap:10px"><p class="price-note" style="margin:0">' + note + '</p>' +
+        '<a class="btn ' + (p.top ? 'btn-primary' : 'btn-ghost') + '" href="' + TRIAL[current] + '">ابدأ التجربة المجانية</a></div>' +
+        '</article>';
+    }).join('');
+
+    matrixEl.innerHTML = '<thead><tr><th style="text-align:start">الميزة</th>' + d.plans.map(function (p) { return '<th>' + p.name + '</th>'; }).join('') + '</tr></thead>' +
+      '<tbody>' + d.rows.map(function (r) {
+        return '<tr><th scope="row">' + r[0] + '</th>' + r[1].map(function (v) {
+          if (v === true) return '<td class="y"><svg width="16" height="16" role="img" aria-label="متوفر"><use href="#i-check"/></svg></td>';
+          if (v === false) return '<td class="n"><svg width="16" height="16" role="img" aria-label="غير متوفر"><use href="#i-dash"/></svg></td>';
+          return '<td>' + txt(v) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody>';
   }
 
   function setSystem(sys) {
     current = sys;
-    document.querySelectorAll('.tabs button').forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.sys === sys)); });
+    document.querySelectorAll('.sys-tabs button').forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.sys === sys)); });
     render();
   }
-  document.querySelectorAll('.tabs button').forEach(function (b) {
-    b.addEventListener('click', function () { setSystem(b.dataset.sys); });
-  });
+  document.querySelectorAll('.sys-tabs button').forEach(function (b) { b.addEventListener('click', function () { setSystem(b.dataset.sys); }); });
+  document.querySelectorAll('[data-price]').forEach(function (a) { a.addEventListener('click', function () { setSystem(a.dataset.price); }); });
   document.querySelectorAll('.period button').forEach(function (b) {
     b.addEventListener('click', function () {
       period = b.dataset.period;
@@ -971,28 +1182,7 @@ footer { background: var(--ink); color: rgba(255,255,255,.75); padding-block: 64
       render();
     });
   });
-  // "باقات رصد التواجد / الفوترة" buttons open the matching pricing tab
-  document.querySelectorAll('[data-goto]').forEach(function (a) {
-    a.addEventListener('click', function () { setSystem(a.dataset.goto); });
-  });
-
   render();
-
-  // Contact form (front-end only; connect it to your CRM or subscriptions system endpoint)
-  var form = document.getElementById('leadForm');
-  var ok = document.getElementById('formOk');
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    var f = form.elements;
-    var name = f.name.value.trim(), company = f.company.value.trim(), phone = f.phone.value.trim();
-    ok.hidden = false;
-    if (!name || !company || !phone) {
-      ok.textContent = 'أكمل الاسم واسم المنشأة ورقم الجوال لنتمكن من التواصل معك.';
-      return;
-    }
-    ok.textContent = 'شكرًا ' + name + '، استلمنا طلبك وسنتواصل معك قريبًا.';
-    form.reset();
-  });
 
   document.getElementById('year').textContent = new Date().getFullYear();
 })();
