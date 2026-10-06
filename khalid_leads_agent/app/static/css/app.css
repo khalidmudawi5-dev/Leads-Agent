@@ -593,8 +593,9 @@ table.hist { table-layout: auto; }
 /* ---------- daily goal */
 .goal { display: flex; align-items: center; gap: 12px; margin: -6px 0 16px; font-size: .86rem; }
 .goal .g-label { font-weight: 700; color: var(--text-2); white-space: nowrap; }
-.goal .g-track { flex: 1; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 16%, var(--surface-2)); overflow: hidden; }
-.goal .g-fill { height: 100%; border-radius: 999px; background: var(--primary); transition: width .4s ease; }
+.goal .g-track { display: block; flex: 1; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 16%, var(--surface-2)); overflow: hidden; }
+.goal .g-fill { display: block; width: 0; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary-2), var(--primary)); transition: width .6s cubic-bezier(.22, 1, .36, 1); }
+[dir="rtl"] .goal .g-fill { background: linear-gradient(270deg, var(--primary-2), var(--primary)); }
 .goal.done .g-fill { background: var(--success); }
 .goal.done .g-track { background: color-mix(in srgb, var(--success) 18%, var(--surface-2)); }
 .goal .g-num { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }

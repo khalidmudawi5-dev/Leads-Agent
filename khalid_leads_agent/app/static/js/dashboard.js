@@ -381,8 +381,13 @@ function renderGoal(st) {
   const reached = done >= goal;
   box.classList.toggle("done", reached);
   box.setAttribute("aria-valuemax", goal); box.setAttribute("aria-valuenow", done);
-  box.innerHTML = `<span class="g-label">هدف اليوم</span><span class="g-track"><span class="g-fill" style="width:${pctDone}%"></span></span>
-    <span class="g-num">${done} / ${goal} ${reached ? "🎉 تم تحقيق الهدف" : `(${pctDone}%)`}</span>`;
+  if (!$(".g-fill", box)) {
+    box.innerHTML = `<span class="g-label">هدف اليوم</span><span class="g-track"><span class="g-fill"></span></span><span class="g-num"></span>`;
+  }
+  // Keep the same element so the bar grows smoothly from its previous width on every save.
+  const fill = $(".g-fill", box);
+  requestAnimationFrame(() => { fill.style.width = `${done > 0 ? Math.max(pctDone, 2) : 0}%`; });
+  $(".g-num", box).textContent = `${done} / ${goal} ${reached ? "🎉 تم تحقيق الهدف" : `(${pctDone}%)`}`;
   if (reached && S.goalShown !== new Date().toDateString()) {
     if (S.goalShown !== undefined) toast(`أحسنت! وصلت لهدف اليوم (${goal}).`, "success", 6000);
     S.goalShown = new Date().toDateString();

@@ -1,2 +1,2 @@
 """Single source of the app version (also used to bust browser caches of static files)."""
-VERSION = "2.3.1"
+VERSION = "2.3.2"
