@@ -8,7 +8,7 @@ from app.container import AppContainer
 from app.errors import AgentError
 from app.remote_access import is_loopback
 from app.version import VERSION
-from app.schemas.api import CallIn, CreateLeadIn, WhatsAppIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
+from app.schemas.api import CallIn, CreateLeadIn, LinkOdooIn, WhatsAppIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
 
 router = APIRouter(prefix="/api")
 
@@ -102,6 +102,12 @@ async def lead_search(fingerprint: str, body: SearchIn, c: AppContainer = Depend
 @router.post("/lead/{fingerprint}/select")
 async def lead_select(fingerprint: str, body: SelectCandidateIn, c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.select_candidate(fingerprint, body.odoo_id, body.ui_index, body.ui_query)
+
+
+@router.post("/lead/{fingerprint}/link")
+async def lead_link(fingerprint: str, body: LinkOdooIn, c: AppContainer = Depends(container)) -> dict:
+    """Link the customer in front of the user to a lead they found in Odoo (optionally adding the number)."""
+    return await c.workflow.link_to_odoo(fingerprint, body.odoo_id, body.ui_index, body.ui_query, body.add_phone)
 
 
 @router.post("/lead/{fingerprint}/create-odoo")

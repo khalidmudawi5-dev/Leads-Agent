@@ -145,6 +145,11 @@ class OdooAdapter(ABC):
         """
         raise AgentError("ODOO_CREATE_UNSUPPORTED", "إضافة عميل جديد إلى Odoo غير مدعومة في هذا الوضع.")
 
+    async def set_lead_phone(self, lead_id: int, field: str, value: str) -> OdooLead:
+        """Write ``phone`` or ``mobile`` on a ``crm.lead`` (only called for an empty field, after the
+        user linked the customer and asked for it). Returns the lead as read back from Odoo."""
+        raise AgentError("ODOO_WRITE_UNSUPPORTED", "تعديل رقم العميل في Odoo غير مدعوم في هذا الوضع.")
+
     @property
     def browser_started(self) -> bool:
         """Whether the Odoo browser window is already open."""

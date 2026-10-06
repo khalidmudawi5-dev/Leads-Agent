@@ -1114,6 +1114,21 @@ class BrowserOdooAdapter(OdooAdapter):
     async def create_lead(self, values: dict[str, Any]) -> OdooLead:
         return await self._exec(self._w_create_lead, values)
 
+    async def _w_set_lead_phone(self, lead_id: int, field: str, value: str) -> OdooLead:
+        if field not in ("phone", "mobile"):
+            raise AgentError("ODOO_WRITE_FAILED", "حقل غير مسموح.")
+        try:
+            await self._w_call_kw("crm.lead", "write", [[lead_id], {field: value}])
+        except OdooLoginRequired:
+            raise
+        except (OdooRpcError, OdooRpcUnavailable) as exc:
+            log.warning("Writing the lead phone failed", exc_info=True)
+            raise AgentError("ODOO_WRITE_FAILED", f"تعذر إضافة الرقم إلى العميل في Odoo: {exc}", actions=["retry"]) from exc
+        return await self._w_get_lead(lead_id)
+
+    async def set_lead_phone(self, lead_id: int, field: str, value: str) -> OdooLead:
+        return await self._exec(self._w_set_lead_phone, lead_id, field, value)
+
     # --------------------------------------------------------- diagnostics
     async def _w_diagnostics(self) -> dict[str, Any]:
         page = await self._w_page()

@@ -24,6 +24,7 @@ class MockOdooAdapter(OdooAdapter):
         self.fail_call = False
         self.versions: dict[int, int] = {}
         self.created: list[dict[str, Any]] = []
+        self.phone_writes: list[dict[str, Any]] = []
         self.fail_create = False
         self.utm_sources = {"meta", "google", "twajd", "power bi"}
         self.utm_mediums = {"leads", "cpc"}
@@ -124,6 +125,13 @@ class MockOdooAdapter(OdooAdapter):
             lead.medium = lead.utm_medium = med
         self.leads[new_id] = lead
         return self._with_history(lead)
+
+    async def set_lead_phone(self, lead_id: int, field: str, value: str) -> OdooLead:
+        self._check()
+        assert field in ("phone", "mobile")
+        setattr(self.leads[lead_id], field, value)
+        self.phone_writes.append({"id": lead_id, field: value})
+        return self._with_history(self.leads[lead_id])
 
     async def lead_signature(self, lead_id: int) -> str | None:
         self._check()

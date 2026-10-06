@@ -27,7 +27,7 @@ const ICON = {
 const KIND_LABEL = { note: "ملاحظة داخلية", message: "رسالة", email: "بريد", tracking: "تغيير", system: "نظام" };
 const FILTERS = [["all", "الكل"], ["note", "الملاحظات"], ["message", "الرسائل"], ["tracking", "التغييرات"]];
 const PHONE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>';
-const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", "phone+company": "الهاتف + اسم المنشأة", company_exact: "اسم المنشأة (مطابق)", user_choice: "اختيار يدوي" };
+const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", "phone+company": "الهاتف + اسم المنشأة", company_exact: "اسم المنشأة (مطابق)", user_choice: "اختيار يدوي", user_link: "ربط يدوي" };
 
 // ------------------------------------------------------------------ boot
 document.addEventListener("DOMContentLoaded", init);
@@ -88,6 +88,7 @@ Shortcuts.register([
   { code: "KeyU", label: "U", title: "تحديث من Google Sheet (عملاء جدد + بيانات العميل)", group: "العميل الحالي", when: () => !S.manual && !resultOpen(),
     run: () => { if ($("#btn-refresh")) clickIf("#btn-refresh"); else clickIf("#btn-refresh-queue"); } },
   { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
+  { code: "KeyL", label: "L", title: "ربط العميل بعميل وجدته في Odoo (بحث بالاسم أو الرقم)", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-link"), run: () => clickIf("#btn-link") },
   { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
   { code: "KeyW", label: "W", title: "رسالة واتساب للعميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !resultOpen(), run: () => clickIf("#btn-wa") },
   { code: "KeyP", label: "P", title: "نسخ رقم الجوال", group: "العميل الحالي", when: hasLead, run: copyPhone },
@@ -723,29 +724,35 @@ function renderMatch(lead) {
   const st = lead.match_status;
   if (st === "matched") {
     area.innerHTML = `<div class="alert success">تمت المطابقة مع Odoo: <b>${esc((lead.odoo || {}).name || "")}</b>
-      ${lead.odoo && lead.odoo.salesperson ? ` · المسؤول: ${esc(lead.odoo.salesperson)}` : ""}</div>`;
+      ${lead.odoo && lead.odoo.salesperson ? ` · المسؤول: ${esc(lead.odoo.salesperson)}` : ""}
+      <button class="linklike" id="btn-link" title="ربط بعميل آخر في Odoo (L)">تغيير العميل المربوط</button></div>`;
+    $("#btn-link").onclick = () => askLinkOdoo(lead);
   } else if (st === "multiple" && WEAK_MATCH.includes(lead.match_strategy)) {
     area.innerHTML = `<div class="alert error"><b>هذا العميل غير موجود في Odoo</b>
       <div class="small">لا يوجد Lead بنفس رقم الجوال أو نفس اسم المنشأة. وجدنا ${(lead.candidates || []).length} ${(lead.candidates || []).length > 2 ? "أسماء مشابهة" : "اسم مشابه"} فقط — تأكد أنه ليس منها، أو أضفه إلى Odoo.</div>
       <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة العميل إلى Odoo <kbd>A</kbd></button>
-      <button class="btn sm" id="btn-choose">عرض الأسماء المشابهة</button><button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
+      <button class="btn sm" id="btn-link">🔗 ربط بعميل في Odoo <kbd>L</kbd></button><button class="btn sm" id="btn-choose">عرض الأسماء المشابهة</button><button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
     $("#btn-create").onclick = () => askCreateLead(lead);
+    $("#btn-link").onclick = () => askLinkOdoo(lead);
     $("#btn-choose").onclick = () => chooseCandidate(lead);
     $("#btn-skip2").onclick = () => askSkip(lead.fingerprint);
   } else if (st === "multiple") {
     area.innerHTML = `<div class="alert warn"><b>وجدنا أكثر من عميل محتمل في Odoo.</b> لن يتم الاختيار تلقائيًا.
       <div class="actions"><button class="btn primary sm" id="btn-choose">اختيار العميل الصحيح</button>
-      <button class="btn sm" id="btn-create">${ICON.plus} ليس منهم؟ إضافته كعميل جديد</button></div></div>`;
+      <button class="btn sm" id="btn-link">🔗 ربط بعميل في Odoo <kbd>L</kbd></button><button class="btn sm" id="btn-create">${ICON.plus} ليس منهم؟ إضافته كعميل جديد</button></div></div>`;
+    $("#btn-link").onclick = () => askLinkOdoo(lead);
     $("#btn-choose").onclick = () => chooseCandidate(lead);
     $("#btn-create").onclick = () => askCreateLead(lead);
   } else if (st === "not_found") {
     area.innerHTML = `<div class="alert error"><b>هذا العميل غير موجود في Odoo</b>
-      <div class="small">لم نجد Lead بنفس رقم الجوال أو اسم المنشأة. يمكنك إضافته الآن إلى Odoo، أو البحث باسم أو رقم آخر.</div>
-      <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة العميل إلى Odoo <kbd>A</kbd></button></div>
+      <div class="small">لم نجد Lead بنفس رقم الجوال أو اسم المنشأة. إذا كان موجودًا في Odoo باسم أو رقم آخر اربطه به، وإلا أضفه الآن.</div>
+      <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة العميل إلى Odoo <kbd>A</kbd></button>
+      <button class="btn sm" id="btn-link">🔗 ربط بعميل في Odoo <kbd>L</kbd></button></div>
       <div class="row" style="margin-top:10px"><input type="text" id="custom-q" placeholder="بحث باسم أو رقم آخر" style="max-width:320px">
       <button class="btn sm" id="btn-re">إعادة البحث</button><button class="btn sm" id="btn-crm">فتح CRM</button>
       <button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
     $("#btn-create").onclick = () => askCreateLead(lead);
+    $("#btn-link").onclick = () => askLinkOdoo(lead);
     $("#btn-re").onclick = () => searchOdoo($("#custom-q").value);
     $("#btn-crm").onclick = openCrm;
     $("#btn-skip2").onclick = () => askSkip(lead.fingerprint);
@@ -928,6 +935,55 @@ function chooseCandidate(lead) {
       Modal.close();
       await leadAction(`/api/lead/${lead.fingerprint}/select`, { odoo_id: c.id, ui_index: c.ui_index, ui_query: c.ui_query || "" }, "تم اختيار العميل");
     })),
+  });
+}
+
+// ------------------------------------------------------ link to a customer found in Odoo
+/** «ربط بعميل في Odoo»: search Odoo by any name or number and link the result to the customer in front of you. */
+function askLinkOdoo(lead) {
+  const phone = lead.phone_raw || lead.phone || "";
+  const linkedId = lead.odoo && lead.odoo.id;
+  let cands = [];
+  Modal.open({
+    title: "ربط العميل بعميل في Odoo", wide: true,
+    html: `<p class="muted">ابحث في Odoo باسم آخر أو رقم آخر، ثم اضغط «ربط» على العميل الصحيح. يُربط بصف <b>${esc(lead.company_name)}</b> في Google Sheet بدل إنشاء عميل مكرر.</p>
+      <form class="row" id="lk-form" style="gap:8px;margin-bottom:10px"><input type="text" id="lk-q" value="${esc(lead.company_name)}" placeholder="اسم الشركة أو جهة الاتصال أو رقم الجوال" style="flex:1;min-width:200px">
+        <button class="btn primary" type="submit">بحث في Odoo</button></form>
+      ${phone ? `<label class="check"><input type="checkbox" id="lk-phone" checked> أضف رقم الشيت <span class="ltr">${esc(phone)}</span> إلى العميل في Odoo (في خانة Mobile أو Phone الفارغة) حتى يتطابق تلقائيًا في المرات القادمة</label>` : ""}
+      <div id="lk-results" style="margin-top:10px"></div>`,
+    buttons: [{ label: "إغلاق" }],
+    onKey: digitPicker,
+    onOpen: (m) => {
+      const run = async () => {
+        const q = $("#lk-q", m).value.trim();
+        const box = $("#lk-results", m);
+        if (q.length < 2) { box.innerHTML = '<div class="alert warn">اكتب اسمًا أو رقمًا (حرفان على الأقل).</div>'; return; }
+        box.innerHTML = '<div class="alert info"><span class="spinner"></span> جاري البحث في Odoo…</div>';
+        try { cands = (await api("POST", "/api/manual/search", { query: q })).candidates || []; }
+        catch (e) { box.innerHTML = `<div class="alert error">${esc(e.message)}</div>`; return; }
+        box.innerHTML = cands.length
+          ? `<p class="small muted">${cands.length} نتيجة · اضغط رقم الصف <kbd>1</kbd>…<kbd>9</kbd> للربط.</p>${candidateTable(cands, "ربط")}`
+          : '<div class="alert warn">لا توجد نتائج. جرّب جزءًا من الاسم، أو اسم جهة الاتصال، أو رقمًا آخر.</div>';
+        $$("button[data-i]", box).forEach((b) => {
+          const c = cands[+b.dataset.i];
+          if (linkedId && c.id === linkedId) { b.disabled = true; b.textContent = "مربوط حاليًا"; return; }
+          b.onclick = () => withBusy(b, async () => {
+            const body = { odoo_id: c.id ?? null, ui_index: c.ui_index ?? null, ui_query: c.ui_query || "",
+                           add_phone: !!($("#lk-phone", m) && $("#lk-phone", m).checked) };
+            try {
+              const payload = await api("POST", `/api/lead/${lead.fingerprint}/link`, body);
+              Modal.close();
+              render(payload);
+              toast(`تم ربط العميل بـ«${c.company_name || c.name}» في Odoo`, "success", 5000);
+              (payload.warnings || []).forEach((w) => toast(w, "warn", 9000));  // notices: shown by render()
+            } catch (e) { handleOdooError(e, () => askLinkOdoo(lead)); }
+          });
+        });
+      };
+      $("#lk-form", m).onsubmit = (ev) => { ev.preventDefault(); run(); };
+      const input = $("#lk-q", m); input.focus(); input.select();
+      run();
+    },
   });
 }
 

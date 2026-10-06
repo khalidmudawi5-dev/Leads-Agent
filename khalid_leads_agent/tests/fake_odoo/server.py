@@ -189,6 +189,12 @@ def make_app(state: FakeOdooState) -> FastAPI:
             state.leads[new_id] = rec
             state.created.append(dict(vals))
             result = new_id
+        elif model == "crm.lead" and method == "write":
+            ids, vals = args[0], args[1]
+            for i in ids:
+                state.leads[i].update(vals)
+                state.leads[i]["write_date"] = state.now()
+            result = True
         elif model == "crm.lead" and method == "message_post":
             state.rpc_log_notes += 1
             for lead_id in args[0]:

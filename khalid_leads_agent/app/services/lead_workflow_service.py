@@ -361,6 +361,47 @@ class LeadWorkflowService:
         self._store_match(fingerprint, MatchResult("matched", lead, [], "user_choice"), lead)
         return await self._with_source(fingerprint, warnings)
 
+    async def link_to_odoo(self, fingerprint: str, odoo_id: int | None, ui_index: int | None = None,
+                           ui_query: str = "", add_phone: bool = True) -> dict:
+        """«ربط بعميل في Odoo»: the user found the customer in Odoo (another name or number) and links it
+        to the sheet row in front of them.
+
+        With ``add_phone`` the sheet's number is written to the lead's **empty** Mobile (or Phone) field,
+        so the next search matches by phone on its own. A filled number is never overwritten. Dry Run
+        writes nothing.
+        """
+        c = self._cache(fingerprint)
+        lead, warnings = await self._load_lead(OdooLead(id=odoo_id, ui_index=ui_index, ui_query=ui_query), True)
+        notices: list[str] = []
+        sheet_phone = check_phone(c.phone_raw)
+        has_number = any(phones_match(n, c.phone_norm) for n in (lead.phone, lead.mobile) if n)
+        if add_phone and lead.id and c.phone_norm and not has_number:
+            field = "mobile" if not lead.mobile.strip() else "phone" if not lead.phone.strip() else ""
+            value = format_phone(sheet_phone["raw"] or c.phone_raw)
+            if not field:
+                warnings.append(f"العميل في Odoo عنده رقمان آخران، فلم يُضف رقم الشيت ({value}) حتى لا يُستبدل أي رقم.")
+            elif self.settings.get().dry_run:
+                notices.append(f"Dry Run: لم يُضف الرقم {value} إلى {field.capitalize()} في Odoo.")
+            else:
+                audit = {"action_id": uuid.uuid4().hex, "system": "ODOO", "action": "link_add_phone",
+                         "record": f"row {c.sheet_row} | {c.company_name} | lead {lead.id}",
+                         "before": {"phone": lead.phone, "mobile": lead.mobile}}
+                try:
+                    lead = await self.odoo.adapter.set_lead_phone(lead.id, field, value)
+                except AgentError as exc:
+                    if exc.code == "ODOO_LOGIN_REQUIRED":
+                        raise
+                    self._audit(**audit, after={field: value}, success=False, dry_run=False)
+                    warnings.append(exc.message_ar)
+                else:
+                    self._audit(**audit, after={field: value}, success=True, dry_run=False)
+                    notices.append(f"تمت إضافة رقم الشيت {value} إلى {field.capitalize()} في Odoo؛ سيتطابق تلقائيًا في المرات القادمة.")
+        self._store_match(fingerprint, MatchResult("matched", lead, [], "user_link"), lead)
+        log.info("Row %s linked by the user to Odoo lead %s", c.sheet_row, lead.id)
+        payload = await self._with_source(fingerprint, warnings)
+        payload["notices"] = notices + payload.get("notices", [])
+        return payload
+
     def odoo_source_for(self, sheet_value: str) -> tuple[str, str]:
         """Odoo (source, medium) names for a sheet source value.
 

@@ -77,6 +77,13 @@ class SelectCandidateIn(BaseModel):
     ui_query: str = ""
 
 
+class LinkOdooIn(BaseModel):
+    odoo_id: int | None = None
+    ui_index: int | None = None
+    ui_query: str = Field(default="", max_length=200)
+    add_phone: bool = True
+
+
 class ManualOpenIn(BaseModel):
     odoo_id: int
 

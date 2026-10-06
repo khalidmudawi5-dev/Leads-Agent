@@ -242,6 +242,14 @@ def test_create_lead_via_rpc(adapter, fake_odoo):
     assert unknown.utm_source == "تيك توك"
 
 
+def test_set_lead_phone_via_rpc(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    lead = run(adapter, adapter.create_lead({"name": "ربط", "partner_name": "ربط", "phone": "0110001111"}))
+    after = run(adapter, adapter.set_lead_phone(lead.id, "mobile", "+966 55 444 5555"))
+    assert after.mobile == "+966 55 444 5555" and after.phone == "0110001111"
+    assert [f.id for f in run(adapter, adapter.search_by_phone("966554445555"))] == [lead.id]
+
+
 def test_utm_source_field_detection():
     from app.adapters.odoo.browser_adapter import find_utm_field
     std = {"source_id": {"string": "Source", "type": "many2one"}, "medium_id": {"string": "Medium", "type": "many2one"}}
