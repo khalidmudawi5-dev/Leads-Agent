@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منظومة رصد السحابية</title>
+<meta name="description" content="منظومة رصد السحابية: رصد الفوترة للفواتير الإلكترونية المرتبطة بهيئة الزكاة والضريبة والجمارك، ورصد التواجد للحضور والانصراف، تحت اشتراك واحد.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: sticky header → split hero (thesis + live "platform" panel) → systems trio around the subscription hub → pricing with system tabs → about → FAQ → contact → footer. */
+:root {
+  --bg: #f3f6f5;
+  --surface: #ffffff;
+  --surface-2: #e8eeec;
+  --ink: #0f2a2e;
+  --muted: #557075;
+  --line: #d3dedb;
+  --brand: #0b7a5f;
+  --brand-ink: #ffffff;
+  --brand-soft: #dcefe8;
+  --signal: #c98a1b;
+  --signal-soft: #f7ead2;
+  --deep: #0f2a2e;
+  --deep-fg: #e6f0ed;
+  --deep-muted: #9fb8b3;
+  --shadow: 0 1px 2px rgba(15,42,46,.06), 0 12px 32px -12px rgba(15,42,46,.18);
+  --f-display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --radius: 14px;
+  --wrap: 1180px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1a1c; --surface: #11262a; --surface-2: #16302f; --ink: #e4eeeb; --muted: #93aca8;
+    --line: #23403f; --brand: #2fb38c; --brand-ink: #062019; --brand-soft: #143a31;
+    --signal: #e6ac48; --signal-soft: #3a2f17; --deep: #071214; --deep-fg: #e4eeeb; --deep-muted: #8aa39f;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px -12px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1a1c; --surface: #11262a; --surface-2: #16302f; --ink: #e4eeeb; --muted: #93aca8;
+  --line: #23403f; --brand: #2fb38c; --brand-ink: #062019; --brand-soft: #143a31;
+  --signal: #e6ac48; --signal-soft: #3a2f17; --deep: #071214; --deep-fg: #e4eeeb; --deep-muted: #8aa39f;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px -12px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+a { color: inherit; }
+h1, h2, h3 { font-family: var(--f-display); line-height: 1.3; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
+
+.wrap { max-width: var(--wrap); margin-inline: auto; padding-inline: 20px; }
+section { padding-block: 88px; }
+.eyebrow { font-family: var(--f-display); font-size: 13px; font-weight: 600; letter-spacing: .04em; color: var(--brand); }
+.section-head { display: grid; gap: 12px; max-width: 640px; margin-bottom: 44px; }
+.section-head h2 { font-size: clamp(26px, 3.4vw, 38px); font-weight: 700; }
+.section-head p { color: var(--muted); font-size: 17px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--f-display); font-weight: 600; font-size: 15px; padding: 12px 22px; border-radius: 10px; border: 1px solid transparent; text-decoration: none; cursor: pointer; transition: transform .15s ease, background-color .15s ease, border-color .15s ease; }
+.btn:hover { transform: translateY(-1px); }
+.btn-primary { background: var(--brand); color: var(--brand-ink); }
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn-ghost:hover { border-color: var(--brand); }
+
+/* Header */
+.site-header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.site-header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 68px; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--f-display); font-weight: 700; font-size: 20px; }
+.logo small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; line-height: 1.2; }
+.logo-mark { width: 36px; height: 36px; flex: none; }
+.nav { display: flex; align-items: center; gap: 28px; }
+.nav a { text-decoration: none; font-size: 15px; color: var(--muted); font-weight: 500; }
+.nav a:hover { color: var(--ink); }
+.header-cta { display: flex; gap: 10px; align-items: center; }
+.menu-btn { display: none; background: none; border: 1px solid var(--line); border-radius: 10px; width: 42px; height: 42px; color: var(--ink); cursor: pointer; }
+.mobile-nav { border-top: 1px solid var(--line); background: var(--bg); }
+.mobile-nav .wrap { display: grid; gap: 4px; padding-block: 12px; }
+.mobile-nav a { text-decoration: none; padding: 10px 0; font-weight: 500; }
+
+/* Hero */
+.hero { padding-block: 72px 88px; overflow: hidden; }
+.hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+.hero-copy { display: grid; gap: 22px; min-width: 0; }
+.badge { justify-self: start; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); }
+.badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 0 var(--brand); animation: ping 2.4s infinite; }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 8px transparent; } }
+.hero h1 { font-size: clamp(34px, 5vw, 58px); font-weight: 700; letter-spacing: -.01em; }
+.hero h1 em { font-style: normal; color: var(--brand); }
+.hero .lead { font-size: 18px; color: var(--muted); max-width: 34em; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.trust { display: flex; flex-wrap: wrap; gap: 10px 24px; color: var(--muted); font-size: 14px; padding-top: 6px; }
+.trust span { display: inline-flex; align-items: center; gap: 8px; }
+.trust svg { color: var(--brand); flex: none; }
+
+/* Hero panel: one subscription feeding two systems */
+.panel { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 20px; display: grid; gap: 14px; min-width: 0; }
+.panel-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px dashed var(--line); }
+.panel-top b { font-family: var(--f-display); font-size: 15px; }
+.panel-top .muted { font-size: 12px; color: var(--muted); }
+.pill { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.pill-ok { background: var(--brand-soft); color: var(--brand); }
+.pill-warn { background: var(--signal-soft); color: var(--signal); }
+.panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.mini { background: var(--surface-2); border-radius: 12px; padding: 14px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.mini h4 { margin: 0; font-family: var(--f-display); font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.inv { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+.inv-lines { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.inv-lines div { display: flex; justify-content: space-between; gap: 8px; }
+.inv-lines .total { color: var(--ink); font-weight: 600; border-top: 1px solid var(--line); padding-top: 4px; }
+.qr { width: 64px; height: 64px; background: var(--surface); border-radius: 6px; padding: 4px; }
+.qr canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+.log { display: grid; gap: 6px; font-size: 12px; }
+.log div { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+.log i { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
+.log i.late { background: var(--signal); }
+.log .t { color: var(--muted); }
+.renew { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--deep); color: var(--deep-fg); border-radius: 12px; padding: 12px 14px; font-size: 13px; }
+.renew small { color: var(--deep-muted); display: block; font-size: 11px; }
+.bar { height: 6px; border-radius: 6px; background: color-mix(in srgb, var(--deep-fg) 18%, transparent); overflow: hidden; min-width: 90px; }
+.bar span { display: block; height: 100%; width: 72%; background: var(--signal); border-radius: inherit; }
+
+/* Systems */
+.systems { background: var(--surface); border-block: 1px solid var(--line); }
+.sys-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.sys { border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; display: grid; gap: 16px; align-content: start; background: var(--bg); min-width: 0; }
+.sys.hub { background: var(--deep); color: var(--deep-fg); border-color: var(--deep); }
+.sys.hub p, .sys.hub li { color: var(--deep-muted); }
+.sys-ico { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); }
+.sys.hub .sys-ico { background: color-mix(in srgb, var(--signal) 22%, transparent); color: var(--signal); }
+.sys h3 { font-size: 22px; font-weight: 700; }
+.sys .tag { font-size: 13px; color: var(--muted); margin-top: -10px; }
+.sys.hub .tag { color: var(--signal); }
+.sys p { color: var(--muted); }
+.sys ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.sys li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; font-size: 15px; }
+.sys li svg { margin-top: 5px; color: var(--brand); }
+.sys.hub li svg { color: var(--signal); }
+
+/* How it connects */
+.flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 56px; counter-reset: step; }
+.step { position: relative; padding-inline-end: 24px; display: grid; gap: 8px; align-content: start; }
+.step::before { counter-increment: step; content: counter(step); font-family: var(--f-mono); font-size: 13px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--line); color: var(--brand); position: relative; z-index: 1; }
+.step::after { content: ""; position: absolute; top: 16px; inset-inline-start: 32px; inset-inline-end: 0; border-top: 1px dashed var(--line); }
+.step:last-child::after { display: none; }
+.step b { font-family: var(--f-display); font-size: 16px; }
+.step span { color: var(--muted); font-size: 14px; }
+
+/* Features strip */
+.feat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px 32px; }
+.feat { display: grid; gap: 8px; align-content: start; }
+.feat b { font-family: var(--f-display); font-size: 17px; }
+.feat span { color: var(--muted); font-size: 15px; }
+.feat .k { font-family: var(--f-mono); color: var(--brand); font-size: 13px; }
+
+/* Pricing */
+.pricing { background: var(--surface); border-block: 1px solid var(--line); }
+.price-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+.tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; }
+.tabs button { font: 600 15px var(--f-display); border: 0; background: transparent; color: var(--muted); padding: 9px 18px; border-radius: 9px; cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(15,42,46,.12); }
+.period { display: inline-flex; align-items: center; gap: 12px; font-size: 15px; }
+.switch { position: relative; width: 50px; height: 28px; border-radius: 999px; border: 0; background: var(--line); cursor: pointer; padding: 0; transition: background-color .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: inset-inline-start .2s; }
+.switch[aria-checked="true"] { background: var(--brand); }
+.switch[aria-checked="true"]::after { inset-inline-start: 25px; }
+.save { font-size: 12px; font-weight: 600; color: var(--signal); background: var(--signal-soft); padding: 3px 10px; border-radius: 999px; }
+.plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: stretch; }
+.plan { border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; display: grid; grid-template-rows: auto auto auto 1fr auto; gap: 18px; background: var(--bg); min-width: 0; }
+.plan.featured { border: 2px solid var(--brand); background: var(--surface); box-shadow: var(--shadow); position: relative; }
+.plan-flag { position: absolute; top: -13px; inset-inline-start: 24px; font: 600 12px var(--f-display); background: var(--brand); color: var(--brand-ink); padding: 3px 12px; border-radius: 999px; }
+.plan h3 { font-size: 20px; }
+.plan .for { color: var(--muted); font-size: 14px; margin-top: 4px; }
+.price { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.price .amount { font-family: var(--f-display); font-size: 44px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.price .unit { color: var(--muted); font-size: 14px; }
+.price-note { font-size: 13px; color: var(--muted); margin-top: -10px; min-height: 1.5em; }
+.plan ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; align-content: start; }
+.plan li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; font-size: 15px; }
+.plan li svg { margin-top: 5px; color: var(--brand); }
+.plan li.off { color: var(--muted); }
+.plan li.off svg { color: var(--line); }
+.plan .btn { width: 100%; }
+.price-foot { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--muted); font-size: 14px; }
+
+/* Compare table */
+.compare { margin-top: 56px; }
+.compare h3 { font-size: 20px; margin-bottom: 16px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; min-width: 620px; font-size: 15px; }
+th, td { padding: 14px 18px; text-align: start; border-bottom: 1px solid var(--line); }
+thead th { font-family: var(--f-display); font-weight: 600; background: var(--surface-2); }
+tbody tr:last-child td { border-bottom: 0; }
+td.c { text-align: center; }
+th.c { text-align: center; }
+.yes { color: var(--brand); font-weight: 600; }
+.no { color: var(--muted); }
+
+/* About */
+.about .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
+.about-copy { display: grid; gap: 18px; min-width: 0; }
+.about-copy p { color: var(--muted); font-size: 17px; }
+.values { display: grid; gap: 0; border-top: 1px solid var(--line); }
+.value { display: grid; grid-template-columns: 120px 1fr; gap: 20px; padding-block: 20px; border-bottom: 1px solid var(--line); }
+.value b { font-family: var(--f-display); font-size: 17px; }
+.value span { color: var(--muted); }
+
+/* FAQ */
+.faq { background: var(--surface); border-block: 1px solid var(--line); }
+.faq .wrap { display: grid; grid-template-columns: 1fr 1.6fr; gap: 56px; align-items: start; }
+.faq-list { display: grid; gap: 0; border-top: 1px solid var(--line); min-width: 0; }
+details { border-bottom: 1px solid var(--line); }
+summary { list-style: none; cursor: pointer; padding-block: 20px; font-family: var(--f-display); font-weight: 600; font-size: 17px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; font-family: var(--f-mono); font-size: 20px; color: var(--brand); flex: none; transition: transform .2s; }
+details[open] summary::after { transform: rotate(45deg); }
+details p { color: var(--muted); padding-bottom: 20px; max-width: 62ch; }
+
+/* Contact */
+.contact-box { background: var(--deep); color: var(--deep-fg); border-radius: 22px; padding: 48px; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+.contact-box h2 { font-size: clamp(26px, 3.4vw, 36px); }
+.contact-box > div > p { color: var(--deep-muted); margin-top: 14px; font-size: 17px; }
+.contact-lines { display: grid; gap: 14px; margin-top: 28px; }
+.contact-lines div { display: grid; gap: 2px; }
+.contact-lines small { color: var(--deep-muted); font-size: 13px; }
+.contact-lines span { font-size: 17px; user-select: all; }
+form { display: grid; gap: 14px; min-width: 0; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+label { display: grid; gap: 6px; font-size: 14px; color: var(--deep-muted); }
+input, select, textarea { font: inherit; font-size: 15px; color: var(--deep-fg); background: color-mix(in srgb, var(--deep-fg) 7%, transparent); border: 1px solid color-mix(in srgb, var(--deep-fg) 18%, transparent); border-radius: 10px; padding: 11px 14px; width: 100%; min-width: 0; }
+select option { color: #0f2a2e; background: #ffffff; }
+input::placeholder, textarea::placeholder { color: color-mix(in srgb, var(--deep-fg) 45%, transparent); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--signal); outline-offset: 1px; }
+.contact-box .btn-primary { background: var(--signal); color: #1d1404; }
+.form-ok { background: color-mix(in srgb, var(--signal) 18%, transparent); color: var(--deep-fg); border-radius: 10px; padding: 12px 14px; font-size: 15px; }
+
+/* Footer */
+footer { padding-block: 48px 32px; color: var(--muted); font-size: 14px; }
+.foot { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 32px; padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+.foot h4 { margin: 0 0 12px; font-family: var(--f-display); color: var(--ink); font-size: 15px; }
+.foot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.foot a { text-decoration: none; }
+.foot a:hover { color: var(--ink); }
+.foot-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 24px; }
+
+/* Responsive */
+@media (max-width: 1000px) {
+  .nav, .header-cta .btn-ghost { display: none; }
+  .menu-btn { display: grid; place-items: center; }
+  .hero .wrap, .about .wrap, .faq .wrap, .contact-box { grid-template-columns: 1fr; }
+  .sys-grid, .plans { grid-template-columns: 1fr; max-width: 560px; }
+  .feat-grid { grid-template-columns: 1fr 1fr; }
+  .flow { grid-template-columns: 1fr 1fr; gap: 28px 0; }
+  .step:nth-child(2)::after { display: none; }
+  .foot { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  section { padding-block: 64px; }
+  .wrap { padding-inline: 16px; }
+  .header-cta .btn-primary { display: none; }
+  .panel-grid, .feat-grid, .row2, .flow { grid-template-columns: 1fr; }
+  .step::after { display: none; }
+  .contact-box { padding: 28px 20px; }
+  .value { grid-template-columns: 1fr; gap: 4px; }
+  .price-controls { align-items: stretch; }
+  .tabs { width: 100%; }
+  .tabs button { flex: 1; padding-inline: 8px; }
+  .foot { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="dash" viewBox="0 0 16 16"><path d="M4 8h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="logo" href="#home" aria-label="رصد، الصفحة الرئيسية">
+      <svg class="logo-mark" viewBox="0 0 36 36" aria-hidden="true">
+        <rect width="36" height="36" rx="10" fill="var(--brand)"/>
+        <circle cx="18" cy="18" r="10" fill="none" stroke="var(--brand-ink)" stroke-opacity=".35" stroke-width="1.5"/>
+        <circle cx="18" cy="18" r="5" fill="none" stroke="var(--brand-ink)" stroke-opacity=".6" stroke-width="1.5"/>
+        <path d="M18 18 L18 6 A12 12 0 0 1 28.4 12 Z" fill="var(--brand-ink)" fill-opacity=".85"/>
+        <circle cx="18" cy="18" r="2" fill="var(--brand-ink)"/>
+      </svg>
+      <span>رصد<small>منظومة سحابية للأعمال</small></span>
+    </a>
+    <nav class="nav" aria-label="القائمة الرئيسية">
+      <a href="#home">الرئيسية</a>
+      <a href="#systems">الأنظمة</a>
+      <a href="#pricing">الأسعار</a>
+      <a href="#about">من نحن</a>
+      <a href="#faq">الأسئلة الشائعة</a>
+      <a href="#contact">تواصل معنا</a>
+    </nav>
+    <div class="header-cta">
+      <a class="btn btn-ghost" href="#contact">تسجيل الدخول</a>
+      <a class="btn btn-primary" href="#contact">اطلب عرضاً تجريبياً</a>
+      <button class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="mobileNav" aria-label="فتح القائمة">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="mobile-nav" id="mobileNav" hidden>
+    <div class="wrap">
+      <a href="#home">الرئيسية</a>
+      <a href="#systems">الأنظمة</a>
+      <a href="#pricing">الأسعار</a>
+      <a href="#about">من نحن</a>
+      <a href="#faq">الأسئلة الشائعة</a>
+      <a href="#contact">تواصل معنا</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero" id="home">
+    <div class="wrap">
+      <div class="hero-copy">
+        <span class="badge"><span class="dot"></span>متوافق مع المرحلة الثانية من الفوترة الإلكترونية</span>
+        <h1>فواتيرك وحضور موظفيك<br>في <em>منظومة سحابية واحدة</em></h1>
+        <p class="lead">رصد منظومة سحابية سعودية تجمع نظام رصد الفوترة ونظام رصد التواجد تحت اشتراك واحد وحساب واحد. تصدر فواتيرك الإلكترونية وتربطها مباشرة مع هيئة الزكاة والضريبة والجمارك، وتتابع حضور وانصراف فريقك لحظة بلحظة.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#pricing">استعرض الباقات والأسعار</a>
+          <a class="btn btn-ghost" href="#systems">تعرّف على الأنظمة</a>
+        </div>
+        <div class="trust">
+          <span><svg width="16" height="16"><use href="#check"/></svg>ربط مباشر مع منصة فاتورة</span>
+          <span><svg width="16" height="16"><use href="#check"/></svg>واجهة عربية بالكامل</span>
+          <span><svg width="16" height="16"><use href="#check"/></svg>تجربة مجانية 14 يوماً</span>
+        </div>
+      </div>
+
+      <div class="panel" aria-label="مثال توضيحي لواجهة المنظومة">
+        <div class="panel-top">
+          <div>
+            <b>مؤسسة المثال التجارية</b>
+            <div class="muted">مثال توضيحي · الباقة المتكاملة</div>
+          </div>
+          <span class="pill pill-ok">الاشتراك فعّال</span>
+        </div>
+        <div class="panel-grid">
+          <div class="mini">
+            <h4>رصد الفوترة <span class="pill pill-ok">تم القبول</span></h4>
+            <div class="inv">
+              <div class="inv-lines">
+                <div><span>فاتورة ضريبية</span><span class="num">INV-1046</span></div>
+                <div><span>المبلغ</span><span class="num">2,400.00</span></div>
+                <div><span>ضريبة 15%</span><span class="num">360.00</span></div>
+                <div class="total"><span>الإجمالي ر.س</span><span class="num">2,760.00</span></div>
+              </div>
+              <div class="qr"><canvas id="qr" width="25" height="25" aria-label="رمز QR للفاتورة"></canvas></div>
+            </div>
+          </div>
+          <div class="mini">
+            <h4>رصد التواجد <span class="pill pill-ok"><span class="num">42/45</span> حاضر</span></h4>
+            <div class="log">
+              <div><i></i><span>سارة العتيبي · دخول</span><span class="t num">07:58</span></div>
+              <div><i></i><span>فهد القحطاني · دخول</span><span class="t num">08:02</span></div>
+              <div><i class="late"></i><span>نورة الشهري · تأخير</span><span class="t num">08:21</span></div>
+              <div><i></i><span>عبدالله الحربي · خروج</span><span class="t num">16:05</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="renew">
+          <div>تجديد الاشتراك السنوي<small>متبقٍ <span class="num">263</span> يوماً · تذكير تلقائي قبل الانتهاء</small></div>
+          <div class="bar" aria-hidden="true"><span></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Systems -->
+  <section class="systems" id="systems">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">أنظمة المنظومة</span>
+        <h2>ثلاثة أنظمة تعمل كمنظومة واحدة</h2>
+        <p>اختر النظام الذي تحتاجه اليوم وأضف الآخر متى شئت. كل الأنظمة مرتبطة بحساب اشتراك واحد، فلا تتعامل مع أكثر من فاتورة أو أكثر من دعم فني.</p>
+      </div>
+
+      <div class="sys-grid">
+        <article class="sys">
+          <div class="sys-ico">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l3 3v15l-2.5-1.5L13 21l-2.5-1.5L8 21l-2-1.5V3z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>
+          </div>
+          <h3>رصد الفوترة</h3>
+          <p class="tag">الفوترة الإلكترونية والربط مع هيئة الزكاة</p>
+          <p>أصدر الفواتير الضريبية والمبسطة والإشعارات الدائنة والمدينة، وأرسلها للهيئة تلقائياً للاعتماد والتسجيل.</p>
+          <ul>
+            <li><svg width="16" height="16"><use href="#check"/></svg>ربط وتكامل مع منصة فاتورة (المرحلة الثانية)</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>رمز QR وتوقيع إلكتروني وصيغة XML معتمدة</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>فواتير ثنائية اللغة بشعار منشأتك</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>إدارة العملاء والأصناف وتقارير ضريبة القيمة المضافة</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>مشاركة الفاتورة مع العميل عبر رابط أو بريد أو واتساب</li>
+          </ul>
+        </article>
+
+        <article class="sys hub">
+          <div class="sys-ico">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="4.5" cy="6" r="2"/><circle cx="19.5" cy="6" r="2"/><circle cx="12" cy="20.5" r="2"/><path d="M6.2 7.1l3.3 3M17.8 7.1l-3.3 3M12 15v3.5"/></svg>
+          </div>
+          <h3>نظام الاشتراكات</h3>
+          <p class="tag">قلب المنظومة</p>
+          <p>حساب واحد يدير اشتراكاتك في رصد الفوترة ورصد التواجد. منه تُفعَّل الأنظمة وتُجدَّد الباقات وتصدر فواتير الاشتراك.</p>
+          <ul>
+            <li><svg width="16" height="16"><use href="#check"/></svg>تفعيل فوري للنظام بعد الاشتراك</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>تجديد شهري أو سنوي مع تذكير قبل الانتهاء</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>ترقية الباقة أو إضافة نظام دون انقطاع</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>فاتورة اشتراك إلكترونية موحدة لكل الأنظمة</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>إدارة الفروع والمستخدمين والصلاحيات</li>
+          </ul>
+        </article>
+
+        <article class="sys">
+          <div class="sys-ico">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/></svg>
+          </div>
+          <h3>رصد التواجد</h3>
+          <p class="tag">الحضور والانصراف</p>
+          <p>سجّل حضور وانصراف الموظفين من الجوال أو أجهزة البصمة، وتابع التأخير والغياب والعمل الإضافي من لوحة واحدة.</p>
+          <ul>
+            <li><svg width="16" height="16"><use href="#check"/></svg>تسجيل عبر الجوال بالموقع الجغرافي (Geofence)</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>ربط مع أجهزة البصمة والتعرف على الوجه</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>ورديات مرنة ودوام رمضان والإجازات</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>تقارير التأخير والغياب والعمل الإضافي</li>
+            <li><svg width="16" height="16"><use href="#check"/></svg>تصدير جاهز لمسيّر الرواتب</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="flow" aria-label="خطوات البدء">
+        <div class="step"><b>اختر باقتك</b><span>فوترة أو تواجد أو الباقة المتكاملة.</span></div>
+        <div class="step"><b>فعّل اشتراكك</b><span>يُنشأ حسابك ويُفعّل النظام مباشرة.</span></div>
+        <div class="step"><b>اربط منشأتك</b><span>بيانات السجل والرقم الضريبي والفروع والموظفين.</span></div>
+        <div class="step"><b>ابدأ العمل</b><span>أول فاتورة وأول تسجيل حضور في نفس اليوم.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">لماذا رصد</span>
+        <h2>مبنية لبيئة الأعمال في المملكة</h2>
+      </div>
+      <div class="feat-grid">
+        <div class="feat"><span class="k">ZATCA</span><b>امتثال ضريبي كامل</b><span>متطلبات المرحلة الثانية من الفوترة الإلكترونية مدمجة في كل فاتورة.</span></div>
+        <div class="feat"><span class="k">RTL</span><b>عربية أولاً</b><span>واجهة وتقارير ومستندات باللغة العربية مع دعم الإنجليزية.</span></div>
+        <div class="feat"><span class="k">Cloud</span><b>سحابية بالكامل</b><span>تعمل من المتصفح والجوال دون خوادم أو تثبيت لديك.</span></div>
+        <div class="feat"><span class="k">Roles</span><b>صلاحيات دقيقة</b><span>حدد ما يراه المحاسب ومدير الموارد البشرية ومدير الفرع.</span></div>
+        <div class="feat"><span class="k">Backup</span><b>نسخ احتياطي يومي</b><span>بياناتك محفوظة ومشفرة ويمكن استرجاعها عند الحاجة.</span></div>
+        <div class="feat"><span class="k">Branches</span><b>تعدد الفروع</b><span>أدر عدة فروع أو منشآت من حساب اشتراك واحد.</span></div>
+        <div class="feat"><span class="k">API</span><b>تكامل مفتوح</b><span>اربط المنظومة مع نظام المحاسبة أو الرواتب أو نقاط البيع.</span></div>
+        <div class="feat"><span class="k">Support</span><b>دعم محلي</b><span>فريق دعم سعودي بالعربية عبر الهاتف وواتساب والبريد.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="pricing" id="pricing">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">قائمة الأسعار</span>
+        <h2>باقات واضحة لكل نظام</h2>
+        <p>اختر النظام ثم الباقة المناسبة لحجم منشأتك. الدفع السنوي يوفر لك شهرين مجاناً.</p>
+      </div>
+
+      <div class="price-controls">
+        <div class="tabs" role="tablist" aria-label="اختر النظام">
+          <button role="tab" id="tab-billing" aria-selected="true" data-sys="billing">رصد الفوترة</button>
+          <button role="tab" id="tab-attendance" aria-selected="false" data-sys="attendance">رصد التواجد</button>
+          <button role="tab" id="tab-bundle" aria-selected="false" data-sys="bundle">الباقة المتكاملة</button>
+        </div>
+        <div class="period">
+          <span>شهري</span>
+          <button class="switch" id="periodSwitch" role="switch" aria-checked="true" aria-label="الدفع السنوي"></button>
+          <span>سنوي</span>
+          <span class="save">وفّر شهرين</span>
+        </div>
+      </div>
+
+      <div class="plans" id="plans" role="tabpanel" aria-live="polite"></div>
+
+      <div class="price-foot">
+        <span>الأسعار بالريال السعودي ولا تشمل ضريبة القيمة المضافة 15%.</span>
+        <span>تجربة مجانية 14 يوماً لكل الباقات.</span>
+        <span>بدون رسوم تأسيس.</span>
+      </div>
+
+      <div class="compare">
+        <h3>مقارنة باقات رصد الفوترة</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>الميزة</th><th class="c">الأساسية</th><th class="c">الاحترافية</th><th class="c">المؤسسات</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>عدد الفواتير شهرياً</td><td class="c num">300</td><td class="c num">2,000</td><td class="c">غير محدود</td></tr>
+              <tr><td>عدد المستخدمين</td><td class="c num">2</td><td class="c num">5</td><td class="c">غير محدود</td></tr>
+              <tr><td>الفروع</td><td class="c num">1</td><td class="c num">3</td><td class="c">غير محدود</td></tr>
+              <tr><td>الربط مع هيئة الزكاة (المرحلة الثانية)</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+              <tr><td>عروض الأسعار وأوامر الشراء</td><td class="c no">—</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+              <tr><td>تقارير ضريبة القيمة المضافة</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+              <tr><td>الربط عبر API</td><td class="c no">—</td><td class="c no">—</td><td class="c yes">✓</td></tr>
+              <tr><td>مدير حساب مخصص</td><td class="c no">—</td><td class="c no">—</td><td class="c yes">✓</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- About -->
+  <section class="about" id="about">
+    <div class="wrap">
+      <div class="about-copy">
+        <span class="eyebrow">من نحن</span>
+        <h2 style="font-size: clamp(26px, 3.4vw, 38px);">نبني أدوات تشغيل يومية للمنشآت السعودية</h2>
+        <p>رصد فريق سعودي متخصص في أنظمة تخطيط موارد المنشآت والموارد البشرية والفوترة. عملنا سنوات مع منشآت صغيرة ومتوسطة، ورأينا كيف تتوزع أعمالها بين برنامج للفواتير وآخر للحضور وجداول لا تتصل ببعضها.</p>
+        <p>لذلك بنينا رصد كمنظومة سحابية واحدة: اشتراك واحد، وحساب واحد، وأنظمة تتكامل فيما بينها، مع التزام كامل بمتطلبات هيئة الزكاة والضريبة والجمارك ونظام العمل في المملكة.</p>
+      </div>
+      <div class="values">
+        <div class="value"><b>رسالتنا</b><span>أن تدير المنشأة فواتيرها وفريقها بثقة ومن مكان واحد، دون تعقيد تقني.</span></div>
+        <div class="value"><b>رؤيتنا</b><span>أن تكون رصد المنظومة السحابية الأولى للمنشآت الصغيرة والمتوسطة في المملكة.</span></div>
+        <div class="value"><b>التزامنا</b><span>امتثال تنظيمي، وحماية للبيانات، ودعم يرد عليك بالعربية في نفس اليوم.</span></div>
+        <div class="value"><b>طريقتنا</b><span>نطلق التحديثات باستمرار بناءً على ملاحظات المشتركين الفعلية.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq" id="faq">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">الأسئلة الشائعة</span>
+        <h2>إجابات سريعة قبل أن تبدأ</h2>
+        <p>لم تجد سؤالك؟ تواصل معنا وسيرد عليك أحد أعضاء الفريق.</p>
+      </div>
+      <div class="faq-list">
+        <details open>
+          <summary>هل رصد الفوترة معتمد للربط مع هيئة الزكاة والضريبة والجمارك؟</summary>
+          <p>نعم. يدعم النظام متطلبات المرحلة الثانية (الربط والتكامل): التوقيع الإلكتروني، ورمز QR، وصيغة XML، وإرسال الفواتير للهيئة للاعتماد أو التسجيل تلقائياً.</p>
+        </details>
+        <details>
+          <summary>هل يمكنني الاشتراك في نظام واحد فقط؟</summary>
+          <p>نعم. يمكنك الاشتراك في رصد الفوترة أو رصد التواجد وحده، وإضافة النظام الآخر لاحقاً من حسابك في نظام الاشتراكات دون نقل بيانات.</p>
+        </details>
+        <details>
+          <summary>كيف يتم التجديد والدفع؟</summary>
+          <p>تختار الدفع الشهري أو السنوي، ويصلك تذكير قبل انتهاء الاشتراك مع فاتورة إلكترونية. يمكنك الدفع بمدى أو البطاقات الائتمانية أو التحويل البنكي.</p>
+        </details>
+        <details>
+          <summary>كيف يسجل الموظفون الحضور في رصد التواجد؟</summary>
+          <p>عبر تطبيق الجوال داخل النطاق الجغرافي المحدد للفرع، أو من أجهزة البصمة والتعرف على الوجه المرتبطة بالنظام.</p>
+        </details>
+        <details>
+          <summary>هل يمكنني الترقية أو تغيير الباقة لاحقاً؟</summary>
+          <p>نعم، في أي وقت. يُحتسب الفرق بشكل تناسبي مع المدة المتبقية من اشتراكك الحالي.</p>
+        </details>
+        <details>
+          <summary>أين تُحفظ بياناتي؟</summary>
+          <p>تُحفظ بياناتك مشفرة على خوادم سحابية مع نسخ احتياطي يومي، وتبقى ملكاً لك ويمكنك تصديرها متى شئت.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact -->
+  <section id="contact">
+    <div class="wrap">
+      <div class="contact-box">
+        <div>
+          <span class="eyebrow" style="color: var(--signal);">تواصل معنا</span>
+          <h2>جاهز تشوف رصد على بيانات منشأتك؟</h2>
+          <p>اطلب عرضاً تجريبياً مجانياً، وسيتواصل معك أحد مختصينا خلال يوم عمل لتجهيز حسابك التجريبي.</p>
+          <div class="contact-lines">
+            <div><small>الهاتف وواتساب</small><span class="num">+966 5X XXX XXXX</span></div>
+            <div><small>البريد الإلكتروني</small><span class="num">sales@rasd.sa</span></div>
+            <div><small>ساعات العمل</small><span>الأحد إلى الخميس، 9 صباحاً حتى 6 مساءً</span></div>
+          </div>
+        </div>
+        <form id="leadForm" novalidate>
+          <div class="row2">
+            <label for="f-name">الاسم<input id="f-name" name="name" required placeholder="اسمك الكامل"></label>
+            <label for="f-company">اسم المنشأة<input id="f-company" name="company" required placeholder="اسم الشركة أو المؤسسة"></label>
+          </div>
+          <div class="row2">
+            <label for="f-phone">رقم الجوال<input id="f-phone" name="phone" type="tel" dir="ltr" required placeholder="05XXXXXXXX"></label>
+            <label for="f-email">البريد الإلكتروني<input id="f-email" name="email" type="email" dir="ltr" placeholder="name@company.sa"></label>
+          </div>
+          <label for="f-system">النظام المطلوب
+            <select id="f-system" name="system">
+              <option>رصد الفوترة</option>
+              <option>رصد التواجد</option>
+              <option selected>الباقة المتكاملة</option>
+            </select>
+          </label>
+          <label for="f-msg">ملاحظات<textarea id="f-msg" name="message" rows="3" placeholder="عدد الموظفين، عدد الفروع، أو أي تفاصيل تهمك"></textarea></label>
+          <button class="btn btn-primary" type="submit">أرسل الطلب</button>
+          <div class="form-ok" id="formOk" role="status" hidden></div>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="logo" href="#home" style="margin-bottom: 12px;">
+          <svg class="logo-mark" viewBox="0 0 36 36" aria-hidden="true"><rect width="36" height="36" rx="10" fill="var(--brand)"/><path d="M18 18 L18 6 A12 12 0 0 1 28.4 12 Z" fill="var(--brand-ink)" fill-opacity=".85"/><circle cx="18" cy="18" r="10" fill="none" stroke="var(--brand-ink)" stroke-opacity=".35" stroke-width="1.5"/><circle cx="18" cy="18" r="2" fill="var(--brand-ink)"/></svg>
+          <span>منظومة رصد السحابية</span>
+        </a>
+        <p>رصد الفوترة ورصد التواجد ونظام الاشتراكات في منظومة واحدة للمنشآت السعودية.</p>
+      </div>
+      <div>
+        <h4>الأنظمة</h4>
+        <ul><li><a href="#systems">رصد الفوترة</a></li><li><a href="#systems">رصد التواجد</a></li><li><a href="#systems">نظام الاشتراكات</a></li></ul>
+      </div>
+      <div>
+        <h4>الشركة</h4>
+        <ul><li><a href="#about">من نحن</a></li><li><a href="#pricing">الأسعار</a></li><li><a href="#contact">تواصل معنا</a></li></ul>
+      </div>
+      <div>
+        <h4>المساعدة</h4>
+        <ul><li><a href="#faq">الأسئلة الشائعة</a></li><li><a href="#contact">الدعم الفني</a></li><li><a href="#contact">سياسة الخصوصية</a></li></ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© <span class="num" id="year">2026</span> منظومة رصد السحابية. جميع الحقوق محفوظة.</span>
+      <span>السجل التجاري: <span class="num">XXXXXXXXXX</span> · الرقم الضريبي: <span class="num">3XXXXXXXXXXXXX3</span></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Mobile menu
+  var menuBtn = document.getElementById('menuBtn');
+  var mobileNav = document.getElementById('mobileNav');
+  menuBtn.addEventListener('click', function () {
+    var open = mobileNav.hidden;
+    mobileNav.hidden = !open;
+    menuBtn.setAttribute('aria-expanded', String(open));
+  });
+  mobileNav.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A') { mobileNav.hidden = true; menuBtn.setAttribute('aria-expanded', 'false'); }
+  });
+
+  // Decorative QR pattern (finder squares + pseudo-random modules)
+  var c = document.getElementById('qr');
+  if (c && c.getContext) {
+    var ctx = c.getContext('2d');
+    var ink = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#0f2a2e';
+    var seed = 7;
+    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    function finder(x, y) {
+      ctx.fillRect(x, y, 7, 7);
+      ctx.clearRect(x + 1, y + 1, 5, 5);
+      ctx.fillRect(x + 2, y + 2, 3, 3);
+    }
+    ctx.fillStyle = ink;
+    for (var y = 0; y < 25; y++) for (var x = 0; x < 25; x++) {
+      var inFinder = (x < 8 && y < 8) || (x > 16 && y < 8) || (x < 8 && y > 16);
+      if (!inFinder && rnd() > 0.52) ctx.fillRect(x, y, 1, 1);
+    }
+    finder(0, 0); finder(18, 0); finder(0, 18);
+  }
+
+  // Pricing data — prices in SAR, excluding VAT. Yearly = 10 × monthly.
+  var plans = {
+    billing: [
+      { name: 'الأساسية', for: 'للمنشآت الناشئة والمحلات', monthly: 99, unit: 'شهرياً', features: [
+        ['300 فاتورة شهرياً', 1], ['مستخدمان وفرع واحد', 1], ['الربط مع هيئة الزكاة (المرحلة الثانية)', 1], ['فواتير ضريبية ومبسطة وإشعارات', 1], ['تقارير ضريبة القيمة المضافة', 1], ['عروض الأسعار وأوامر الشراء', 0] ] },
+      { name: 'الاحترافية', for: 'للمنشآت الصغيرة والمتوسطة', monthly: 199, unit: 'شهرياً', featured: true, features: [
+        ['2,000 فاتورة شهرياً', 1], ['5 مستخدمين و3 فروع', 1], ['الربط مع هيئة الزكاة (المرحلة الثانية)', 1], ['عروض الأسعار وأوامر الشراء', 1], ['إرسال الفواتير عبر واتساب والبريد', 1], ['الربط عبر API', 0] ] },
+      { name: 'المؤسسات', for: 'للشركات متعددة الفروع', monthly: 399, unit: 'شهرياً', features: [
+        ['فواتير غير محدودة', 1], ['مستخدمون وفروع غير محدودة', 1], ['الربط مع هيئة الزكاة (المرحلة الثانية)', 1], ['الربط عبر API مع أنظمتك', 1], ['صلاحيات متقدمة وسجل تدقيق', 1], ['مدير حساب مخصص', 1] ] }
+    ],
+    attendance: [
+      { name: 'الأساسية', for: 'حتى 25 موظفاً', monthly: 149, unit: 'شهرياً', features: [
+        ['حتى 25 موظفاً', 1], ['تسجيل عبر الجوال بالموقع الجغرافي', 1], ['فرع واحد ووردية ثابتة', 1], ['تقارير الحضور والتأخير', 1], ['الإجازات والاستئذانات', 1], ['ربط أجهزة البصمة', 0] ] },
+      { name: 'الاحترافية', for: 'حتى 100 موظف', monthly: 349, unit: 'شهرياً', featured: true, features: [
+        ['حتى 100 موظف', 1], ['الجوال وأجهزة البصمة', 1], ['ورديات مرنة ودوام رمضان', 1], ['حتى 5 فروع', 1], ['العمل الإضافي وتصدير مسيّر الرواتب', 1], ['الربط عبر API', 0] ] },
+      { name: 'المؤسسات', for: 'أكثر من 100 موظف', monthly: 3.5, perUser: true, unit: 'لكل موظف شهرياً', features: [
+        ['عدد موظفين غير محدود', 1], ['الجوال والبصمة والتعرف على الوجه', 1], ['فروع غير محدودة', 1], ['الربط عبر API مع الرواتب والموارد البشرية', 1], ['لوحات تحكم للإدارة العليا', 1], ['مدير حساب مخصص', 1] ] }
+    ],
+    bundle: [
+      { name: 'المتكاملة الأساسية', for: 'فوترة أساسية + تواجد حتى 25 موظفاً', monthly: 219, was: 248, unit: 'شهرياً', features: [
+        ['رصد الفوترة: الباقة الأساسية', 1], ['رصد التواجد: الباقة الأساسية', 1], ['حساب اشتراك وفاتورة واحدة', 1], ['دعم فني موحد', 1], ['خصم 12% على الأنظمة منفصلة', 1], ['ربط أجهزة البصمة', 0] ] },
+      { name: 'المتكاملة الاحترافية', for: 'فوترة احترافية + تواجد حتى 100 موظف', monthly: 469, was: 548, unit: 'شهرياً', featured: true, features: [
+        ['رصد الفوترة: الباقة الاحترافية', 1], ['رصد التواجد: الباقة الاحترافية', 1], ['حساب اشتراك وفاتورة واحدة', 1], ['جلسة تدريب وتهيئة مجانية', 1], ['خصم 14% على الأنظمة منفصلة', 1], ['الربط عبر API', 0] ] },
+      { name: 'المتكاملة للمؤسسات', for: 'للشركات الكبيرة ومتعددة الفروع', custom: true, features: [
+        ['رصد الفوترة: باقة المؤسسات', 1], ['رصد التواجد: باقة المؤسسات', 1], ['الربط عبر API مع أنظمتك', 1], ['تهيئة ونقل بيانات كامل', 1], ['اتفاقية مستوى خدمة SLA', 1], ['مدير حساب مخصص', 1] ] }
+    ]
+  };
+
+  var current = 'billing';
+  var yearly = true;
+  var plansEl = document.getElementById('plans');
+  var fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+
+  function render() {
+    plansEl.setAttribute('aria-labelledby', 'tab-' + current);
+    plansEl.innerHTML = plans[current].map(function (p) {
+      var price, note;
+      if (p.custom) {
+        price = '<span class="amount" style="font-size:32px">حسب الطلب</span>';
+        note = 'سعر مخصص حسب عدد الفروع والموظفين';
+      } else if (yearly) {
+        price = '<span class="amount">' + fmt.format(p.monthly * 10) + '</span><span class="unit">ر.س ' + p.unit.replace('شهرياً', 'سنوياً') + '</span>';
+        note = 'بدلاً من <s class="num">' + fmt.format((p.was || p.monthly) * 12) + '</s> ر.س' + (p.perUser ? ' · أقل عدد 100 موظف' : '');
+      } else {
+        price = '<span class="amount">' + fmt.format(p.monthly) + '</span><span class="unit">ر.س ' + p.unit + '</span>';
+        note = p.was ? 'بدلاً من <s class="num">' + p.was + '</s> ر.س للأنظمة منفصلة' : (p.perUser ? 'أقل عدد 100 موظف' : 'يُدفع شهرياً');
+      }
+      var feats = p.features.map(function (f) {
+        return '<li' + (f[1] ? '' : ' class="off"') + '><svg width="16" height="16"><use href="#' + (f[1] ? 'check' : 'dash') + '"/></svg>' + f[0] + '</li>';
+      }).join('');
+      return '<article class="plan' + (p.featured ? ' featured' : '') + '">' +
+        (p.featured ? '<span class="plan-flag">الأكثر طلباً</span>' : '') +
+        '<div><h3>' + p.name + '</h3><p class="for">' + p.for + '</p></div>' +
+        '<div class="price">' + price + '</div>' +
+        '<p class="price-note">' + note + '</p>' +
+        '<ul>' + feats + '</ul>' +
+        '<a class="btn ' + (p.featured ? 'btn-primary' : 'btn-ghost') + '" href="#contact" data-plan="' + p.name + '">' + (p.custom ? 'تواصل مع المبيعات' : 'ابدأ التجربة المجانية') + '</a>' +
+        '</article>';
+    }).join('');
+  }
+
+  document.querySelectorAll('.tabs button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      current = b.dataset.sys;
+      document.querySelectorAll('.tabs button').forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); });
+      render();
+    });
+  });
+  var sw = document.getElementById('periodSwitch');
+  sw.addEventListener('click', function () {
+    yearly = !yearly;
+    sw.setAttribute('aria-checked', String(yearly));
+    render();
+  });
+
+  // Pre-select the system in the contact form when a plan button is clicked
+  var sysMap = { billing: 'رصد الفوترة', attendance: 'رصد التواجد', bundle: 'الباقة المتكاملة' };
+  plansEl.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-plan]');
+    if (!a) return;
+    document.getElementById('f-system').value = sysMap[current];
+    var msg = document.getElementById('f-msg');
+    if (!msg.value) msg.value = 'مهتم بباقة: ' + a.dataset.plan + (yearly ? ' (سنوي)' : ' (شهري)');
+  });
+
+  render();
+
+  // Contact form (front-end only; connect to your backend or CRM endpoint)
+  var form = document.getElementById('leadForm');
+  var ok = document.getElementById('formOk');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = form.elements;
+    var name = f.name.value.trim(), company = f.company.value.trim(), phone = f.phone.value.trim();
+    if (!name || !company || !phone) {
+      ok.hidden = false;
+      ok.textContent = 'أكمل الاسم واسم المنشأة ورقم الجوال لنتمكن من التواصل معك.';
+      return;
+    }
+    ok.hidden = false;
+    ok.textContent = 'شكراً ' + name + '، استلمنا طلبك. سنتواصل معك خلال يوم عمل.';
+    form.reset();
+  });
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+})();
+</script>
+</body>
+</html>
