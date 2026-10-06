@@ -154,3 +154,49 @@ def test_background_check_announces_new_customers(container, sheet):
         r = tc.get("/api/queue/check").json()
         assert r["new"] == 1 and r["names"] == ["عميل وصل الآن"] and r["current"] == fp
         assert r["stats"]["owner_total"] == 5
+
+
+# ------------------------------------------------- follow-up as an action next to any result
+def test_followup_action_with_any_sheet_status(container, sheet, odoo):
+    lead = prepare(container)
+    tomorrow = (localnow().date() + timedelta(days=1)).isoformat()
+    res = save(container, idempotency_key="key-fua-001", fingerprint=lead["fingerprint"], result_code="INTERESTED",
+               schedule_followup=True, followup_date=tomorrow, followup_time="11:00", followup_note="إرسال العرض")
+    assert res["status"] == "done" and res["odoo_activity_status"] == "success"
+    assert odoo.activities[0]["date"] == tomorrow
+    assert sheet.sheets["Leads"][1][3] == "مهتم"  # the chosen status, not «متابعة»
+    item = container.workflow.followup_items()[0]
+    assert item["state"] == "upcoming" and item["followup_at"] == f"{tomorrow} 11:00"
+    assert FIRST not in _queue_names(container)  # waits for its date
+
+
+def test_followup_result_without_dropdown_value_keeps_sheet_status(container, sheet, odoo):
+    container.mappings.save_statuses([{"code": "FOLLOW_UP", "sheet_value": "قيمة غير موجودة في القائمة"}])
+    lead = prepare(container)
+    tomorrow = (localnow().date() + timedelta(days=1)).isoformat()
+    res = save(container, idempotency_key="key-fua-002", fingerprint=lead["fingerprint"], result_code="FOLLOW_UP",
+               followup_date=tomorrow)
+    assert res["status"] == "done" and res["odoo_activity_status"] == "success"
+    assert sheet.sheets["Leads"][1][3] == ""  # status untouched, no invalid dropdown value written
+    assert "متابعة" in sheet.sheets["Leads"][1][9]  # the note still records the follow-up
+
+
+def test_followup_action_requires_a_date(container):
+    lead = prepare(container)
+    try:
+        save(container, idempotency_key="key-fua-003", fingerprint=lead["fingerprint"], result_code="NO_ANSWER",
+             schedule_followup=True)
+    except Exception as exc:  # noqa: BLE001
+        assert getattr(exc, "code", "") == "FOLLOWUP_DATE_REQUIRED"
+    else:
+        raise AssertionError("expected FOLLOWUP_DATE_REQUIRED")
+
+
+def test_no_answer_with_followup_waits_for_the_followup_date(container):
+    container.settings.update({"no_answer_retry_hours": 1})
+    lead = prepare(container)
+    nxt = (localnow().date() + timedelta(days=3)).isoformat()
+    save(container, idempotency_key="key-fua-004", fingerprint=lead["fingerprint"], result_code="NO_ANSWER",
+         schedule_followup=True, followup_date=nxt)
+    _age(container, hours=5)
+    assert FIRST not in _queue_names(container)  # the follow-up date wins over the 1-hour retry

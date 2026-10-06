@@ -28,6 +28,8 @@ class ResultIn(BaseModel):
     followup_date: str = ""
     followup_time: str = ""
     followup_note: str = ""
+    # «متابعة لاحقًا» as an action next to any result: Odoo Activity + the agent's follow-up list.
+    schedule_followup: bool = False
     update_sheet: bool = True
     add_odoo_note: bool = True
     call_started_at: datetime | None = None

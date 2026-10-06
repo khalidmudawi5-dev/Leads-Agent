@@ -1131,6 +1131,7 @@ async function openResultPanel(prev = null) {
       <label class="field"><span class="note-head">ملاحظة حرة ${Dictation.supported() ? `<button type="button" class="btn sm mic" id="r-mic" title="إملاء الملاحظة بالصوت (M)">${MIC_ICON}<span>إملاء بالصوت</span></button>`
         : S.remote ? '<span class="small muted">للإملاء: اضغط ميكروفون لوحة مفاتيح الجوال 🎤</span>' : ""}</span>
         <textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
+      <label class="check fu-toggle"><input type="checkbox" id="r-fu"> 📅 <b>جدولة متابعة لاحقة</b> <span class="small muted">— مع أي نتيجة: Activity في Odoo + تذكير في الـAgent يوم الموعد</span></label>
       <div id="r-followup" class="form-grid hidden">
         <label class="field"><span>تاريخ المتابعة</span><input type="date" id="r-fdate"></label>
         <label class="field"><span>الوقت</span><input type="time" id="r-ftime"></label>
@@ -1162,6 +1163,8 @@ async function openResultPanel(prev = null) {
   ["#r-sheet", "#r-odoo"].forEach((sel) => { $(sel).onchange = updateWriteSummary; });
   updateWriteSummary();
   $("#r-cancel").onclick = () => { Dictation.stop(); card.classList.add("hidden"); };
+  $("#r-fu").onchange = (ev) => setFollowup(ev.target.checked);
+  ["#r-fdate", "#r-ftime"].forEach((sel) => { $(sel).onchange = updateWriteSummary; });
   if ($("#r-mic")) $("#r-mic").onclick = () => Dictation.toggle($("#r-note"), $("#r-mic"));
   $("#r-save").onclick = (ev) => saveResult(ev.currentTarget, false);
   $("#r-preview").onclick = (ev) => saveResult(ev.currentTarget, true);
@@ -1192,6 +1195,8 @@ async function openResultPanel(prev = null) {
   }
   // Every other value of the sheet's follow-up dropdown, written to the sheet as-is ("S:<value>").
   const statusOpts = await loadOptions("followup_status");
+  S.followupOptions = statusOpts;
+  updateWriteSummary();
   const mainValues = new Set(S.statuses.map((x) => (x.sheet_value || "").trim()));
   const extra = statusOpts.filter((v) => v && !mainValues.has(v.trim()));
   if (extra.length) {
@@ -1201,7 +1206,7 @@ async function openResultPanel(prev = null) {
   }
   if (prev && (S.statuses.some((x) => x.code === prev.result_code) || (prev.result_code || "").startsWith("S:"))) {
     selectResult(prev.result_code);
-    if (prev.followup_date) { $("#r-fdate").value = prev.followup_date; $("#r-ftime").value = prev.followup_time || "10:00"; }
+    if (prev.followup_date) { $("#r-fdate").value = prev.followup_date; $("#r-ftime").value = prev.followup_time || "10:00"; setFollowup(true); }
     if (prev.not_subscribed_reason) $("#r-reason-in").value = prev.not_subscribed_reason;
     if (prev.subscription_expiry) $("#r-exp").value = prev.subscription_expiry;
   }
@@ -1225,10 +1230,12 @@ function updateWriteSummary() {
   if (srcSel) srcSel.classList.toggle("needs-choice", sheetOn && !src && !!srcInfo.odoo_value);
   const rows = [];
   rows.push(`<li><span class="sys">Odoo</span>${odooOn
-    ? `<span class="ok">✓ Log Note في Chatter</span>${S.result.code === "FOLLOW_UP" ? ' <span class="ok">+ Activity</span>' : ""}`
+    ? `<span class="ok">✓ Log Note في Chatter</span>${followupOn() ? ` <span class="ok">+ Activity يوم <span class="ltr">${esc($("#r-fdate").value || "؟")}${$("#r-ftime").value ? " " + esc($("#r-ftime").value) : ""}</span></span>` : ""}`
     : `<span class="no">لن تتم إضافة Log Note${ctx.odooId ? "" : " (العميل غير مربوط بـOdoo)"}</span>`}</li>`);
   if (sheetOn) {
-    rows.push(`<li><span class="sys">حالة المتابعة</span>${st ? `<span class="ok">← ${esc(st.sheet_value || "(غير مربوطة – راجع Status Mapping)")}</span>` : '<span class="warn-t">اختر النتيجة أولًا</span>'}</li>`);
+    const fuOnly = S.result.code === "FOLLOW_UP" && !(st && st.sheet_value && (S.followupOptions || []).includes(st.sheet_value));
+    rows.push(`<li><span class="sys">حالة المتابعة</span>${fuOnly ? '<span class="ok">بدون تغيير (متابعة فقط)</span>'
+      : st ? `<span class="ok">← ${esc(st.sheet_value || "(غير مربوطة – راجع Status Mapping)")}</span>` : '<span class="warn-t">اختر النتيجة أولًا</span>'}</li>`);
     rows.push(`<li><span class="sys">مصدر العميل</span>${src
       ? `<span class="ok">← ${esc(src)}</span>${srcInfo.mapped && src === srcInfo.sheet_value ? ` <span class="badge green">من UTM Source${srcInfo.auto ? " (مطابق تلقائيًا)" : ""}</span>` : ""}`
       : `<span class="warn-t">بدون تغيير${srcInfo.odoo_value ? ` — UTM Source = «${esc(srcInfo.odoo_value)}»، اختر القيمة المقابلة من القائمة لتحديثه` : ""}</span>`}</li>`);
@@ -1249,15 +1256,25 @@ function selectResult(code) {
   S.result.code = code;
   setTimeout(updateWriteSummary, 0);
   $$(".result-btn").forEach((b) => b.classList.toggle("selected", b.dataset.code === code));
-  $("#r-followup").classList.toggle("hidden", code !== "FOLLOW_UP");
   $("#r-expiry").classList.toggle("hidden", code !== "SUBSCRIBED");
   $("#r-reason").classList.toggle("hidden", code !== "NOT_INTERESTED");
-  if (code === "FOLLOW_UP" && !$("#r-fdate").value) {
+  if (code === "FOLLOW_UP") setFollowup(true);
+}
+
+/** «جدولة متابعة لاحقة»: shows the date / time / note fields (tomorrow 10:00 by default). */
+function setFollowup(on) {
+  const box = $("#r-fu");
+  if (!box) return;
+  box.checked = on;
+  $("#r-followup").classList.toggle("hidden", !on);
+  if (on && !$("#r-fdate").value) {
     const d = new Date(Date.now() + 86400000);
-    $("#r-fdate").value = d.toISOString().slice(0, 10);
+    $("#r-fdate").value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     $("#r-ftime").value = "10:00";
   }
+  setTimeout(updateWriteSummary, 0);
 }
+const followupOn = () => !!($("#r-fu") && $("#r-fu").checked);
 
 function buildResultBody(previewOnly) {
   const ctx = S.result.ctx;
@@ -1273,9 +1290,10 @@ function buildResultBody(previewOnly) {
     not_subscribed_reason: S.result.code === "NOT_INTERESTED" ? $("#r-reason-in").value : "",
     trial_registered: ctx.manual ? "" : (S.result.trial || ""),
     subscription_expiry: S.result.code === "SUBSCRIBED" ? $("#r-exp").value : "",
-    followup_date: S.result.code === "FOLLOW_UP" ? $("#r-fdate").value : "",
-    followup_time: S.result.code === "FOLLOW_UP" ? $("#r-ftime").value : "",
-    followup_note: S.result.code === "FOLLOW_UP" ? $("#r-fnote").value : "",
+    followup_date: followupOn() ? $("#r-fdate").value : "",
+    followup_time: followupOn() ? $("#r-ftime").value : "",
+    followup_note: followupOn() ? $("#r-fnote").value : "",
+    schedule_followup: followupOn(),
     update_sheet: $("#r-sheet").checked, add_odoo_note: $("#r-odoo").checked,
     call_started_at: S.call.startedAt ? S.call.startedAt.toISOString() : null,
     call_ended_at: S.call.startedAt ? (S.call.endedAt || new Date()).toISOString() : null,
@@ -1351,6 +1369,7 @@ function outcomeLine(res) {
 
 function afterSave(res) {
   stopCall();
+  api("GET", "/api/stats").then((st) => { renderStats(st); renderBanner(st); }).catch(() => {});
   S.call = { startedAt: null, endedAt: null, timer: null };
   $("#result-card").classList.add("hidden");
   if (S.manual) { S.manual = null; loadCurrent(); return; }

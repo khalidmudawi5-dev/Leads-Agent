@@ -132,8 +132,8 @@ class LeadWorkflowService:
         return {"last_code": o.last_code, "last_at": fmt_local(o.last_at), "no_answer_streak": o.no_answer_streak,
                 "max_attempts": s.no_answer_max_attempts,
                 "attempts_reached": bool(s.no_answer_max_attempts and o.no_answer_streak >= s.no_answer_max_attempts),
-                "followup_at": o.followup_at if o.last_code == "FOLLOW_UP" else "",
-                "followup_note": o.followup_note if o.last_code == "FOLLOW_UP" else "",
+                "followup_at": o.followup_at,
+                "followup_note": o.followup_note if o.followup_at else "",
                 "followup_state": o.followup_state(localnow().date())}
 
     def _duplicates(self, phone_norm: str, sheet_row: int) -> list[dict]:
