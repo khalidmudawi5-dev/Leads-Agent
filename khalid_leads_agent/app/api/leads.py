@@ -117,9 +117,13 @@ def lead_whatsapp_options(fingerprint: str, c: AppContainer = Depends(container)
 
 
 @router.post("/lead/{fingerprint}/whatsapp")
-async def lead_whatsapp(fingerprint: str, body: WhatsAppIn, c: AppContainer = Depends(container)) -> dict:
-    """Returns the wa.me link (the page opens it) and records the message in Odoo/Sheet when enabled."""
-    return await c.whatsapp.send(fingerprint, body.tel, body.text, body.template, body.log)
+async def lead_whatsapp(fingerprint: str, body: WhatsAppIn, request: Request,
+                       c: AppContainer = Depends(container)) -> dict:
+    """Returns the wa.me link (the page opens it) and records the message in Odoo/Sheet when enabled.
+    With an attachment, the file goes on this PC's clipboard (not when the request comes from the phone)."""
+    local = is_loopback(request.client.host if request.client else "")
+    return await c.whatsapp.send(fingerprint, body.tel, body.text, body.template, body.log,
+                                 file_id=body.file, file_name=body.file_name, clipboard=local)
 
 
 @router.post("/lead/{fingerprint}/open")

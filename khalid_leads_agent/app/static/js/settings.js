@@ -3,8 +3,9 @@ let CFG = null;
 
 function fieldValue(el) {
   if (el.dataset.type === "templates") {
-    return $$(".tpl-row", el).map((r) => ({ name: $(".tpl-name", r).value.trim(), text: $(".tpl-text", r).value }))
-      .filter((tp) => tp.text.trim());
+    return $$(".tpl-row", el).map((r) => ({ name: $(".tpl-name", r).value.trim(), text: $(".tpl-text", r).value,
+      ...(r.dataset.file ? { file: r.dataset.file, file_name: r.dataset.fileName || "" } : {}) }))
+      .filter((tp) => tp.text.trim() || tp.file);
   }
   if (el.type === "checkbox") return el.checked;
   if (el.type === "number") return Number(el.value);
@@ -12,13 +13,65 @@ function fieldValue(el) {
     .map((v) => v === CFG.empty_token ? "" : v);
   return el.value;
 }
+const PDF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><text x="12" y="17.5" font-size="5.2" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none">PDF</text></svg>';
+
+/** Attachment chip of a template row: thumbnail (image) or PDF icon, name, remove. */
+function renderTplFile(row) {
+  const box = $(".tpl-file", row);
+  const id = row.dataset.file;
+  if (!id) {
+    box.innerHTML = `<button type="button" class="btn sm tpl-attach">📎 إرفاق صورة أو PDF</button>`;
+    $(".tpl-attach", box).onclick = () => $(".tpl-input", row).click();
+    return;
+  }
+  const name = row.dataset.fileName || id;
+  const isPdf = id.endsWith(".pdf");
+  box.innerHTML = `<span class="file-chip">
+      <a href="/api/attachments/${esc(id)}" target="_blank" rel="noopener" class="fc-thumb" title="عرض">${isPdf ? PDF_ICON : `<img src="/api/attachments/${esc(id)}" alt="">`}</a>
+      <span class="fc-name" title="${esc(name)}">${esc(name)}</span>
+      <button type="button" class="btn sm ghost tpl-attach" title="تغيير الملف">تغيير</button>
+      <button type="button" class="btn sm ghost tpl-unfile" title="إزالة المرفق">✕</button></span>`;
+  $(".tpl-attach", box).onclick = () => $(".tpl-input", row).click();
+  $(".tpl-unfile", box).onclick = () => { delete row.dataset.file; delete row.dataset.fileName; renderTplFile(row); };
+}
+
+/** WhatsApp may send a .webp picture as a sticker: turn it into a PNG first (in the browser). */
+async function asWhatsAppImage(f) {
+  if (f.type !== "image/webp") return f;
+  try {
+    const bmp = await createImageBitmap(f);
+    const canvas = Object.assign(document.createElement("canvas"), { width: bmp.width, height: bmp.height });
+    canvas.getContext("2d").drawImage(bmp, 0, 0);
+    const blob = await new Promise((ok) => canvas.toBlob(ok, "image/png"));
+    return blob ? new File([blob], f.name.replace(/\.webp$/i, "") + ".png", { type: "image/png" }) : f;
+  } catch (e) { return f; }
+}
+
 function tplRow(tp) {
   const row = document.createElement("div");
   row.className = "tpl-row";
   row.innerHTML = `<input type="text" class="tpl-name" placeholder="اسم القالب" value="${esc(tp.name || "")}">
     <textarea class="tpl-text" rows="3" placeholder="نص الرسالة">${esc(tp.text || "")}</textarea>
-    <button type="button" class="btn sm ghost tpl-del" title="حذف">✕</button>`;
+    <button type="button" class="btn sm ghost tpl-del" title="حذف">✕</button>
+    <div class="tpl-file"></div>
+    <input type="file" class="tpl-input hidden" accept="image/jpeg,image/png,image/webp,application/pdf">`;
+  if (tp.file) { row.dataset.file = tp.file; row.dataset.fileName = tp.file_name || ""; }
   $(".tpl-del", row).onclick = () => row.remove();
+  $(".tpl-input", row).onchange = async (ev) => {
+    const f = ev.target.files[0];
+    ev.target.value = "";
+    if (!f) return;
+    const box = $(".tpl-file", row);
+    box.innerHTML = '<span class="small muted">جارٍ رفع الملف…</span>';
+    const fd = new FormData(); fd.append("file", await asWhatsAppImage(f));
+    try {
+      const r = await api("POST", "/api/attachments", fd);
+      row.dataset.file = r.file.id; row.dataset.fileName = r.file.name;
+      toast("تم إرفاق الملف. اضغط «حفظ» لحفظ القالب.", "success");
+    } catch (e) { toast(e.message, "error", 7000); }
+    renderTplFile(row);
+  };
+  renderTplFile(row);
   return row;
 }
 function setField(el, value) {

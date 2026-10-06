@@ -200,3 +200,85 @@ def test_no_answer_with_followup_waits_for_the_followup_date(container):
          schedule_followup=True, followup_date=nxt)
     _age(container, hours=5)
     assert FIRST not in _queue_names(container)  # the follow-up date wins over the 1-hour retry
+
+
+# ------------------------------------------------- WhatsApp attachments (image / PDF)
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+PDF = b"%PDF-1.4\n%test\n"
+
+
+def _client(container):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    return TestClient(create_app(container, allowed_hosts=["testserver"]))
+
+
+def test_attachment_upload_serve_and_validation(container):
+    with _client(container) as tc:
+        r = tc.post("/api/attachments", files={"file": ("بوستر رصد.png", PNG, "image/png")}, headers={"X-KLA": "1"})
+        f = r.json()["file"]
+        assert f["kind"] == "image" and f["name"] == "بوستر رصد.png" and f["id"].endswith(".png")
+        got = tc.get(f["url"])
+        assert got.status_code == 200 and got.content == PNG and got.headers["content-type"] == "image/png"
+        assert "attachment" in tc.get(f["url"] + "?download=1&name=x").headers["content-disposition"]
+        # The real content decides: a renamed text file is refused, and only stored names are served.
+        bad = tc.post("/api/attachments", files={"file": ("fake.pdf", b"hello", "application/pdf")}, headers={"X-KLA": "1"})
+        assert bad.json()["error"]["code"] == "FILE_TYPE"
+        assert tc.get("/api/attachments/..%2Fagent.db").status_code == 404
+        pdf = tc.post("/api/attachments", files={"file": ("عرض.pdf", PDF, "application/pdf")}, headers={"X-KLA": "1"}).json()["file"]
+        assert pdf["kind"] == "pdf"
+
+
+def test_template_with_attachment_is_offered_and_logged(container, sheet, odoo):
+    lead = prepare(container)
+    f = container.whatsapp.attachments.save("poster.png", PNG)
+    container.settings.update({"whatsapp_templates": [{"name": "النسخة التجريبية", "text": "أهلًا {company}",
+                                                       "file": f["id"], "file_name": "poster.png"}]})
+    tpl = container.whatsapp.options(lead["fingerprint"])["templates"][0]
+    assert tpl["file"]["id"] == f["id"] and tpl["file"]["kind"] == "image"
+    res = asyncio.run(container.whatsapp.send(lead["fingerprint"], "0561234567", "أهلًا", "النسخة التجريبية",
+                                              file_id=f["id"], file_name="poster.png"))
+    assert res["file"]["name"] == "poster.png" and res["file"]["copied"] is False  # no Windows clipboard here
+    assert "مرفق: poster.png" in odoo.notes[0]["body"]
+    assert "واتساب: النسخة التجريبية + صورة" in sheet.sheets["Leads"][1][9]
+
+
+def test_missing_attachment_is_reported(container):
+    lead = prepare(container)
+    try:
+        asyncio.run(container.whatsapp.send(lead["fingerprint"], "0561234567", "أهلًا", file_id="0" * 32 + ".png"))
+    except Exception as exc:  # noqa: BLE001
+        assert getattr(exc, "code", "") == "FILE_NOT_FOUND"
+    else:
+        raise AssertionError("expected FILE_NOT_FOUND")
+
+
+def test_unused_attachments_are_cleaned_up(container):
+    att = container.whatsapp.attachments
+    keep = att.save("a.png", PNG)["id"]
+    old = att.save("b.pdf", PDF)["id"]
+    fresh = att.save("c.pdf", PDF)["id"]
+    assert att.cleanup({keep}, min_age_seconds=10**9) == 0  # recent uploads are kept
+    import os
+    import time
+    os.utime(att.path(old), (time.time() - 2 * 86400,) * 2)
+    assert att.cleanup({keep}) == 1
+    assert att.path(keep) and att.path(fresh) and att.path(old) is None
+
+
+def test_clipboard_copy_on_windows_passes_the_path_safely(container, monkeypatch):
+    import subprocess
+
+    from app.services import attachment_service as mod
+
+    att = container.whatsapp.attachments
+    fid = att.save("a'; Remove-Item x; '.png", PNG)["id"]
+    seen = {}
+    monkeypatch.setattr(mod.sys, "platform", "win32")
+    monkeypatch.setattr(subprocess, "run", lambda args, **kw: seen.update(args=args, env=kw["env"]))
+    assert att.copy_to_clipboard(fid) is True
+    assert seen["args"][0] == "powershell.exe" and "-STA" in seen["args"]
+    assert seen["env"]["KLA_CLIP_FILE"].endswith(fid) and fid not in " ".join(seen["args"])
+    assert att.copy_to_clipboard("../../agent.db") is False

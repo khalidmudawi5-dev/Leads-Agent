@@ -455,12 +455,14 @@ async function askWhatsApp(lead) {
         <input type="text" inputmode="tel" id="wa-tel" class="ltr" value="${esc(nums[0] ? nums[0].raw : "")}"></label>
       ${tpls.length ? `<div class="field"><span>القالب</span><div class="row" style="gap:6px;flex-wrap:wrap">${tpls.map((tp, i) => `<button type="button" class="btn sm ${i === 0 ? "primary" : ""}" data-tpl="${i}">${esc(tp.name || "قالب " + (i + 1))}</button>`).join("")}</div></div>` : ""}
       <label class="field"><span>نص الرسالة (يمكنك تعديله)</span><textarea id="wa-text" rows="6">${esc(tpls[0] ? tpls[0].text : "")}</textarea></label>
+      <div id="wa-file"></div>
       <label class="check"><input type="checkbox" id="wa-log" ${o.log ? "checked" : ""}> تسجيل الرسالة في Odoo (Log note) وملاحظات Google Sheet</label>
       <div class="small muted">سيفتح واتساب والرسالة جاهزة؛ اضغط «إرسال» داخل واتساب.</div><div id="wa-msg"></div>`,
     buttons: [{ label: "فتح واتساب", cls: "primary", onClick: (btn) => sendWhatsApp(lead, btn) }, { label: "إلغاء" }],
     onOpen: (m) => {
       let tplName = tpls[0] ? tpls[0].name : "";
       $("#wa-text", m).dataset.tpl = tplName;
+      renderWaFile(tpls[0] && tpls[0].file);
       $$("[data-num]", m).forEach((b) => b.onclick = () => {
         $$("[data-num]", m).forEach((x) => x.classList.toggle("primary", x === b));
         $("#wa-tel", m).value = nums[+b.dataset.num].raw;
@@ -470,14 +472,65 @@ async function askWhatsApp(lead) {
         const tp = tpls[+b.dataset.tpl];
         $("#wa-text", m).value = tp.text;
         $("#wa-text", m).dataset.tpl = tp.name;
+        renderWaFile(tp.file);
       });
     },
   });
 }
 
+/** The template's image/PDF in the WhatsApp dialog (with a switch to leave it out this time). */
+function renderWaFile(file) {
+  const box = $("#wa-file");
+  if (!box) return;
+  box.dataset.id = file ? file.id : ""; box.dataset.name = file ? file.name : "";
+  box.innerHTML = file ? `<div class="wa-file"><span class="file-chip">
+      <a class="fc-thumb" href="${esc(file.url)}" target="_blank" rel="noopener" title="عرض">${file.kind === "image" ? `<img src="${esc(file.url)}" alt="">` : "<b style='font-size:.7rem'>PDF</b>"}</a>
+      <span class="fc-name" title="${esc(file.name)}">${esc(file.name)}</span></span>
+      <label class="check" style="margin:0"><input type="checkbox" id="wa-attach" checked> إرفاق ${file.kind === "image" ? "الصورة" : "الملف"}</label></div>` : "";
+}
+
+/** After WhatsApp opens: how to add the file (Ctrl+V on this PC, or download/share on the phone). */
+function waFileSteps(file) {
+  const what = file.kind === "image" ? "الصورة" : "ملف الـPDF";
+  const dl = `${file.url}?download=1&name=${encodeURIComponent(file.name)}`;
+  const steps = file.copied
+    ? `<div class="alert success">تم نسخ ${what} «${esc(file.name)}» ✔</div>
+       <ol class="wa-steps"><li>انتظر حتى تفتح المحادثة في واتساب والرسالة مكتوبة.</li>
+         <li>اضغط داخل المحادثة <kbd class="ltr">Ctrl</kbd>+<kbd class="ltr">V</kbd> فيظهر ${what} للإرسال.</li>
+         <li>اضغط «إرسال». إذا بقي النص في خانة الكتابة أرسله أيضًا.</li></ol>`
+    : `<ol class="wa-steps"><li>${S.remote ? "حمّل" : "افتح أو حمّل"} ${what} من الزر بالأسفل.</li>
+         <li>في محادثة واتساب اضغط 📎 (إرفاق) واختر الملف ثم «إرسال».</li></ol>`;
+  const canShare = !file.copied && navigator.canShare;
+  Modal.open({
+    title: `إرفاق ${what} في واتساب`,
+    html: steps,
+    buttons: [
+      ...(file.copied ? [{ label: "نسخ مرة أخرى", onClick: async (btn) => {
+        try { const r = await api("POST", `/api/attachments/${file.id}/copy`); toast(r.copied ? "تم النسخ. اضغط Ctrl+V في واتساب." : "تعذر النسخ؛ حمّل الملف.", r.copied ? "success" : "warn"); }
+        catch (e) { toast(e.message, "error"); }
+      } }] : [{ label: "تحميل الملف", onClick: () => { window.location.href = dl; } }]),
+      ...(canShare ? [{ label: "مشاركة إلى واتساب", onClick: () => shareWaFile(file) }] : []),
+      { label: "تم", cls: "primary" },
+    ],
+  });
+}
+
+async function shareWaFile(file) {
+  try {
+    const blob = await (await fetch(file.url)).blob();
+    const f = new File([blob], file.name, { type: blob.type });
+    if (!navigator.canShare({ files: [f] })) throw new Error("share");
+    await navigator.share({ files: [f] });
+  } catch (e) {
+    if (e && e.name !== "AbortError") toast("المشاركة غير متاحة هنا؛ استخدم «تحميل الملف».", "warn");
+  }
+}
+
 async function sendWhatsApp(lead, btn) {
+  const fileBox = $("#wa-file");
+  const withFile = fileBox && fileBox.dataset.id && $("#wa-attach") && $("#wa-attach").checked;
   const body = { tel: $("#wa-tel").value.trim(), text: $("#wa-text").value, template: $("#wa-text").dataset.tpl || "",
-                 log: $("#wa-log").checked };
+                 log: $("#wa-log").checked, ...(withFile ? { file: fileBox.dataset.id, file_name: fileBox.dataset.name } : {}) };
   // Open the tab now (inside the click) so the browser does not block it, then point it at WhatsApp.
   const win = S.remote ? null : window.open("about:blank", "_blank");
   await withBusy(btn, async () => {
@@ -489,6 +542,7 @@ async function sendWhatsApp(lead, btn) {
     const logged = r.logged && !r.dry_run ? " وتم تسجيلها في Odoo والـSheet" : r.dry_run && r.logged ? " (Dry Run: لم تُسجَّل)" : "";
     toast(`تم فتح واتساب${logged}. بعد الإرسال سجّل النتيجة.`, "success", 6000);
     (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
+    if (r.file) waFileSteps(r.file);
   });
 }
 

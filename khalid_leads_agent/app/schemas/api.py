@@ -58,6 +58,8 @@ class WhatsAppIn(BaseModel):
     text: str = Field(default="", max_length=4000)
     template: str = Field(default="", max_length=100)
     log: bool | None = None  # None = the «whatsapp_log» setting
+    file: str = Field(default="", max_length=64)  # attachment id from the template ("" = none)
+    file_name: str = Field(default="", max_length=120)
 
 
 class CreateLeadIn(BaseModel):
