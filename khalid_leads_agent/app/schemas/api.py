@@ -60,6 +60,7 @@ class WhatsAppIn(BaseModel):
     log: bool | None = None  # None = the «whatsapp_log» setting
     file: str = Field(default="", max_length=64)  # attachment id from the template ("" = none)
     file_name: str = Field(default="", max_length=120)
+    agent_copy: bool = True  # False: the page already copied the picture itself
 
 
 class CreateLeadIn(BaseModel):

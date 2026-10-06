@@ -123,7 +123,7 @@ async def lead_whatsapp(fingerprint: str, body: WhatsAppIn, request: Request,
     With an attachment, the file goes on this PC's clipboard (not when the request comes from the phone)."""
     local = is_loopback(request.client.host if request.client else "")
     return await c.whatsapp.send(fingerprint, body.tel, body.text, body.template, body.log,
-                                 file_id=body.file, file_name=body.file_name, clipboard=local)
+                                 file_id=body.file, file_name=body.file_name, clipboard=local and body.agent_copy)
 
 
 @router.post("/lead/{fingerprint}/open")

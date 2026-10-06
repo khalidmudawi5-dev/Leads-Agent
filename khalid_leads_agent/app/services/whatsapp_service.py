@@ -116,6 +116,7 @@ class WhatsAppService:
         if file:
             # Last, right before the page opens WhatsApp, so nothing else replaces the clipboard meanwhile.
             file["copied"] = clipboard and await asyncio.to_thread(self.attachments.copy_to_clipboard, file["id"])
+            file["copied_by"] = "agent" if file["copied"] else ""
         log.info("WhatsApp opened for %s (%s) dry_run=%s logged=%s", c.company_name, chk["tel"], dry_run, log_it)
         return {"url": wa_url(chk["tel"], text), "dry_run": dry_run, "logged": log_it,
                 "odoo_status": row.odoo_status, "sheet_status": row.sheet_status, "warnings": warnings, "file": file}

@@ -29,11 +29,18 @@ MEDIA_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
 _ID = re.compile(r"^[0-9a-f]{32}\.(jpg|jpeg|png|webp|pdf)$")
 
 # The path comes in through an environment variable, never inside the command text.
+# A picture goes on the clipboard as an image (WhatsApp pastes it like a screenshot); a PDF as a file
+# (like «Copy» in File Explorer).
 _CLIP_PS = (
-    "Add-Type -AssemblyName System.Windows.Forms;"
-    "$f = New-Object System.Collections.Specialized.StringCollection;"
-    "[void]$f.Add($env:KLA_CLIP_FILE);"
-    "[System.Windows.Forms.Clipboard]::SetFileDropList($f)"
+    "Add-Type -AssemblyName System.Windows.Forms, System.Drawing;"
+    "if ($env:KLA_CLIP_KIND -eq 'image') {"
+    " $img = [System.Drawing.Image]::FromFile($env:KLA_CLIP_FILE);"
+    " [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose()"
+    "} else {"
+    " $f = New-Object System.Collections.Specialized.StringCollection;"
+    " [void]$f.Add($env:KLA_CLIP_FILE);"
+    " [System.Windows.Forms.Clipboard]::SetFileDropList($f)"
+    "}"
 )
 
 
@@ -94,7 +101,8 @@ class AttachmentService:
         try:
             subprocess.run(
                 ["powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-ExecutionPolicy", "Bypass", "-Command", _CLIP_PS],
-                env={**os.environ, "KLA_CLIP_FILE": str(p.resolve())}, check=True, timeout=15,
+                env={**os.environ, "KLA_CLIP_FILE": str(p.resolve()), "KLA_CLIP_KIND": KINDS[p.suffix.lower()]},
+                check=True, timeout=15,
                 capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             return True

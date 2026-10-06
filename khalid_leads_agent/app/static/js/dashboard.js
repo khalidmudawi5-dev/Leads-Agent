@@ -483,10 +483,28 @@ function renderWaFile(file) {
   const box = $("#wa-file");
   if (!box) return;
   box.dataset.id = file ? file.id : ""; box.dataset.name = file ? file.name : "";
+  box.dataset.kind = file ? file.kind : ""; box.dataset.url = file ? file.url : "";
   box.innerHTML = file ? `<div class="wa-file"><span class="file-chip">
       <a class="fc-thumb" href="${esc(file.url)}" target="_blank" rel="noopener" title="عرض">${file.kind === "image" ? `<img src="${esc(file.url)}" alt="">` : "<b style='font-size:.7rem'>PDF</b>"}</a>
       <span class="fc-name" title="${esc(file.name)}">${esc(file.name)}</span></span>
       <label class="check" style="margin:0"><input type="checkbox" id="wa-attach" checked> إرفاق ${file.kind === "image" ? "الصورة" : "الملف"}</label></div>` : "";
+}
+
+/** The picture as PNG (the only image type browsers can put on the clipboard). */
+async function pngBlob(url) {
+  const blob = await (await fetch(url)).blob();
+  if (blob.type === "image/png") return blob;
+  const bmp = await createImageBitmap(blob);
+  const canvas = Object.assign(document.createElement("canvas"), { width: bmp.width, height: bmp.height });
+  canvas.getContext("2d").drawImage(bmp, 0, 0);
+  return new Promise((ok, fail) => canvas.toBlob((b) => b ? ok(b) : fail(new Error("png")), "image/png"));
+}
+
+/** Put the picture itself on the clipboard (WhatsApp pastes it like a screenshot). Must run inside a click. */
+async function copyPicture(url) {
+  if (S.remote || !navigator.clipboard || !window.ClipboardItem) return false;
+  try { await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob(url) })]); return true; }
+  catch (e) { return false; }
 }
 
 /** After WhatsApp opens: how to add the file (Ctrl+V on this PC, or download/share on the phone). */
@@ -505,10 +523,12 @@ function waFileSteps(file) {
     title: `إرفاق ${what} في واتساب`,
     html: steps,
     buttons: [
-      ...(file.copied ? [{ label: "نسخ مرة أخرى", onClick: async (btn) => {
-        try { const r = await api("POST", `/api/attachments/${file.id}/copy`); toast(r.copied ? "تم النسخ. اضغط Ctrl+V في واتساب." : "تعذر النسخ؛ حمّل الملف.", r.copied ? "success" : "warn"); }
-        catch (e) { toast(e.message, "error"); }
-      } }] : [{ label: "تحميل الملف", onClick: () => { window.location.href = dl; } }]),
+      ...(!S.remote ? [{ label: file.copied ? "نسخ مرة أخرى" : `نسخ ${what}`, onClick: async () => {
+        let ok = file.kind === "image" && await copyPicture(file.url);
+        if (!ok) { try { ok = (await api("POST", `/api/attachments/${file.id}/copy`)).copied; } catch (e) { ok = false; } }
+        toast(ok ? "تم النسخ. اضغط Ctrl+V داخل محادثة واتساب." : "تعذر النسخ؛ استخدم «تحميل الملف» وأرفقه من 📎.", ok ? "success" : "warn", 6000);
+      } }] : []),
+      ...(!file.copied ? [{ label: "تحميل الملف", onClick: () => { window.location.href = dl; } }] : []),
       ...(canShare ? [{ label: "مشاركة إلى واتساب", onClick: () => shareWaFile(file) }] : []),
       { label: "تم", cls: "primary" },
     ],
@@ -529,8 +549,12 @@ async function shareWaFile(file) {
 async function sendWhatsApp(lead, btn) {
   const fileBox = $("#wa-file");
   const withFile = fileBox && fileBox.dataset.id && $("#wa-attach") && $("#wa-attach").checked;
+  // A picture is copied by this page first (still inside the click, before WhatsApp takes the focus);
+  // a PDF, or a picture the browser could not copy, is copied by the agent.
+  const pictureCopied = withFile && fileBox.dataset.kind === "image" && await copyPicture(fileBox.dataset.url);
   const body = { tel: $("#wa-tel").value.trim(), text: $("#wa-text").value, template: $("#wa-text").dataset.tpl || "",
-                 log: $("#wa-log").checked, ...(withFile ? { file: fileBox.dataset.id, file_name: fileBox.dataset.name } : {}) };
+                 log: $("#wa-log").checked,
+                 ...(withFile ? { file: fileBox.dataset.id, file_name: fileBox.dataset.name, agent_copy: !pictureCopied } : {}) };
   // Open the tab now (inside the click) so the browser does not block it, then point it at WhatsApp.
   const win = S.remote ? null : window.open("about:blank", "_blank");
   await withBusy(btn, async () => {
@@ -542,7 +566,7 @@ async function sendWhatsApp(lead, btn) {
     const logged = r.logged && !r.dry_run ? " وتم تسجيلها في Odoo والـSheet" : r.dry_run && r.logged ? " (Dry Run: لم تُسجَّل)" : "";
     toast(`تم فتح واتساب${logged}. بعد الإرسال سجّل النتيجة.`, "success", 6000);
     (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
-    if (r.file) waFileSteps(r.file);
+    if (r.file) waFileSteps({ ...r.file, copied: r.file.copied || pictureCopied });
   });
 }
 

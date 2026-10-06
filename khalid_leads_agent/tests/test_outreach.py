@@ -281,4 +281,8 @@ def test_clipboard_copy_on_windows_passes_the_path_safely(container, monkeypatch
     assert att.copy_to_clipboard(fid) is True
     assert seen["args"][0] == "powershell.exe" and "-STA" in seen["args"]
     assert seen["env"]["KLA_CLIP_FILE"].endswith(fid) and fid not in " ".join(seen["args"])
+    assert seen["env"]["KLA_CLIP_KIND"] == "image"  # a picture goes on the clipboard as an image, not a file
+    pdf = att.save("offer.pdf", PDF)["id"]
+    att.copy_to_clipboard(pdf)
+    assert seen["env"]["KLA_CLIP_KIND"] == "pdf"
     assert att.copy_to_clipboard("../../agent.db") is False
