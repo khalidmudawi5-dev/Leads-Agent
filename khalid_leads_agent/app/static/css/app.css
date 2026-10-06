@@ -298,6 +298,9 @@ kbd {
 .result-btn[data-code=NOT_INTERESTED], .result-btn[data-code=INVALID_NUMBER] { --c: var(--danger); --cs: var(--danger-soft); }
 .result-btn[data-code=NO_ANSWER], .result-btn[data-code=FOLLOW_UP] { --c: var(--warning); --cs: var(--warning-soft); }
 
+.more-status { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--border-strong); border-radius: 14px; background: var(--surface-2); }
+.more-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.result-btn.mini { padding: 7px 14px; font-size: .9rem; font-weight: 700; border-radius: 999px; border-width: 1.5px; }
 label.field { display: block; margin-bottom: 12px; }
 label.field > span { display: block; font-size: .84rem; font-weight: 700; color: var(--text-2); margin-bottom: 5px; }
 input[type=text], input[type=number], input[type=date], input[type=time], input[type=url], input[type=search], input[type=file], select, textarea {
@@ -590,8 +593,9 @@ table.hist { table-layout: auto; }
 /* ---------- daily goal */
 .goal { display: flex; align-items: center; gap: 12px; margin: -6px 0 16px; font-size: .86rem; }
 .goal .g-label { font-weight: 700; color: var(--text-2); white-space: nowrap; }
-.goal .g-track { flex: 1; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 16%, var(--surface-2)); overflow: hidden; }
-.goal .g-fill { height: 100%; border-radius: 999px; background: var(--primary); transition: width .4s ease; }
+.goal .g-track { display: block; flex: 1; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 16%, var(--surface-2)); overflow: hidden; }
+.goal .g-fill { display: block; width: 0; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary-2), var(--primary)); transition: width .6s cubic-bezier(.22, 1, .36, 1); }
+[dir="rtl"] .goal .g-fill { background: linear-gradient(270deg, var(--primary-2), var(--primary)); }
 .goal.done .g-fill { background: var(--success); }
 .goal.done .g-track { background: color-mix(in srgb, var(--success) 18%, var(--surface-2)); }
 .goal .g-num { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -599,7 +603,19 @@ table.hist { table-layout: auto; }
 /* ---------- WhatsApp + banners */
 .tpl-editor { display: flex; flex-direction: column; gap: 10px; }
 .tpl-row { display: grid; grid-template-columns: minmax(120px, 200px) 1fr auto; gap: 8px; align-items: start; }
-@media (max-width: 760px) { .tpl-row { grid-template-columns: 1fr auto; } .tpl-row .tpl-text { grid-column: 1 / -1; grid-row: 2; } }
+.tpl-row .tpl-file { grid-column: 2 / 3; }
+@media (max-width: 760px) { .tpl-row { grid-template-columns: 1fr auto; } .tpl-row .tpl-text { grid-column: 1 / -1; grid-row: 2; } .tpl-row .tpl-file { grid-column: 1 / -1; } }
+.linklike { background: none; border: 0; padding: 0; margin-inline-start: 8px; font: inherit; font-size: .84rem; font-weight: 700; color: var(--primary); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.linklike:hover { color: var(--primary-dark); }
+.file-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 6px 4px 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.file-chip .fc-thumb { flex: none; width: 40px; height: 40px; border-radius: 7px; overflow: hidden; display: grid; place-items: center; background: var(--surface); color: var(--danger, #dc2626); }
+.file-chip .fc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.file-chip .fc-thumb svg { width: 26px; height: 26px; }
+.file-chip .fc-name { unicode-bidi: plaintext; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .86rem; font-weight: 600; }
+.wa-file { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; }
+.wa-file .file-chip { flex: 1; }
+.wa-steps { margin: 0; padding-inline-start: 22px; line-height: 2; }
+.wa-steps kbd { font-family: inherit; font-size: .82rem; padding: 1px 7px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; background: var(--surface-2); }
 .btn.wa { background: #25d366; border-color: #1fb457; color: #fff; }
 .btn.wa:hover { background: #1fb457; }
 .btn.wa svg { width: 18px; height: 18px; }

@@ -141,6 +141,9 @@ class AppSettings(BaseModel):
     # Customers missing from Odoo are added from the agent as a Lead (CRM > Leads, like the other
     # customers) or as an Opportunity (CRM > Pipeline).
     odoo_new_record_type: Literal["lead", "opportunity"] = "lead"
+    # Technical name of the lead's «UTM Source» field; empty = detect it (a field labelled
+    # "UTM Source", e.g. x_studio_utm_source, otherwise Odoo's standard source_id).
+    odoo_utm_source_field: str = ""
     # fast: hand the Odoo number straight to Windows/Phone Link (instant, no browser);
     # odoo_click: open the lead and click Odoo's own Call link; windows_handler: read that link, then Windows.
     call_launch_mode: Literal["fast", "odoo_click", "windows_handler"] = "fast"
@@ -150,6 +153,9 @@ class AppSettings(BaseModel):
     # Automation
     auto_load_next: bool = True
     auto_sync_source: bool = True
+    # Write the sheet's «مصدر العميل» as soon as the lead is matched (from its Odoo UTM Source via
+    # Source Mapping), not only when a call result is saved. Dry Run writes nothing.
+    auto_write_source: bool = True
     auto_open_odoo_lead: bool = True
     next_lead_delay_seconds: int = Field(default=3, ge=0, le=60)
     dry_run: bool = True

@@ -20,6 +20,14 @@ RESULT_CODES: list[tuple[str, str, str]] = [
     ("SUBSCRIBED", "تم الاشتراك", "تم الاشتراك"),
 ]
 RESULT_LABELS = {code: label for code, label, _ in RESULT_CODES}
+# Any other value of the sheet's follow-up dropdown is recorded as "S:<value>" and written as-is.
+SHEET_STATUS_PREFIX = "S:"
+
+
+def result_label(code: str) -> str:
+    if code.startswith(SHEET_STATUS_PREFIX):
+        return code[len(SHEET_STATUS_PREFIX):]
+    return RESULT_LABELS.get(code, code)
 
 
 class SettingsService:

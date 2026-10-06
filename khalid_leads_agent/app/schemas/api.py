@@ -17,7 +17,7 @@ class ResultIn(BaseModel):
     idempotency_key: str = Field(min_length=8, max_length=80)
     fingerprint: str | None = None
     odoo_lead_id: int | None = None
-    result_code: str
+    result_code: str = Field(min_length=1, max_length=120)  # a code (INTERESTED…) or "S:<sheet dropdown value>"
     note: str = ""
     source_value: str = ""
     save_source_mapping: bool = False
@@ -28,6 +28,8 @@ class ResultIn(BaseModel):
     followup_date: str = ""
     followup_time: str = ""
     followup_note: str = ""
+    # «متابعة لاحقًا» as an action next to any result: Odoo Activity + the agent's follow-up list.
+    schedule_followup: bool = False
     update_sheet: bool = True
     add_odoo_note: bool = True
     call_started_at: datetime | None = None
@@ -56,6 +58,9 @@ class WhatsAppIn(BaseModel):
     text: str = Field(default="", max_length=4000)
     template: str = Field(default="", max_length=100)
     log: bool | None = None  # None = the «whatsapp_log» setting
+    file: str = Field(default="", max_length=64)  # attachment id from the template ("" = none)
+    file_name: str = Field(default="", max_length=120)
+    agent_copy: bool = True  # False: the page already copied the picture itself
 
 
 class CreateLeadIn(BaseModel):
@@ -70,6 +75,13 @@ class SelectCandidateIn(BaseModel):
     odoo_id: int | None = None
     ui_index: int | None = None
     ui_query: str = ""
+
+
+class LinkOdooIn(BaseModel):
+    odoo_id: int | None = None
+    ui_index: int | None = None
+    ui_query: str = Field(default="", max_length=200)
+    add_phone: bool = True
 
 
 class ManualOpenIn(BaseModel):

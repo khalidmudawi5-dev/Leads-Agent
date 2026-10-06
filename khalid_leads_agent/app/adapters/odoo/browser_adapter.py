@@ -54,6 +54,35 @@ TRACKING_FIELDS = [
 ACTIVITY_FIELDS = ["date_deadline", "summary", "activity_type_id", "user_id", "note", "state"]
 _NOTE_SUBTYPES = {"note", "notes", "ملاحظة", "ملاحظات"}
 _SERVICE_HINTS = ("service", "خدمة", "الخدمة")
+_STD_UTM = {"source": "source_id", "medium": "medium_id", "campaign": "campaign_id"}
+_UTM_TYPES = ("many2one", "char", "selection")
+
+
+def _norm_label(text: str) -> str:
+    return re.sub(r"[\s_\-.:]+", " ", str(text or "")).strip().lower()
+
+
+def find_utm_field(fields: dict[str, dict], kind: str, override: str = "") -> str | None:
+    """Technical name of the lead's «UTM <kind>» field (kind = source | medium | campaign).
+
+    1. ``override`` from the settings when it exists on crm.lead;
+    2. a field labelled exactly "UTM Source" (any case/spacing), e.g. a Studio field;
+    3. a field named like ``x_utm_source`` / ``x_studio_utm_source`` / ``utm_source``;
+    4. Odoo's standard ``source_id`` (the UTM source of utm.mixin).
+    """
+    if override and override in fields:
+        return override
+    std = _STD_UTM[kind]
+    label = f"utm {kind}"
+    usable = {n: m for n, m in fields.items() if m.get("type") in _UTM_TYPES}
+    for name, meta in usable.items():
+        if name != std and _norm_label(meta.get("string", "")) == label:
+            return name
+    pattern = re.compile(rf"(^|_)utm_?{kind}(_id)?$")
+    for name in usable:
+        if name != std and pattern.search(name.lower()):
+            return name
+    return std if std in fields else None
 
 _DOM_CHATTER_JS = """
 (sel) => {
@@ -419,27 +448,32 @@ class BrowserOdooAdapter(OdooAdapter):
                 return name
         return None
 
+    def utm_fields(self, fields: dict[str, dict]) -> dict[str, str | None]:
+        return {kind: find_utm_field(fields, kind, getattr(self.s, f"odoo_utm_{kind}_field", "") or "")
+                for kind in _STD_UTM}
+
     async def _w_read_fields(self) -> list[str]:
         fields = await self._w_fields()
         wanted = [f for f in WANTED_FIELDS if f in fields]
-        svc = self._service_field(fields)
-        if svc and svc not in wanted:
-            wanted.append(svc)
+        extra = [self._service_field(fields), *self.utm_fields(fields).values()]
+        wanted += [f for f in extra if f and f not in wanted]
         return wanted
 
+    @staticmethod
+    def _field_text(rec: dict, fields: dict[str, dict], name: str | None) -> str:
+        if not name:
+            return ""
+        raw, meta = rec.get(name), fields.get(name, {})
+        if meta.get("type") == "selection":
+            return str(dict(meta.get("selection") or []).get(raw, _val(raw)))
+        if meta.get("type") == "many2one":
+            return _m2o(raw)
+        return _val(raw).strip()
+
     def _record_to_lead(self, rec: dict, fields: dict[str, dict]) -> OdooLead:
-        svc = self._service_field(fields)
-        service_val = ""
-        if svc:
-            raw = rec.get(svc)
-            meta = fields.get(svc, {})
-            if meta.get("type") == "selection":
-                service_val = dict(meta.get("selection") or []).get(raw, _val(raw))
-            elif meta.get("type") == "many2one":
-                service_val = _m2o(raw)
-            else:
-                service_val = _val(raw)
+        service_val = self._field_text(rec, fields, self._service_field(fields))
         source, medium, campaign = _m2o(rec.get("source_id")), _m2o(rec.get("medium_id")), _m2o(rec.get("campaign_id"))
+        utm = {kind: self._field_text(rec, fields, name) for kind, name in self.utm_fields(fields).items()}
         lead_id = int(rec["id"])
         return OdooLead(
             id=lead_id,
@@ -452,7 +486,7 @@ class BrowserOdooAdapter(OdooAdapter):
             salesperson=_m2o(rec.get("user_id")),
             stage=_m2o(rec.get("stage_id")),
             source=source, medium=medium, campaign=campaign,
-            utm_source=source, utm_medium=medium, utm_campaign=campaign,
+            utm_source=utm["source"], utm_medium=utm["medium"], utm_campaign=utm["campaign"],
             service_type=service_val,
             lead_type=_val(rec.get("type")),
             active=bool(rec.get("active", True)),
@@ -544,7 +578,7 @@ class BrowserOdooAdapter(OdooAdapter):
     async def _w_extract_dom(self, page) -> dict[str, str]:
         data: dict[str, str] = {}
         for logical in ("lead_name", "company_name", "contact_name", "phone", "mobile", "email", "salesperson",
-                        "source", "medium", "campaign", "service_type"):
+                        "source", "medium", "campaign", "service_type", "utm_source", "utm_medium", "utm_campaign"):
             data[logical] = await self._w_read_dom_field(page, logical)
         stage, _ = await self._first_visible(page, S.STAGE_SELECTORS)
         data["stage"] = (await stage.inner_text()).strip() if stage else ""
@@ -843,20 +877,24 @@ class BrowserOdooAdapter(OdooAdapter):
             await self._w_navigate_lead(lead_id)
         page = await self._w_page()
         dom = await self._w_extract_dom(page)
+        rpc_ok = True
         try:
             result = await self._w_get_lead(lead_id)
         except (OdooRpcUnavailable, OdooRpcError):
-            result = OdooLead(id=lead_id)
+            result, rpc_ok = OdooLead(id=lead_id), False
         # DOM fills anything the structured read did not return.
         mapping = {"lead_name": "name", "company_name": "company_name", "contact_name": "contact_name",
                    "phone": "phone", "mobile": "mobile", "email": "email", "salesperson": "salesperson",
                    "source": "source", "medium": "medium", "campaign": "campaign", "service_type": "service_type",
-                   "stage": "stage"}
+                   "stage": "stage", "utm_source": "utm_source", "utm_medium": "utm_medium",
+                   "utm_campaign": "utm_campaign"}
         for dom_key, attr in mapping.items():
             if not getattr(result, attr) and dom.get(dom_key):
                 setattr(result, attr, dom[dom_key])
-        if not result.utm_source:
-            result.utm_source, result.utm_medium, result.utm_campaign = result.source, result.medium, result.campaign
+        if not rpc_ok and not dom.get("utm_source"):  # no separate "UTM Source" on the form: standard source_id
+            result.utm_source = result.utm_source or result.source
+            result.utm_medium = result.utm_medium or result.medium
+            result.utm_campaign = result.utm_campaign or result.campaign
         if not result.latest_notes:
             result.latest_notes = json.loads(dom.get("notes") or "[]")
         if not result.chatter:
@@ -1029,13 +1067,17 @@ class BrowserOdooAdapter(OdooAdapter):
         try:
             fields = await self._w_fields()
             values = dict(values)
-            for key, fname, model in (("source_name", "source_id", "utm.source"), ("medium_name", "medium_id", "utm.medium")):
+            utm = self.utm_fields(fields)
+            for key, kind in (("source_name", "source"), ("medium_name", "medium")):
                 name = (values.pop(key, "") or "").strip()
-                if name and fname in fields:
-                    found = await self._w_call_kw(model, "search_read", [],
-                                                  {"domain": [["name", "=ilike", name]], "fields": ["id"], "limit": 1})
-                    if found:
-                        values[fname] = found[0]["id"]
+                std = _STD_UTM[kind]
+                # The UTM field the agent reads, plus Odoo's standard one so both stay in sync.
+                for fname in dict.fromkeys(f for f in (utm[kind], std) if f):
+                    if not name or fname not in fields:
+                        continue
+                    value = await self._w_field_value(fields[fname], name, fname)
+                    if value is not None:
+                        values[fname] = value
             vals = {k: v for k, v in values.items() if k in fields and v not in ("", None)}
             if "user_id" in fields and "user_id" not in vals:
                 if self._uid is None:
@@ -1054,8 +1096,38 @@ class BrowserOdooAdapter(OdooAdapter):
             raise AgentError("ODOO_CREATE_FAILED", "لم يرجع Odoo رقم العميل الجديد.", actions=["retry"])
         return await self._w_get_lead(int(new_id))
 
+    async def _w_field_value(self, meta: dict, name: str, fname: str = "") -> Any:
+        """Write value for ``name`` in a many2one / selection / char field (None when not found)."""
+        kind = meta.get("type")
+        relation = meta.get("relation") or {"source_id": "utm.source", "medium_id": "utm.medium",
+                                            "campaign_id": "utm.campaign"}.get(fname)
+        if kind == "many2one" and relation:
+            found = await self._w_call_kw(relation, "search_read", [],
+                                          {"domain": [["name", "=ilike", name]], "fields": ["id"], "limit": 1})
+            return found[0]["id"] if found else None
+        if kind == "selection":
+            key = _norm_label(name)
+            return next((k for k, label in meta.get("selection") or []
+                         if _norm_label(label) == key or _norm_label(k) == key), None)
+        return name if kind == "char" else None
+
     async def create_lead(self, values: dict[str, Any]) -> OdooLead:
         return await self._exec(self._w_create_lead, values)
+
+    async def _w_set_lead_phone(self, lead_id: int, field: str, value: str) -> OdooLead:
+        if field not in ("phone", "mobile"):
+            raise AgentError("ODOO_WRITE_FAILED", "حقل غير مسموح.")
+        try:
+            await self._w_call_kw("crm.lead", "write", [[lead_id], {field: value}])
+        except OdooLoginRequired:
+            raise
+        except (OdooRpcError, OdooRpcUnavailable) as exc:
+            log.warning("Writing the lead phone failed", exc_info=True)
+            raise AgentError("ODOO_WRITE_FAILED", f"تعذر إضافة الرقم إلى العميل في Odoo: {exc}", actions=["retry"]) from exc
+        return await self._w_get_lead(lead_id)
+
+    async def set_lead_phone(self, lead_id: int, field: str, value: str) -> OdooLead:
+        return await self._exec(self._w_set_lead_phone, lead_id, field, value)
 
     # --------------------------------------------------------- diagnostics
     async def _w_diagnostics(self) -> dict[str, Any]:
@@ -1080,11 +1152,19 @@ class BrowserOdooAdapter(OdooAdapter):
         act, act_sel = await self._first_visible(page, S.ACTIVITY_BUTTON)
         result["activity_detected"], result["activity_selector"] = act is not None, act_sel
         result["form_selector"] = form_sel
+        result["utm_source_value"] = await self._w_read_dom_field(page, "utm_source") if form else ""
         try:
-            await self._w_fields()
+            fields = await self._w_fields()
             result["rpc_available"] = True
+            utm = self.utm_fields(fields)
+            name = utm["source"]
+            result["utm_source_field"] = f"{name} ({fields[name].get('string', '')})" if name else ""
+            result["utm_fields_found"] = ", ".join(
+                f"{n} ({m.get('string', '')})" for n, m in fields.items()
+                if "utm" in n.lower() or "utm" in str(m.get("string", "")).lower() or n in _STD_UTM.values())
         except Exception:  # noqa: BLE001
             result["rpc_available"] = False
+        result["source_detected"] = bool(result["source_value"] or result["utm_source_value"])
         return result
 
     async def diagnostics(self) -> dict[str, Any]:

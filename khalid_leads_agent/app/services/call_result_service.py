@@ -76,7 +76,7 @@ class ResultService:
         return "KLA-" + "".join(ch for ch in key if ch.isalnum())[:10].upper()
 
     def _validate(self, inp: ResultIn) -> None:
-        if inp.result_code == "FOLLOW_UP" and not inp.followup_date:
+        if self._wants_followup(inp) and not inp.followup_date:
             raise AgentError("FOLLOWUP_DATE_REQUIRED", "حدد تاريخ المتابعة.")
         for value, label in ((inp.followup_date, "تاريخ المتابعة"), (inp.subscription_expiry, "تاريخ انتهاء الاشتراك")):
             if value:
@@ -84,6 +84,24 @@ class ResultService:
                     datetime.strptime(value, "%Y-%m-%d")
                 except ValueError as exc:
                     raise AgentError("BAD_DATE", f"صيغة {label} غير صحيحة.") from exc
+
+    @staticmethod
+    def _wants_followup(inp: ResultIn) -> bool:
+        return inp.result_code == "FOLLOW_UP" or inp.schedule_followup
+
+    def _status_value(self, code: str) -> str | None:
+        """Sheet value for the result. «متابعة لاحقًا» is an action: when it has no value in the sheet's
+        «حالة المتابعة» dropdown, the follow-up status is left unchanged (None)."""
+        if code != "FOLLOW_UP":
+            return self.mappings.status_sheet_value(code)
+        value = next((m["sheet_value"] for m in self.mappings.statuses() if m["code"] == code), "").strip()
+        if not value:
+            return None
+        try:
+            options = self.sync.sheets.dropdown_options("followup_status")
+        except Exception:  # noqa: BLE001 - cannot read the dropdown: keep the mapped value
+            return value
+        return value if not options or value in options else None
 
     def _response(self, row: CallResult, *, duplicate: bool = False) -> dict:
         s = self.settings.get()
@@ -120,7 +138,7 @@ class ResultService:
     async def _save_locked(self, inp: ResultIn) -> dict:
         s = self.settings.get()
         self._validate(inp)
-        status_value = self.mappings.status_sheet_value(inp.result_code)
+        status_value = self._status_value(inp.result_code)
         result_label = self.mappings.status_label(inp.result_code)
 
         with self.db.session() as db:
@@ -152,7 +170,7 @@ class ResultService:
 
         now = localnow()
         ref = self._ref_code(inp.idempotency_key)
-        followup_at = f"{inp.followup_date} {inp.followup_time}".strip() if inp.result_code == "FOLLOW_UP" else ""
+        followup_at = f"{inp.followup_date} {inp.followup_time}".strip() if self._wants_followup(inp) else ""
         note_text = inp.note.strip()
         if inp.result_code == "NOT_INTERESTED" and inp.not_subscribed_reason.strip():
             note_text = (note_text + "\n" if note_text else "") + f"سبب عدم الاشتراك: {inp.not_subscribed_reason.strip()}"
@@ -172,7 +190,7 @@ class ResultService:
             # No visible reference: the note's own lines (result + notes + date/time) identify it.
             ref = note_signature(odoo_body)
 
-        sheet_changes: dict[str, str] = {"followup_status": status_value}
+        sheet_changes: dict[str, str] = {"followup_status": status_value} if status_value else {}
         if source_value:
             sheet_changes["source"] = source_value
         if inp.not_subscribed_reason.strip():
@@ -185,7 +203,7 @@ class ResultService:
         note_entry = format_note_entry(entry_text, s.agent_owner, now, s.note_stamp_format)
 
         activity = None
-        if inp.result_code == "FOLLOW_UP" and inp.followup_date:
+        if self._wants_followup(inp) and inp.followup_date:
             activity = {"date_deadline": inp.followup_date,
                         "summary": f"متابعة {company}".strip() + (f" {inp.followup_time}" if inp.followup_time else ""),
                         "note": inp.followup_note or note_text}
@@ -321,7 +339,8 @@ class ResultService:
             if cache:
                 changes = {c["key"]: c["new"] for c in preview.get("sheet", []) if c["key"] != "notes"}
                 if not changes:
-                    changes = {"followup_status": self.mappings.status_sheet_value(row.result_code)}
+                    status = self._status_value(row.result_code)
+                    changes = {"followup_status": status} if status else {}
                     if row.source_value:
                         changes["source"] = row.source_value
                 entry = preview.get("note_entry") or format_note_entry(

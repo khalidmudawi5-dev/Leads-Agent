@@ -41,8 +41,10 @@ VALIDATIONS = {
 def odoo_leads() -> list[OdooLead]:
     return [
         OdooLead(id=1, name="Lead الاختبار", company_name="مؤسسة الاختبار الأولى", phone="+966 56 123 4567",
-                 source="Meta", medium="Leads", salesperson="خالد", stage="جديد"),
-        OdooLead(id=2, name="الأمل", company_name="شركة الأمل", mobile="0552223333", source="Twajd"),
+                 source="Meta", medium="Leads", utm_source="Meta / Leads", utm_medium="Leads",
+                 salesperson="خالد", stage="جديد"),
+        OdooLead(id=2, name="الأمل", company_name="شركة الأمل", mobile="0552223333", source="Twajd",
+                 utm_source="Twajd"),
         OdooLead(id=3, name="مكتب التقنية", company_name="مكتب التقنية", phone="0565555555"),
         OdooLead(id=4, name="مكتب التقنية 2", company_name="مكتب التقنية فرع", phone="0565555555"),
     ]
@@ -67,7 +69,9 @@ def odoo() -> MockOdooAdapter:
 def make_container(env: EnvSettings, sheet: InMemorySheetsClient, odoo: MockOdooAdapter, **settings):
     c = build_container(env, sheets_client_factory=lambda _s: sheet, odoo_adapter=odoo)
     base = {"spreadsheet_id": "TEST-SHEET", "sheet_name": "Leads", "setup_completed": True, "dry_run": False,
-            "duplicate_window_seconds": 60}
+            "duplicate_window_seconds": 60,
+            # Off by default in tests so write counts only reflect the result save (see test_auto_source_*).
+            "auto_write_source": False}
     base.update(settings)
     c.settings.update(base)
     return c

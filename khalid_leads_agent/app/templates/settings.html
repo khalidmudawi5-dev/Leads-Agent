@@ -98,13 +98,14 @@
   </section>
 
   <section class="tab-panel" data-panel="source">
-    <p class="muted">لا يتم تخمين الربط. أضف: قيمة Odoo (Source أو Source / Medium) ← قيمة Dropdown في Google Sheet.</p>
+    <div class="alert info"><b>المصدر يُقرأ من حقل UTM Source في Odoo.</b> عند مطابقة العميل يُكتب «مصدر العميل» في Google Sheet تلقائيًا حسب هذا الربط
+      (أو إذا كانت قيمة UTM Source مطابقة تمامًا لقيمة في قائمة الـSheet). لا يتم تخمين أي ربط.</div>
     <div class="form-grid">
-      <label class="field"><span>Odoo Value (مثال: Meta / Leads أو Twajd)</span><input type="text" id="src-odoo"></label>
+      <label class="field"><span>UTM Source في Odoo (مثال: Rassd Landing أو Meta)</span><input type="text" id="src-odoo"></label>
       <label class="field"><span>Google Sheet Value</span><input type="text" id="src-sheet" list="source-options"><datalist id="source-options"></datalist></label>
     </div>
     <div class="actions" style="margin-bottom:14px"><button class="btn primary" id="btn-add-source">إضافة / تحديث</button></div>
-    <table class="table"><thead><tr><th>Odoo Value</th><th>Google Sheet Value</th><th></th></tr></thead><tbody id="source-rows"></tbody></table>
+    <table class="table"><thead><tr><th>UTM Source (Odoo)</th><th>مصدر العميل (Google Sheet)</th><th></th></tr></thead><tbody id="source-rows"></tbody></table>
   </section>
 
   <section class="tab-panel" data-panel="automation">
@@ -112,7 +113,9 @@
     <div class="form-grid">
       <label class="check"><input type="checkbox" data-key="dry_run"> Dry Run Mode</label>
       <label class="check"><input type="checkbox" data-key="auto_load_next"> Auto Load Next Lead</label>
-      <label class="check"><input type="checkbox" data-key="auto_sync_source"> Auto Sync Source (اقتراح المصدر من الربط)</label>
+      <label class="check"><input type="checkbox" data-key="auto_sync_source"> Auto Sync Source (اقتراح المصدر من UTM Source عند تسجيل النتيجة)</label>
+      <label class="check"><input type="checkbox" data-key="auto_write_source"> تحديث «مصدر العميل» في Sheet تلقائيًا عند المطابقة (من UTM Source)</label>
+      <label class="field"><span>حقل UTM Source في Odoo (اتركه فارغًا للاكتشاف التلقائي)</span><input type="text" class="ltr" data-key="odoo_utm_source_field" placeholder="مثال: x_studio_utm_source"></label>
       <label class="check"><input type="checkbox" data-key="auto_open_odoo_lead"> Auto Open Odoo Lead</label>
       <label class="field"><span>Next Lead Delay (ثوانٍ)</span><input type="number" min="0" max="60" data-key="next_lead_delay_seconds"></label>
       <label class="field"><span>ترتيب العملاء</span><select data-key="lead_ordering">
@@ -136,6 +139,7 @@
   <section class="tab-panel" data-panel="followup">
     <h3>قوالب رسائل واتساب</h3>
     <p class="muted small">المتغيرات: <span class="ltr">{company}</span> اسم المنشأة · <span class="ltr">{owner}</span> اسمك · <span class="ltr">{contact}</span> جهة الاتصال في Odoo · <span class="ltr">{date}</span> تاريخ اليوم.</p>
+    <p class="muted small">📎 يمكنك إرفاق صورة (مثل بوستر العرض) أو ملف PDF بأي قالب (حتى 16 ميجابايت). عند فتح واتساب ينسخ الـAgent الملف، فتضغط <span class="ltr">Ctrl+V</span> داخل المحادثة ثم «إرسال».</p>
     <div data-key="whatsapp_templates" data-type="templates" class="tpl-editor"></div>
     <div class="actions" style="margin:8px 0 16px"><button class="btn sm" type="button" id="btn-add-tpl">+ إضافة قالب</button></div>
     <div class="form-grid">

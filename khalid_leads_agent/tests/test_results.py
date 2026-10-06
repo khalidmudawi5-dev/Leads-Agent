@@ -168,12 +168,47 @@ def test_source_auto_matched_to_identical_sheet_value(container, sheet):
     assert {c["key"]: c["new"] for c in res["preview"]["sheet"]}["source"] == "Meta || Leads"
 
 
-def test_source_mapping_saved_from_result(container, odoo):
-    odoo.leads[1].source, odoo.leads[1].medium = "Snapchat", "Ads"  # no identical sheet value
+def test_auto_source_written_on_match_from_utm_source(container, sheet, odoo):
+    container.settings.update({"auto_write_source": True})
+    odoo.leads[1].source = "Something else"  # Source is ignored: UTM Source decides
     lead = prepare(container)
-    assert lead["source"]["odoo_value"] == "Snapchat / Ads" and not lead["source"]["mapped"]
+    cells = [u for call in sheet.write_calls for u in call]
+    assert [(u.range, u.value) for u in cells] == [("'Leads'!F2", "Meta || Leads")]  # one cell only
+    assert lead["sheet_source"] == "Meta || Leads"
+    again = asyncio.run(container.workflow.search_odoo(lead["fingerprint"]))  # already up to date
+    assert len(sheet.write_calls) == 1 and not again["notices"]
+    from app.repositories.log_repo import LogRepository
+    with container.db.session() as s:
+        assert any(a.system == "GOOGLE_SHEETS" for a in LogRepository(s).audits())
+
+
+def test_auto_source_respects_dry_run_and_mapping(container, sheet, odoo):
+    container.settings.update({"auto_write_source": True, "dry_run": True})
+    prepare(container)
+    assert sheet.write_calls == []  # Dry Run writes nothing
+    container.settings.update({"dry_run": False})
+    odoo.leads[1].utm_source = "Snapchat"  # not mapped, no identical sheet value → never guessed
+    payload = asyncio.run(container.workflow.search_odoo(prepare(container)["fingerprint"]))
+    assert sheet.write_calls == [] and not payload["notices"]
+
+
+def test_auto_source_blocked_when_owner_changed(container, sheet, odoo):
+    container.settings.update({"auto_write_source": True})
+    wf = container.workflow
+    asyncio.run(wf.current())
+    lead = next(x for x in container.queue.owner_leads if x.company_name == "مؤسسة الاختبار الأولى")
+    sheet.sheets["Leads"][1][1] = "سارة"  # row reassigned after the queue was loaded
+    payload = asyncio.run(wf.search_odoo(lead.fingerprint))
+    assert sheet.write_calls == [] and not payload["notices"]
+    assert any("مصدر العميل" in w for w in payload["warnings"])
+
+
+def test_source_mapping_saved_from_result(container, odoo):
+    odoo.leads[1].utm_source = "Snapchat"  # no identical sheet value
+    lead = prepare(container)
+    assert lead["source"]["odoo_value"] == "Snapchat" and not lead["source"]["mapped"]
     save(container, idempotency_key="key-src-001", fingerprint=lead["fingerprint"], result_code="INTERESTED",
-         source_value="Meta || Leads", save_source_mapping=True, source_odoo_value="Snapchat / Ads")
+         source_value="Meta || Leads", save_source_mapping=True, source_odoo_value="Snapchat")
     view = container.workflow.lead_view(lead["fingerprint"])
     assert view["source"]["mapped"] and not view["source"]["auto"] and view["source"]["prefill"] == "Meta || Leads"
 
@@ -238,3 +273,20 @@ def test_legacy_note_template_migrated(env, sheet, odoo):
     c.settings.seed()
     c.settings.invalidate()
     assert c.settings.get().odoo_note_template == DEFAULT_NOTE_TEMPLATE
+
+
+def test_any_sheet_dropdown_status_can_be_recorded(container, sheet, odoo):
+    lead = prepare(container)
+    res = save(container, idempotency_key="key-sheet-st1", fingerprint=lead["fingerprint"],
+               result_code="S:بيانات التواصل غير صحيحة", note="الرقم مقفل")
+    assert res["status"] == "done" and res["sheet_status"] == "success"
+    assert sheet.sheets["Leads"][1][3] == "بيانات التواصل غير صحيحة"
+    assert "نتيجة التواصل: بيانات التواصل غير صحيحة" in odoo.notes[-1]["body"]
+    from app.services.settings_service import result_label
+    assert result_label("S:السعر مرتفع") == "السعر مرتفع" and result_label("INTERESTED") == "مهتم"
+
+
+def test_sheet_status_outside_dropdown_is_refused(container, sheet):
+    lead = prepare(container)
+    res = save(container, idempotency_key="key-sheet-st2", fingerprint=lead["fingerprint"], result_code="S:قيمة غير موجودة")
+    assert res["sheet_status"] == "failed" and sheet.write_calls == []
