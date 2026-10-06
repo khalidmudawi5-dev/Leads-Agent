@@ -298,6 +298,9 @@ kbd {
 .result-btn[data-code=NOT_INTERESTED], .result-btn[data-code=INVALID_NUMBER] { --c: var(--danger); --cs: var(--danger-soft); }
 .result-btn[data-code=NO_ANSWER], .result-btn[data-code=FOLLOW_UP] { --c: var(--warning); --cs: var(--warning-soft); }
 
+.more-status { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--border-strong); border-radius: 14px; background: var(--surface-2); }
+.more-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.result-btn.mini { padding: 7px 14px; font-size: .9rem; font-weight: 700; border-radius: 999px; border-width: 1.5px; }
 label.field { display: block; margin-bottom: 12px; }
 label.field > span { display: block; font-size: .84rem; font-weight: 700; color: var(--text-2); margin-bottom: 5px; }
 input[type=text], input[type=number], input[type=date], input[type=time], input[type=url], input[type=search], input[type=file], select, textarea {

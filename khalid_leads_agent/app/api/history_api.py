@@ -9,7 +9,7 @@ from app.errors import AgentError
 from app.repositories.lead_repo import SkipRepository
 from app.repositories.log_repo import LogRepository
 from app.repositories.result_repo import CallResultRepository
-from app.services.settings_service import RESULT_LABELS
+from app.services.settings_service import RESULT_LABELS, result_label
 from app.repositories.lead_repo import LeadCacheRepository
 from app.utils.phone import format_phone, normalize_phone
 from app.utils.timeutils import fmt_local, start_of_local_day_utc, start_of_local_week_utc, utcnow
@@ -42,7 +42,7 @@ def history(period: str = "", name: str = "", phone: str = "", result: str = "",
             phones[r.id] = format_phone(phone)
     return {"items": [{
         "id": r.id, "time": fmt_local(r.created_at), "company": r.company_name, "phone": phones[r.id],
-        "result": RESULT_LABELS.get(r.result_code, r.result_code), "result_code": r.result_code, "note": r.note,
+        "result": result_label(r.result_code), "result_code": r.result_code, "note": r.note,
         "odoo": r.odoo_note_status, "activity": r.odoo_activity_status, "google": r.sheet_status,
         "duration": r.duration_seconds, "errors": r.errors or [], "warnings": r.warnings or [],
         "dry_run": r.dry_run, "manual": r.manual_mode, "status": r.status, "followup_at": r.followup_at,
@@ -62,7 +62,7 @@ def history_detail(result_id: int, c: AppContainer = Depends(container)) -> dict
         fdate, _, ftime = (r.followup_at or "").partition(" ")
         return {"preview": r.preview, "result": {
             "id": r.id, "time": fmt_local(r.created_at), "company": r.company_name, "result_code": r.result_code,
-            "result": RESULT_LABELS.get(r.result_code, r.result_code), "note": r.note, "source_value": r.source_value,
+            "result": result_label(r.result_code), "note": r.note, "source_value": r.source_value,
             "not_subscribed_reason": r.not_subscribed_reason, "subscription_expiry": r.subscription_expiry,
             "followup_date": fdate, "followup_time": ftime, "followup_note": r.followup_note,
             "fingerprint": r.fingerprint, "odoo_lead_id": r.odoo_lead_id, "dry_run": r.dry_run,

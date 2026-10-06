@@ -28,29 +28,39 @@ def test_source_key_normalization():
 
 def test_source_mapping_resolution_priority(container):
     m = container.mappings
-    lead = OdooLead(id=1, source="Meta", medium="Leads")
-    assert odoo_source_labels(lead)[0] == "Meta / Leads"
+    lead = OdooLead(id=1, source="Meta", medium="Leads", utm_source="Meta / Leads")
+    assert odoo_source_labels(lead) == ["Meta / Leads"]  # UTM Source only
     m.source_options = None
     res = m.resolve_source(lead)
     assert not res.mapped and res.odoo_value == "Meta / Leads"  # no mapping and no sheet options: never guessed
     m.source_options = lambda: ["Meta || Leads", "تيك توك", "باور بي اي"]
     res = m.resolve_source(lead)  # identical sheet value after normalization ("/" == "||")
     assert res.mapped and res.auto and res.sheet_value == "Meta || Leads" and res.odoo_value == "Meta / Leads"
-    assert not m.resolve_source(OdooLead(id=5, source="Snapchat")).mapped  # nothing fuzzy
+    assert not m.resolve_source(OdooLead(id=5, utm_source="Snapchat")).mapped  # nothing fuzzy
     m.source_options = lambda: ["Meta || Leads", "meta | leads"]  # ambiguous → user picks
     assert not m.resolve_source(lead).mapped
     m.source_options = None
-    m.save_source("Meta", "Meta || Leads (generic)")
-    assert m.resolve_source(lead).sheet_value == "Meta || Leads (generic)"
-    m.save_source("Meta / Leads", "Meta || Leads")  # more specific wins
+    m.save_source("Meta / Leads", "Meta || Leads (generic)")  # a saved mapping wins
     res = m.resolve_source(lead)
-    assert res.mapped and res.sheet_value == "Meta || Leads" and res.odoo_value == "Meta / Leads" and not res.auto
+    assert res.mapped and res.sheet_value == "Meta || Leads (generic)" and not res.auto
+
+
+def test_source_mapping_uses_utm_source_not_source(container):
+    m = container.mappings
+    m.source_options = lambda: ["Meta || Leads", "رصد لاندنج"]
+    m.save_source("Rassd Landing", "رصد لاندنج")
+    # Source (source_id) says Meta, UTM Source says Rassd Landing → the sheet gets the UTM Source mapping.
+    res = m.resolve_source(OdooLead(id=1, source="Meta", medium="Leads", utm_source="Rassd Landing"))
+    assert res.mapped and res.sheet_value == "رصد لاندنج" and res.odoo_value == "Rassd Landing"
+    # No UTM Source → nothing, even when Source alone would match.
+    assert not m.resolve_source(OdooLead(id=2, source="Meta / Leads")).mapped
+    assert odoo_source_labels(OdooLead(id=3, source="Meta")) == []
 
 
 def test_source_mapping_other_source(container):
     container.mappings.save_source("Twajd", "تيك توك")
-    assert container.mappings.resolve_source(OdooLead(id=2, source="twajd")).sheet_value == "تيك توك"
-    assert not container.mappings.resolve_source(OdooLead(id=3, source="LinkedIn")).mapped
+    assert container.mappings.resolve_source(OdooLead(id=2, utm_source="twajd")).sheet_value == "تيك توك"
+    assert not container.mappings.resolve_source(OdooLead(id=3, utm_source="LinkedIn")).mapped
     assert not container.mappings.resolve_source(None).mapped
 
 
