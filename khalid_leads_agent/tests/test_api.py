@@ -285,3 +285,16 @@ def test_refresh_picks_up_new_sheet_rows_without_reload(env, sheet, odoo):
         assert any(o["empty"] and o["count"] == 2 for o in r["filter"]["options"])
         q = tc.post("/api/queue/refresh", headers=H).json()
         assert q["refresh"]["new"] == 0 and q["lead"]["fingerprint"] == fp and "filter" in q
+
+
+def test_expired_google_token_offers_reconnect(env, sheet, odoo):
+    c = make_container(env, sheet, odoo)
+
+    def expired(*_a, **_k):
+        raise Exception("invalid_grant: Token has been expired or revoked.")
+    sheet.get_values = expired
+    with TestClient(create_app(c, allowed_hosts=["testserver"])) as tc:
+        r = tc.get("/api/lead/current")
+        err = r.json()["error"]
+        assert r.status_code == 409 and err["code"] == "GOOGLE_NOT_CONNECTED"
+        assert err["actions"][0] == "reconnect_google" and "إعادة ربط Google" in err["message"]

@@ -55,6 +55,8 @@ http://127.0.0.1:8765
 
 يُحفظ الـToken محليًا في `data/credentials/token.json`، وهذا المجلد مستثنى من Git.
 
+**مهم: ربط Google ينتهي كل 7 أيام إذا بقي التطبيق في وضع Testing.** لمنع ذلك مرة واحدة: في Google Cloud افتح **Google Auth Platform ← Audience** (أو **OAuth consent screen**) ← **Publishing status** ← **Publish app** ← **Confirm**. لا يحتاج مراجعة من Google للاستخدام الداخلي؛ ستظهر فقط شاشة «Google hasn't verified this app» عند الربط ← **Continue**. بعدها اضغط **إعادة ربط Google** مرة أخيرة. إذا انتهى الربط يظهر في الـAgent زر **إعادة ربط Google** يفتح صفحة Google ويعيد التحميل تلقائيًا.
+
 **البديل: Service Account.** أنشئ Service Account ونزّل مفتاح JSON الخاص به، وارفعه من نفس الصفحة. بعدها شارك ملف Google Sheet مع بريد الـService Account بصلاحية **Editor**.
 
 ## 4. طريقة ربط Sheet

@@ -195,6 +195,7 @@ footer { margin-top: 36px; color: var(--muted); font-size: .85rem; }
           </ol>
           <p class="why">ربط Google يمر عبر «تطبيق» أنشأته أنت في Google Cloud وهو في وضع الاختبار؛ Google يمنع أي حساب غير مضاف هنا.</p>
           <p class="see">بريد الزميل في قائمة Test users.</p>
+          <div class="note warn"><b class="t">مرة واحدة فقط: انشر التطبيق حتى لا ينتهي الربط كل 7 أيام</b><span>في نفس الصفحة: <span class="btnlike">Publishing status</span> ← <span class="btnlike">Publish app</span> ← <span class="btnlike">Confirm</span>. ما دام التطبيق في وضع Testing، يلغي Google ربط كل مستخدم بعد 7 أيام.</span></div>
           <div class="note ok"><b class="t">تخطَّ الخطوة إذا</b><span>كان حسابكم Google Workspace للشركة والتطبيق من نوع <b>Internal</b>.</span></div>
         </div></li>
       <li class="step" data-id="a3"><label><input type="checkbox" id="a3"><span class="num">أ-3</span><h3>أرسل للزميل ملف ربط Google (ملف واحد فقط)</h3></label>
@@ -447,6 +448,7 @@ ACCESS_PIN=ضع_رمزك_هنا</pre><button type="button" data-copy>نسخ</but
         <tr><td><span class="mono">Error 403: access_denied</span> عند Connect Google</td><td>بريدك غير مضاف في Test users (خطوة أ-2 عند خالد)، أو اخترت بريد ثاني.</td></tr>
         <tr><td>ما يطلع أي عميل / «عملاء … اليوم = 0»</td><td>الاسم في ج-1 مختلف عن عمود «المسؤول الحالي». عدّله من <b>الإعدادات</b> ← <b>General</b>.</td></tr>
         <tr><td>«لم يتم العثور على الأعمدة التالية…»</td><td>عنوان عمود تغيّر في الـSheet. عدّل <b>Column Mapping</b> ليطابق العنوان الجديد.</td></tr>
+        <tr><td>«انتهت صلاحية ربط Google»</td><td>اضغط <b>إعادة ربط Google</b> في نفس الرسالة، واختر حسابك ووافق. إذا تكرر كل أسبوع: خالد يضغط <b>Publish app</b> في Google Cloud (خطوة أ-2).</td></tr>
         <tr><td>«تسجيل الدخول إلى Odoo مطلوب»</td><td>انتهى دخولك في Odoo. اضغط <b>فتح Odoo لتسجيل الدخول</b>، سجّل الدخول، ثم <b>تحقق</b>.</td></tr>
         <tr><td>«اتصال الآن» ما يرن في الجوال</td><td>Phone Link غير مربوط (د-1)، أو ما اخترت Phone Link لما سألك Windows. افتح Phone Link وتأكد من الربط وجرّب مرة ثانية.</td></tr>
         <tr><td>الصفحة ما تفتح <span class="mono">127.0.0.1:8765</span></td><td>البرنامج مو شغّال. شغّل <code>02_start_agent.bat</code> وانتظر 10 ثواني.</td></tr>
