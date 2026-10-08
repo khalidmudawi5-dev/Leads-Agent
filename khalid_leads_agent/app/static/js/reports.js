@@ -98,7 +98,90 @@ function renderSources(rows) {
         <td><b>${pct(s.interest_rate)}</b></td></tr>`).join("")}</tbody></table>` : emptyState("لا توجد نتائج مسجلة في هذه الفترة", "", "history");
 }
 
+// ------------------------------------------------- customers by follow-up status (Odoo enriched)
+const CR = { options: [], report: null, busy: false };
+const CR_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6L9 17l-5-5"/></svg>';
+
+function crSelected() { return CR.options.filter((o) => o.on).map((o) => (o.empty ? "(فارغ)" : o.value)); }
+function crQuery(fmtName) {
+  const p = new URLSearchParams({ fmt: fmtName, odoo: $("#cr-odoo").checked, search_unlinked: $("#cr-search").checked });
+  crSelected().forEach((s) => p.append("statuses", s));
+  return `/api/reports/customers/export?${p}`;
+}
+function crRenderChips() {
+  $("#cr-chips").innerHTML = CR.options.map((o, i) => `<button type="button" class="fchip ${o.on ? "on" : ""}" data-i="${i}">
+      <span class="box">${CR_CHECK}</span><span class="t">${o.empty ? "فارغة (بدون حالة)" : esc(o.value)}</span><span class="n">${o.count}</span></button>`).join("")
+    || '<span class="small muted">لا توجد حالات. تأكد من إعداد Google Sheet.</span>';
+  $$("#cr-chips .fchip").forEach((b) => b.onclick = () => { CR.options[+b.dataset.i].on = !CR.options[+b.dataset.i].on; crRenderChips(); });
+  const n = CR.options.filter((o) => o.on).reduce((s, o) => s + o.count, 0);
+  $("#cr-sum").textContent = crSelected().length ? `${crSelected().length} حالة مختارة · ${n} عميل` : "اختر حالة واحدة على الأقل";
+}
+async function crLoadOptions() {
+  try {
+    const r = await api("GET", "/api/reports/customers/options");
+    const want = new URLSearchParams(location.search).getAll("status");
+    CR.options = (r.options || []).filter((o) => o.count > 0 || !o.empty)
+      .sort((a, b) => (b.count - a.count))
+      .map((o) => ({ ...o, on: want.includes(o.empty ? "(فارغ)" : o.value) }));
+    crRenderChips();
+    if (want.length) crShow($("#cr-show"));
+  } catch (e) { $("#cr-chips").innerHTML = `<div class="alert error">${esc(e.message)}</div>`; }
+}
+function crSetExport(on) { ["#cr-xlsx", "#cr-pdf", "#cr-print"].forEach((s) => { $(s).disabled = !on; }); }
+async function crShow(btn) {
+  if (!crSelected().length) { toast("اختر حالة متابعة واحدة على الأقل.", "warn"); return; }
+  crSetExport(false);
+  $("#cr-table").innerHTML = '<div class="empty"><span class="spinner"></span> جاري قراءة العملاء من Google Sheet وOdoo…</div>';
+  await withBusy(btn, async () => {
+    try {
+      CR.report = await api("POST", "/api/reports/customers",
+        { statuses: crSelected(), odoo: $("#cr-odoo").checked, search_unlinked: $("#cr-search").checked });
+    } catch (e) { $("#cr-table").innerHTML = `<div class="alert error">${esc(e.message)}</div>`; return; }
+    crRender(CR.report);
+  });
+}
+function crRender(r) {
+  $("#cr-msg").innerHTML = (r.warnings || []).map((w) => `<div class="alert warn">${esc(w)}</div>`).join("");
+  $("#cr-sum").textContent = `${fmt(r.total)} عميل` + (r.odoo_read ? ` · في Odoo: ${fmt(r.in_odoo)} · لديه إيميل: ${fmt(r.with_email)}` : "");
+  crSetExport(r.total > 0);
+  if (!r.rows.length) { $("#cr-table").innerHTML = emptyState("لا يوجد عملاء بهذه الحالات", "اختر حالة أخرى.", "history"); return; }
+  $("#cr-table").innerHTML = `<table class="table hist"><thead><tr><th>#</th><th>المنشأة</th><th>جهة الاتصال</th><th>الجوال</th><th>الإيميل</th>
+      <th>الحالة</th><th>المصدر (UTM)</th><th>المرحلة</th><th>آخر ملاحظة</th></tr></thead><tbody>
+    ${r.rows.map((x, i) => `<tr><td class="muted">${i + 1}</td>
+      <td><b>${esc(x.company)}</b>${x.odoo_url ? ` <a class="small" href="${esc(x.odoo_url)}" target="_blank" rel="noopener">Odoo ↗</a>` : (r.odoo_read ? ' <span class="badge">غير موجود في Odoo</span>' : "")}</td>
+      <td>${orDash(x.contact)}</td><td class="ltr nowrap">${orDash(x.phone)}</td><td class="ltr">${x.email ? `<a href="mailto:${esc(x.email)}">${esc(x.email)}</a>` : "—"}</td>
+      <td><span class="pill">${esc(x.status)}</span></td><td>${orDash(x.utm_source)}</td><td>${orDash(x.stage)}</td>
+      <td><div class="note">${orDash(x.last_note)}</div></td></tr>`).join("")}</tbody></table>`;
+}
+async function crDownload(btn, fmtName) {
+  await withBusy(btn, async () => {
+    try {
+      const res = await fetch(crQuery(fmtName));
+      if (!res.ok) {
+        let msg = "تعذر التصدير.";
+        try { msg = (await res.json()).error.message || msg; } catch (_) { /* not JSON */ }
+        throw new Error(msg);
+      }
+      const name = decodeURIComponent((res.headers.get("Content-Disposition") || "").split("''")[1] || `customers.${fmtName}`);
+      const url = URL.createObjectURL(await res.blob());
+      const a = Object.assign(document.createElement("a"), { href: url, download: name });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast(`تم تنزيل ${name}`, "success");
+    } catch (e) {
+      toast(e.message, "error", 8000);
+      if (fmtName === "pdf") toast("بديل: اضغط «طباعة» واختر «حفظ كـPDF».", "info", 8000);
+    }
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  $("#cr-show").onclick = (ev) => crShow(ev.currentTarget);
+  $("#cr-xlsx").onclick = (ev) => crDownload(ev.currentTarget, "xlsx");
+  $("#cr-pdf").onclick = (ev) => crDownload(ev.currentTarget, "pdf");
+  $("#cr-print").onclick = () => window.open(crQuery("print"), "_blank");
+  ["#cr-odoo", "#cr-search"].forEach((s) => { $(s).onchange = () => { crSetExport(false); if (s === "#cr-odoo") $("#cr-search").disabled = !$("#cr-odoo").checked; }; });
+  crLoadOptions();
   const custom = $("#rep-custom");
   $$("#rep-period button").forEach((b) => b.onclick = () => {
     $$("#rep-period button").forEach((x) => x.classList.toggle("on", x === b));

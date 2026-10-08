@@ -129,7 +129,10 @@ class AppSettings(BaseModel):
     column_mapping: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_COLUMN_MAPPING))
     pending_status_values: list[str] = Field(default_factory=lambda: ["", "لم يتم الرد", "متابعة"])
     append_notes: bool = True
-    note_stamp_format: str = "[{date} - {owner}]"
+    # Optional prefix of each sheet note, e.g. "[{date} - {owner}]"; empty = the note only (no name/time).
+    note_stamp_format: str = ""
+    # Each sheet note on one line; several notes in the cell are separated by " | ".
+    sheet_note_single_line: bool = True
     validate_dropdown_values: bool = True
     # Odoo
     odoo_base_url: str = "https://worldofss.odoo.com"
@@ -168,6 +171,8 @@ class AppSettings(BaseModel):
     # WhatsApp: message templates ({company} {owner} {contact} {date}) and logging the message.
     whatsapp_templates: list[dict[str, str]] = Field(default_factory=lambda: [dict(t) for t in DEFAULT_WHATSAPP_TEMPLATES])
     whatsapp_log: bool = True
+    # After a WhatsApp message from the queue, move on: the customer is skipped for today (see «المتخطَّون»).
+    whatsapp_auto_next: bool = True
     # Follow-ups: due ones first in the queue; future ones wait until their date.
     followups_first: bool = True
     hide_future_followups: bool = True

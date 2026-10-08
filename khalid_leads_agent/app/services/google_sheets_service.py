@@ -120,16 +120,27 @@ def normalize_header(title: str) -> str:
 HEADER_SCAN_ROWS = 15
 
 
-def format_note_entry(note: str, owner: str, when: datetime, stamp_format: str) -> str:
-    stamp = stamp_format.format(date=when.strftime("%d/%m/%Y %H:%M"), owner=owner)
-    return f"{stamp}\n{note.strip()}"
+NOTE_SEPARATOR = " | "
 
 
-def merge_notes(old: str, entry: str, append: bool) -> str:
+def one_line(text: str) -> str:
+    """Several lines → one line joined with " - " (blank lines dropped)."""
+    return " - ".join(p for p in (re.sub(r"\s+", " ", x).strip() for x in (text or "").splitlines()) if p)
+
+
+def format_note_entry(note: str, owner: str, when: datetime, stamp_format: str, single_line: bool = True) -> str:
+    """The sheet note entry. An empty ``stamp_format`` means the note only (no name, date or time)."""
+    stamp = stamp_format.format(date=when.strftime("%d/%m/%Y %H:%M"), owner=owner).strip() if stamp_format.strip() else ""
+    if single_line:
+        return " ".join(p for p in (stamp, one_line(note)) if p)
+    return f"{stamp}\n{note.strip()}" if stamp else note.strip()
+
+
+def merge_notes(old: str, entry: str, append: bool, single_line: bool = True) -> str:
     """Append a note entry without deleting previous text (unless append is disabled)."""
     if not append or not (old or "").strip():
         return entry
-    return old.rstrip() + "\n\n" + entry
+    return old.rstrip() + (NOTE_SEPARATOR if single_line else "\n\n") + entry
 
 
 class SheetService:
@@ -471,7 +482,7 @@ class SheetService:
             if note_entry.strip() and note_entry.strip() in old_notes:
                 pass  # already written (retry after partial failure)
             else:
-                wanted["notes"] = merge_notes(old_notes, note_entry, s.append_notes)
+                wanted["notes"] = merge_notes(old_notes, note_entry, s.append_notes, s.sheet_note_single_line)
         for key, new in wanted.items():
             if new is None:
                 continue

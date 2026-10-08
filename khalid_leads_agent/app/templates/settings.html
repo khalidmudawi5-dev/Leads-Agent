@@ -42,7 +42,8 @@
       <label class="field"><span>Spreadsheet ID</span><input type="text" data-key="spreadsheet_id" class="ltr" style="width:100%"></label>
       <label class="field"><span>Sheet/Tab Name</span><input type="text" data-key="sheet_name" list="tab-list"><datalist id="tab-list"></datalist></label>
       <label class="field"><span>رقم صف العناوين</span><input type="number" min="1" data-key="header_row"></label>
-      <label class="field"><span>صيغة ختم الملاحظة</span><input type="text" data-key="note_stamp_format" class="ltr"></label>
+      <label class="field"><span>ختم الملاحظة في Sheet (فارغ = بدون اسمك وبدون الوقت والتاريخ)</span><input type="text" data-key="note_stamp_format" class="ltr" placeholder="مثال: [{date} - {owner}]"></label>
+      <label class="check"><input type="checkbox" data-key="sheet_note_single_line"> الملاحظة في Sheet بسطر واحد (الملاحظات المتعددة يفصلها « | »)</label>
       <div class="field full"><span class="small"><b>حالات المتابعة التي يبحث عنها الـAgent</b> — اختر حالة أو أكثر (يمكن تغييرها أيضًا من الصفحة الرئيسية)</span>
         <div class="fb-chips" id="pending-chips" style="margin-top:8px"></div></div>
       <label class="field full"><span>أو اكتبها يدويًا (قيمة في كل سطر، واكتب <b>(فارغ)</b> للخلية الفارغة)</span>
@@ -143,6 +144,7 @@
     <div class="actions" style="margin:8px 0 16px"><button class="btn sm" type="button" id="btn-add-tpl">+ إضافة قالب</button></div>
     <div class="form-grid">
       <label class="check"><input type="checkbox" data-key="whatsapp_log"> تسجيل رسائل واتساب في Odoo (Log note) وملاحظات Google Sheet</label>
+      <label class="check"><input type="checkbox" data-key="whatsapp_auto_next"> بعد إرسال الواتساب انتقل للعميل التالي تلقائيًا (ويُتخطّى العميل لليوم)</label>
     </div>
     <h3 style="margin-top:18px">المتابعات</h3>
     <div class="form-grid">

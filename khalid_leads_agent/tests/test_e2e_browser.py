@@ -68,7 +68,8 @@ def test_full_workflow_real_browser(env):
             assert fake.state.activities[0]["date_deadline"] == "2026-10-01"
             row = sheet.sheets["Leads"][1]
             assert row[3] == "متابعة" and row[5] == "Meta || Leads" and row[10] == "=A2"
-            assert row[9].startswith("ملاحظة قديمة\n\n[") and row[9].endswith("موعد المتابعة: 2026-10-01 10:00")
+            # One line, without name or date/time, appended after the old note.
+            assert row[9] == "ملاحظة قديمة | العميل مهتم بنظام رصد التواجد - موعد المتابعة: 2026-10-01 10:00"
             assert sheet.sheets["Leads"][2][3] == ""  # other user's row untouched
 
             nxt = client.post("/api/lead/next", headers=H).json()

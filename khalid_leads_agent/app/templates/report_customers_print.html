@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تقرير العملاء — {{ r.statuses|join("، ") }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4 landscape; margin: 12mm 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif; color: #0f172a; background: #fff; margin: 0; padding: 18px; font-size: 11.5px; }
+  .head { display: flex; align-items: flex-start; gap: 16px; border-bottom: 3px solid #4f46e5; padding-bottom: 12px; margin-bottom: 12px; }
+  .head h1 { margin: 0 0 4px; font-size: 20px; font-weight: 800; }
+  .head .meta { color: #475569; font-size: 12px; }
+  .spacer { flex: 1; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .pill { background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 3px 10px; font-weight: 700; font-size: 11px; }
+  .pill.n { background: #f1f5f9; color: #334155; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { display: table-header-group; }
+  th { background: #4f46e5; color: #fff; font-weight: 700; text-align: right; padding: 7px 6px; font-size: 11px; }
+  td { border-bottom: 1px solid #e2e8f0; padding: 6px; vertical-align: top; }
+  tr { page-break-inside: avoid; }
+  tbody tr:nth-child(even) td { background: #f8fafc; }
+  .ltr { direction: ltr; unicode-bidi: embed; text-align: right; white-space: nowrap; }
+  .num { color: #64748b; width: 26px; }
+  .note { color: #475569; max-width: 280px; }
+  .st { font-weight: 700; }
+  .muted { color: #94a3b8; }
+  .warn { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; }
+  .bar { margin-bottom: 12px; }
+  .bar button { font: inherit; font-weight: 700; background: #4f46e5; color: #fff; border: 0; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+  @media print { .bar { display: none; } body { padding: 0; } }
+</style>
+</head>
+<body>
+{% if auto_print %}<div class="bar"><button onclick="window.print()">طباعة / حفظ PDF</button></div>{% endif %}
+<div class="head">
+  <div>
+    <h1>تقرير العملاء حسب حالة المتابعة</h1>
+    <div class="meta">الحالات: <b>{{ r.statuses|join("، ") }}</b> · المسؤول: {{ r.owner }} · تاريخ التقرير: <span class="ltr">{{ r.generated_at }}</span></div>
+  </div>
+  <span class="spacer"></span>
+  <div class="meta">Khalid Leads Agent</div>
+</div>
+<div class="pills">
+  <span class="pill">عدد العملاء: {{ r.total }}</span>
+  {% for k, v in r.counts.items() %}<span class="pill n">{{ k }}: {{ v }}</span>{% endfor %}
+  {% if r.odoo_read %}<span class="pill n">موجود في Odoo: {{ r.in_odoo }}</span><span class="pill n">لديه إيميل: {{ r.with_email }}</span>{% endif %}
+</div>
+{% for w in r.warnings %}<div class="warn">{{ w }}</div>{% endfor %}
+<table>
+  <thead><tr><th>#</th><th>المنشأة</th><th>جهة الاتصال</th><th>الجوال</th><th>الإيميل</th><th>حالة المتابعة</th><th>المصدر (UTM)</th><th>المرحلة</th><th>آخر ملاحظة</th></tr></thead>
+  <tbody>
+  {% for row in r.rows %}
+    <tr><td class="num">{{ loop.index }}</td><td><b>{{ row.company }}</b></td><td>{{ row.contact or "—" }}</td>
+      <td class="ltr">{{ row.phone or "—" }}</td><td class="ltr">{{ row.email or "—" }}</td>
+      <td class="st">{{ row.status }}</td><td>{{ row.utm_source or "—" }}</td><td>{{ row.stage or "—" }}</td>
+      <td class="note">{{ row.last_note or "—" }}</td></tr>
+  {% else %}
+    <tr><td colspan="9" class="muted" style="text-align:center;padding:24px">لا يوجد عملاء بهذه الحالات.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if auto_print %}<script>window.addEventListener("load", () => setTimeout(() => window.print(), 400));</script>{% endif %}
+</body>
+</html>

@@ -66,6 +66,15 @@ The workflow is deterministic end to end. No LLM decides customer identity, row 
 - **Activity:** created with `activity_schedule`. A failure only produces a warning; the note and the sheet update still complete.
 - There are screenshots on automation errors, limited retries, configurable timeouts, and one relaunch if the user closed the browser window.
 
+### Customer report by status (read-only)
+`CustomerReportService` filters the owner's fresh sheet rows by «حالة المتابعة», reads linked Odoo leads in one `crm.lead.read` batch (`adapter.read_leads`) and matches unlinked rows with the queue's matcher (capped at 150), then exports Excel (`utils.xlsx`), PDF (`adapter.render_pdf`: a separate headless Chromium/Chrome prints `report_customers_print.html`; the Odoo window is never used) or a printable HTML page. The last build is reused for exports for 5 minutes. Nothing is written anywhere.
+
+### Sheet notes
+`format_note_entry` writes the note on one line (lines joined with " - "); `note_stamp_format` is empty by default (no name / date). `merge_notes` appends after the old text with " | " (`sheet_note_single_line`). A one-time migration (`sheet_note_v23`) clears the old default stamp.
+
+### WhatsApp → next
+`POST /api/lead/{fp}/whatsapp` with auto-next (`whatsapp_auto_next`, or `next` in the body) skips the customer for today (reason «تم إرسال رسالة واتساب») and returns the next lead in `next`.
+
 ### Source = Odoo UTM Source
 The sheet's «مصدر العميل» is derived from the lead's **UTM Source** only (`odoo_source_labels`). `find_utm_field()` picks the field once per Odoo `fields_get`: the `odoo_utm_source_field` setting, else a many2one/char/selection field labelled "UTM Source", else a name like `x_utm_source` / `x_studio_utm_source`, else the standard `source_id` (shown on the diagnostics page). Resolution stays deterministic: saved Source Mapping (UTM Source → sheet value) first, then a single identical sheet dropdown value. With `auto_write_source` the workflow writes that one cell as soon as a lead is matched (search, candidate choice, refresh, create, manual link, live-sync change) through the usual safe path (fresh read, row located by company + phone, owner re-check, sync log); Dry Run writes nothing and each (lead, value) is tried once per run.
 

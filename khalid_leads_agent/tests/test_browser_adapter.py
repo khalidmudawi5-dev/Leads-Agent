@@ -335,3 +335,19 @@ def test_background_reads_use_saved_session_without_a_browser(adapter, fake_odoo
         run(adapter, adapter.lead_signature(7))
     assert not session_file.exists() and not adapter.browser_started
     assert run(adapter, adapter.lead_signature(7)) is None  # nothing saved any more: never launches
+
+
+def test_render_pdf_with_headless_browser(adapter, tmp_path):
+    report = {"statuses": ["مهتم"], "rows": [{"company": "مؤسسة الاختبار", "contact": "سعد", "phone": "+966 56 123 4567",
+              "email": "test@example.com", "status": "مهتم", "utm_source": "Meta", "stage": "جديد",
+              "last_note": "العميل مهتم"}], "counts": {"مهتم": 1}, "total": 1, "warnings": [], "odoo_read": True,
+              "in_odoo": 1, "with_email": 1, "generated_at": "08/10/2026 10:00", "owner": "خالد"}
+    from jinja2 import Environment, FileSystemLoader
+
+    from app.services.customer_report_service import _TEMPLATES
+    html = Environment(loader=FileSystemLoader(str(_TEMPLATES)), autoescape=True).get_template(
+        "report_customers_print.html").render(r=report, auto_print=False)
+    pdf = run(adapter, adapter.render_pdf(html))
+    assert pdf.startswith(b"%PDF") and len(pdf) > 2000
+    (tmp_path / "r.pdf").write_bytes(pdf)
+    assert adapter._context is None  # the Odoo browser window was never opened

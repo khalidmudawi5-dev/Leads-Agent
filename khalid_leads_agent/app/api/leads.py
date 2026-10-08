@@ -118,8 +118,15 @@ def lead_whatsapp_options(fingerprint: str, c: AppContainer = Depends(container)
 
 @router.post("/lead/{fingerprint}/whatsapp")
 async def lead_whatsapp(fingerprint: str, body: WhatsAppIn, c: AppContainer = Depends(container)) -> dict:
-    """Returns the wa.me link (the page opens it) and records the message in Odoo/Sheet when enabled."""
-    return await c.whatsapp.send(fingerprint, body.tel, body.text, body.template, body.log)
+    """Returns the wa.me link (the page opens it) and records the message in Odoo/Sheet when enabled.
+
+    With auto-next the customer is skipped for today (listed in «المتخطَّون», restorable) and the next
+    customer is returned in ``next``.
+    """
+    res = await c.whatsapp.send(fingerprint, body.tel, body.text, body.template, body.log)
+    if c.settings.get().whatsapp_auto_next if body.next is None else body.next:
+        res["next"] = await c.workflow.skip(fingerprint, "today", "تم إرسال رسالة واتساب")
+    return res
 
 
 @router.post("/lead/{fingerprint}/open")

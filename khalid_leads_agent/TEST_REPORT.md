@@ -1,5 +1,15 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 2.3.0 (2026-10-08): customer report by status (Excel / PDF), one-line sheet notes, WhatsApp → next
+
+**Result:** ✅ **172 passed, 1 skipped** (display-only browser test).
+
+- `test_reports.py::test_customer_report_*`: rows filtered by status (incl. empty), Odoo fields (contact, e-mail, phones, UTM Source, link) for linked and phone-matched customers, not-in-Odoo rows kept, logged-out Odoo → sheet-only with a warning, read-only (no sheet/Odoo writes); API JSON, Excel (openpyxl), PDF and print page.
+- `test_browser_adapter.py::test_render_pdf_with_headless_browser`: real headless Chromium prints the Arabic report to a valid PDF without opening the Odoo window. PDF checked visually (RTL table, Arabic shaping).
+- `test_notes.py`: one line, no name/time by default; optional stamp; " | " separator. e2e: the sheet cell becomes `ملاحظة قديمة | العميل مهتم بنظام رصد التواجد - موعد المتابعة: 2026-10-01 10:00`.
+- `test_outreach.py::test_whatsapp_moves_to_next_customer`: the next customer is returned, the previous one is skipped for today with the WhatsApp reason; `next: false` stays.
+- UI (mocks, Chromium, desktop + 390px phone): status chips, report table, Excel and PDF downloads; 0 JS errors.
+
 ## Update 2.2.0 (2026-10-04): source from Odoo UTM Source, written to the sheet automatically
 
 **Result:** ✅ **165 passed, 2 skipped** (display-only browser test; same as before).

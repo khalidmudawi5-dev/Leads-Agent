@@ -64,7 +64,8 @@ class WhatsAppService:
                   "date": localnow().strftime("%d/%m/%Y")}
         templates = [{"name": t.get("name", ""), "text": render_template(t.get("text", ""), **values)}
                      for t in s.whatsapp_templates if (t.get("text") or "").strip()]
-        return {"numbers": numbers, "templates": templates, "log": s.whatsapp_log, "dry_run": s.dry_run}
+        return {"numbers": numbers, "templates": templates, "log": s.whatsapp_log, "dry_run": s.dry_run,
+                "auto_next": s.whatsapp_auto_next}
 
     async def send(self, fingerprint: str, tel: str, text: str, template: str = "", log_it: bool | None = None) -> dict:
         c = self._cache(fingerprint)
@@ -91,7 +92,8 @@ class WhatsAppService:
                     warnings.append(f"لم تُسجّل الرسالة في Odoo: {step.message}")
             else:
                 warnings.append("العميل غير مربوط بـLead في Odoo؛ لم تُسجّل الرسالة في Odoo.")
-            entry = format_note_entry(f"واتساب: {template or 'رسالة'}", s.agent_owner, localnow(), s.note_stamp_format)
+            entry = format_note_entry(f"واتساب: {template or 'رسالة'}", s.agent_owner, localnow(), s.note_stamp_format,
+                                      s.sheet_note_single_line)
             ref = LeadRef(c.fingerprint, c.sheet_row, c.company_name, c.phone_norm)
             step = await asyncio.to_thread(self.sync.update_sheet, ref, {}, entry, dry_run=dry_run, action_id=action_id)
             row.sheet_status = step.status

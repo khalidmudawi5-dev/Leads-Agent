@@ -106,6 +106,21 @@ class OdooAdapter(ABC):
     @abstractmethod
     async def get_lead(self, lead_id: int) -> OdooLead: ...
 
+    async def read_leads(self, ids: list[int]) -> list[OdooLead]:
+        """Several leads at once, main fields only (no chatter). Missing / forbidden ids are left out."""
+        out = []
+        for lead_id in ids:
+            try:
+                out.append(await self.get_lead(lead_id))
+            except AgentError as exc:
+                if exc.code == "ODOO_LOGIN_REQUIRED":
+                    raise
+        return out
+
+    async def render_pdf(self, html: str) -> bytes:
+        """Print an HTML page to PDF (A4) with a headless browser."""
+        raise AgentError("PDF_UNAVAILABLE", "تصدير PDF غير متاح؛ استخدم «طباعة / حفظ PDF».")
+
     @abstractmethod
     async def open_lead(self, lead: OdooLead) -> OdooLead:
         """Open the lead in the visible browser tab and return the data read from it."""

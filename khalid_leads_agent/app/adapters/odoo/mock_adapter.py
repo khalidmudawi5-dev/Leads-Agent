@@ -125,6 +125,14 @@ class MockOdooAdapter(OdooAdapter):
         self.leads[new_id] = lead
         return self._with_history(lead)
 
+    async def read_leads(self, ids: list[int]) -> list[OdooLead]:
+        self._check()
+        return [self.leads[i] for i in ids if i in self.leads]
+
+    async def render_pdf(self, html: str) -> bytes:
+        self.pdf_html = html
+        return b"%PDF-1.4 mock"
+
     async def lead_signature(self, lead_id: int) -> str | None:
         self._check()
         if lead_id not in self.leads:

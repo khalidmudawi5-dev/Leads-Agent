@@ -52,6 +52,11 @@ class SettingsService:
                 if stored.get("odoo_note_template") == LEGACY_NOTE_TEMPLATE:
                     srepo.set_many({"odoo_note_template": DEFAULT_NOTE_TEMPLATE})
                 srepo.set_many({"note_template_v17": True})
+            # 2.3: sheet notes on one line, without the name/date stamp (the old default stamp is cleared once).
+            if "sheet_note_v23" not in stored:
+                if stored.get("note_stamp_format") == "[{date} - {owner}]":
+                    srepo.set_many({"note_stamp_format": ""})
+                srepo.set_many({"sheet_note_v23": True})
         self._cache = None
         with self.db.session() as s:
             repo = MappingRepository(s)

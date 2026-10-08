@@ -451,6 +451,7 @@ async function askWhatsApp(lead) {
       ${tpls.length ? `<div class="field"><span>القالب</span><div class="row" style="gap:6px;flex-wrap:wrap">${tpls.map((tp, i) => `<button type="button" class="btn sm ${i === 0 ? "primary" : ""}" data-tpl="${i}">${esc(tp.name || "قالب " + (i + 1))}</button>`).join("")}</div></div>` : ""}
       <label class="field"><span>نص الرسالة (يمكنك تعديله)</span><textarea id="wa-text" rows="6">${esc(tpls[0] ? tpls[0].text : "")}</textarea></label>
       <label class="check"><input type="checkbox" id="wa-log" ${o.log ? "checked" : ""}> تسجيل الرسالة في Odoo (Log note) وملاحظات Google Sheet</label>
+      <label class="check"><input type="checkbox" id="wa-next" ${o.auto_next ? "checked" : ""}> الانتقال للعميل التالي بعد الإرسال</label>
       <div class="small muted">سيفتح واتساب والرسالة جاهزة؛ اضغط «إرسال» داخل واتساب.</div><div id="wa-msg"></div>`,
     buttons: [{ label: "فتح واتساب", cls: "primary", onClick: (btn) => sendWhatsApp(lead, btn) }, { label: "إلغاء" }],
     onOpen: (m) => {
@@ -472,7 +473,7 @@ async function askWhatsApp(lead) {
 
 async function sendWhatsApp(lead, btn) {
   const body = { tel: $("#wa-tel").value.trim(), text: $("#wa-text").value, template: $("#wa-text").dataset.tpl || "",
-                 log: $("#wa-log").checked };
+                 log: $("#wa-log").checked, next: $("#wa-next").checked };
   // Open the tab now (inside the click) so the browser does not block it, then point it at WhatsApp.
   const win = S.remote ? null : window.open("about:blank", "_blank");
   await withBusy(btn, async () => {
@@ -482,8 +483,12 @@ async function sendWhatsApp(lead, btn) {
     if (win) win.location.href = r.url; else window.location.href = r.url;
     Modal.close();
     const logged = r.logged && !r.dry_run ? " وتم تسجيلها في Odoo والـSheet" : r.dry_run && r.logged ? " (Dry Run: لم تُسجَّل)" : "";
-    toast(`تم فتح واتساب${logged}. بعد الإرسال سجّل النتيجة.`, "success", 6000);
     (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
+    if (r.next) {
+      toast(`تم فتح واتساب${logged}. انتقلنا للعميل التالي (العميل السابق في «المتخطَّون» لليوم).`, "success", 6000);
+      render(r.next);
+      loadFilter();
+    } else toast(`تم فتح واتساب${logged}. بعد الإرسال سجّل النتيجة.`, "success", 6000);
   });
 }
 

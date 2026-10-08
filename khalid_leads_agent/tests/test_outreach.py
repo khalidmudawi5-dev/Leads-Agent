@@ -154,3 +154,22 @@ def test_background_check_announces_new_customers(container, sheet):
         r = tc.get("/api/queue/check").json()
         assert r["new"] == 1 and r["names"] == ["عميل وصل الآن"] and r["current"] == fp
         assert r["stats"]["owner_total"] == 5
+
+
+def test_whatsapp_moves_to_next_customer(container, sheet, odoo):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    lead = prepare(container)
+    with TestClient(create_app(container, allowed_hosts=["testserver"])) as tc:
+        res = tc.post(f"/api/lead/{lead['fingerprint']}/whatsapp", headers={"X-KLA": "1"},
+                      json={"tel": "0561234567", "text": "تذكير", "template": "تذكير"}).json()
+        assert res["url"].startswith("https://wa.me/")
+        assert res["next"]["lead"]["fingerprint"] != lead["fingerprint"]  # moved on
+        skipped = tc.get("/api/skipped").json()
+        assert any("واتساب" in (s["reason"] or "") and s["active"] for s in skipped["items"])
+        nxt = res["next"]["lead"]["fingerprint"]
+        stay = tc.post(f"/api/lead/{nxt}/whatsapp", headers={"X-KLA": "1"},
+                       json={"tel": "0552223333", "text": "مرحبا", "next": False}).json()
+        assert "next" not in stay
+    assert sheet.sheets["Leads"][1][9] == "واتساب: تذكير"  # one line, no name/time

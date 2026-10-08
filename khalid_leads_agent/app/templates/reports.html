@@ -1,9 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
+<div class="card cust-rep" id="cust-rep">
+  <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M14 11h8M18 7v8"/></svg></span>
+    <div><h2>تقرير العملاء حسب الحالة</h2><p>اختر حالة أو أكثر (مثل «مهتم» أو «لم يتم الرد»)؛ يقرأ الـAgent عملاءك من Google Sheet ثم يجلب من Odoo المنشأة وجهة الاتصال والإيميل والجوال والمرحلة. للقراءة فقط.</p></div>
+    <div class="pi-actions">
+      <button class="btn primary" id="cr-show" type="button">عرض التقرير</button>
+      <button class="btn" id="cr-xlsx" type="button" disabled>Excel</button>
+      <button class="btn" id="cr-pdf" type="button" disabled>PDF</button>
+      <button class="btn ghost" id="cr-print" type="button" disabled title="يفتح نسخة للطباعة؛ اختر «حفظ كـPDF» من نافذة الطباعة">طباعة</button></div></div>
+  <div class="fb-chips" id="cr-chips"><span class="skeleton" style="width:260px"></span></div>
+  <div class="row cr-opts">
+    <label class="check"><input type="checkbox" id="cr-odoo" checked> قراءة البيانات من Odoo (الإيميل، جهة الاتصال، المرحلة…)</label>
+    <label class="check"><input type="checkbox" id="cr-search" checked> البحث في Odoo عن العملاء غير المربوطين (أبطأ)</label>
+    <span class="spacer"></span><span class="small muted" id="cr-sum"></span></div>
+  <div id="cr-msg"></div>
+  <div class="table-wrap" id="cr-table"></div>
+</div>
+<div class="card" style="margin-top:16px">
   <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
-    <div><h2>التقارير</h2><p>أداؤك حسب الفترة: المكالمات المسجلة، نسبة الرد، الاهتمام، الاشتراكات، واتساب، والنتائج حسب المصدر. لا تُحتسب نتائج Dry Run.</p></div>
-    <div class="pi-actions"><a class="btn primary" id="btn-export" href="#">تصدير Excel</a></div></div>
+    <div><h2>تقرير الأداء</h2><p>أداؤك حسب الفترة: المكالمات المسجلة، نسبة الرد، الاهتمام، الاشتراكات، واتساب، والنتائج حسب المصدر. لا تُحتسب نتائج Dry Run.</p></div>
+    <div class="pi-actions"><a class="btn" id="btn-export" href="#">تصدير Excel</a></div></div>
   <form class="rep-filters" id="rep-filters">
     <div class="seg" id="rep-period">
       <button type="button" data-p="today">اليوم</button><button type="button" data-p="week" class="on">هذا الأسبوع</button>

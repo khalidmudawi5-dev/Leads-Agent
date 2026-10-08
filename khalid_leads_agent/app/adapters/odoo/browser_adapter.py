@@ -851,6 +851,64 @@ class BrowserOdooAdapter(OdooAdapter):
     async def get_lead(self, lead_id: int) -> OdooLead:
         return await self._exec(self._w_get_lead, lead_id)
 
+    async def _w_read_leads(self, ids: list[int]) -> list[OdooLead]:
+        fields = await self._w_fields()
+        wanted = await self._w_read_fields()
+        out: list[OdooLead] = []
+        for i in range(0, len(ids), 80):
+            recs = await self._w_call_kw("crm.lead", "read", [ids[i:i + 80]], {"fields": wanted}) or []
+            out += [self._record_to_lead(r, fields) for r in recs]
+        return out
+
+    async def read_leads(self, ids: list[int]) -> list[OdooLead]:
+        if not ids:
+            return []
+        try:
+            return await self._exec(self._w_read_leads, list(ids))
+        except (OdooRpcUnavailable, OdooRpcError):
+            log.info("Batch read unavailable; reading leads one by one", exc_info=True)
+            return await super().read_leads(ids)
+
+    async def _w_render_pdf(self, html: str) -> bytes:
+        """A separate headless browser (the Odoo window is never touched)."""
+        from playwright.async_api import async_playwright
+
+        s = self.s
+        if self._pw is None:
+            self._pw = await async_playwright().start()
+        kwargs: dict[str, Any] = {"headless": True}
+        if s.browser_executable_path:
+            kwargs["executable_path"] = s.browser_executable_path
+        elif s.browser_channel in ("chrome", "msedge"):
+            kwargs["channel"] = s.browser_channel
+        try:
+            browser = await self._pw.chromium.launch(**kwargs)
+        except Exception:  # noqa: BLE001
+            if "channel" not in kwargs:
+                raise
+            kwargs.pop("channel")
+            browser = await self._pw.chromium.launch(**kwargs)
+        try:
+            page = await browser.new_page()
+            await page.set_content(html, wait_until="load", timeout=s.navigation_timeout_ms)
+            try:  # web font (Tajawal) when online; system Arabic fonts otherwise
+                await page.evaluate("document.fonts.ready.then(() => true)")
+            except Exception:  # noqa: BLE001
+                pass
+            return await page.pdf(format="A4", landscape=True, print_background=True,
+                                  margin={"top": "12mm", "bottom": "12mm", "left": "10mm", "right": "10mm"})
+        finally:
+            await browser.close()
+
+    async def render_pdf(self, html: str) -> bytes:
+        try:
+            return await self._rt.submit(self._w_render_pdf(html))
+        except AgentError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            log.warning("PDF export failed", exc_info=True)
+            raise AgentError("PDF_UNAVAILABLE", f"تعذر إنشاء PDF ({exc}). استخدم «طباعة / حفظ PDF».") from exc
+
     async def _w_navigate_lead(self, lead_id: int) -> None:
         page = await self._w_page()
         urls = [self.s.lead_url(lead_id), f"{self.base}/web#id={lead_id}&model=crm.lead&view_type=form"]

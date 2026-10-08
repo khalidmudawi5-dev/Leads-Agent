@@ -182,7 +182,7 @@ class ResultService:
         if inp.result_code == "SUBSCRIBED" and inp.subscription_expiry:
             sheet_changes["subscription_expiry"] = inp.subscription_expiry
         entry_text = note_text or result_label
-        note_entry = format_note_entry(entry_text, s.agent_owner, now, s.note_stamp_format)
+        note_entry = format_note_entry(entry_text, s.agent_owner, now, s.note_stamp_format, s.sheet_note_single_line)
 
         activity = None
         if inp.result_code == "FOLLOW_UP" and inp.followup_date:
@@ -326,7 +326,7 @@ class ResultService:
                         changes["source"] = row.source_value
                 entry = preview.get("note_entry") or format_note_entry(
                     row.note or self.mappings.status_label(row.result_code), s.agent_owner, localnow(),
-                    s.note_stamp_format)
+                    s.note_stamp_format, s.sheet_note_single_line)
                 ref = LeadRef(cache.fingerprint, cache.sheet_row, cache.company_name, cache.phone_norm)
                 step = await asyncio.to_thread(self.sync.update_sheet, ref, changes, entry, dry_run=False,
                                                action_id=row.idempotency_key)

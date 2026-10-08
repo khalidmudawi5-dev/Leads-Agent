@@ -735,3 +735,8 @@ td.ltr, th.ltr { display: table-cell; direction: ltr; text-align: right; }
 .swatch[data-p="indigo"] { background: linear-gradient(135deg, #818cf8, #4f46e5); }
 .swatch[data-p="blue"]   { background: linear-gradient(135deg, #60a5fa, #1d4ed8); }
 .swatch[data-p="stc"]    { background: linear-gradient(135deg, #ff375e 0 45%, #4f008c 55%); }
+
+/* Customers-by-status report */
+.cust-rep .fb-chips { margin-bottom: 12px; }
+.cr-opts { gap: 18px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+.cust-rep .table td .note { max-width: 320px; white-space: normal; }
