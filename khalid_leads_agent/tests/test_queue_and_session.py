@@ -1,4 +1,6 @@
 """Lead ordering, pending values and session resume."""
+import asyncio
+
 from app.config import EMPTY_TOKEN
 from app.services.lead_queue_service import order_leads
 from tests.conftest import make_container
@@ -80,3 +82,34 @@ def test_db_init_is_idempotent(container):
     container.db.init()
     container.settings.seed()
     assert len(container.mappings.statuses()) == 6
+
+
+def test_step_next_and_previous_within_selected_statuses(container):
+    wf = container.workflow
+    first = asyncio.run(wf.current())
+    fps = [lead.fingerprint for lead in container.queue.queue()]
+    assert len(fps) >= 2 and first["lead"]["fingerprint"] == fps[0]
+    assert first["position"] == {"index": 1, "total": len(fps), "in_queue": True}
+    nxt = asyncio.run(wf.step(fps[0], 1))
+    assert nxt["lead"]["fingerprint"] == fps[1] and nxt["position"]["index"] == 2
+    assert asyncio.run(wf.current())["lead"]["fingerprint"] == fps[1]  # remembered
+    back = asyncio.run(wf.step(fps[1], -1))
+    assert back["lead"]["fingerprint"] == fps[0]
+    wrap = asyncio.run(wf.step(fps[0], -1))  # previous of the first → the last
+    assert wrap["lead"]["fingerprint"] == fps[-1]
+    # Only the selected statuses are browsed.
+    asyncio.run(wf.set_status_filter(["لم يتم الرد"]))
+    only = [lead.fingerprint for lead in container.queue.queue()]
+    assert len(only) == 1
+    one = asyncio.run(wf.step(only[0], 1))
+    assert one["lead"]["fingerprint"] == only[0] and one["warnings"]
+
+
+def test_next_after_skip_continues_from_current_position(container):
+    wf = container.workflow
+    asyncio.run(wf.current())
+    fps = [lead.fingerprint for lead in container.queue.queue()]
+    asyncio.run(wf.step(fps[0], 1))  # now on the 2nd customer
+    after = asyncio.run(wf.skip(fps[1], "today"))
+    expected = fps[2] if len(fps) > 2 else fps[0]
+    assert after["lead"]["fingerprint"] == expected  # not back to the top

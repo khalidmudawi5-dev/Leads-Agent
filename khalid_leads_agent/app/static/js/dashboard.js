@@ -91,7 +91,9 @@ Shortcuts.register([
   { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
   { code: "KeyW", label: "W", title: "رسالة واتساب للعميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !resultOpen(), run: () => clickIf("#btn-wa") },
   { code: "KeyP", label: "P", title: "نسخ رقم الجوال", group: "العميل الحالي", when: hasLead, run: copyPhone },
-  { code: "KeyN", label: "N", title: "العميل التالي (بعد الحفظ)", group: "العميل الحالي", when: nextVisible, run: goNext },
+  { code: "KeyN", label: "N", title: "العميل التالي (بالحالات المختارة)", group: "العميل الحالي", when: () => nextVisible() || (hasLead() && !S.manual && !resultOpen()),
+    run: () => (nextVisible() ? goNext() : stepLead(1)) },
+  { code: "KeyB", label: "B", title: "العميل السابق (بالحالات المختارة)", group: "العميل الحالي", when: () => hasLead() && !S.manual && !resultOpen(), run: () => stepLead(-1) },
   { code: "KeyR", label: "R", shift: true, title: "تحديث القائمة من Google Sheet", group: "عام", run: () => $("#btn-refresh-queue").click() },
   { code: "Slash", label: "/", shift: false, title: "البحث اليدوي في Odoo", group: "عام", run: () => { $("#manual-q").focus(); $("#manual-q").select(); } },
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ code: `Digit${n}`, label: String(n), title: n === 1 ? "اختيار النتيجة (1 … 6)" : "",
@@ -471,24 +473,39 @@ async function askWhatsApp(lead) {
   });
 }
 
+function showWaLink(url) {
+  Modal.open({
+    title: "فتح واتساب",
+    html: `<p>المتصفح منع فتح نافذة جديدة تلقائيًا. اضغط الزر لفتح الرسالة في واتساب:</p>
+      <a class="btn wa lg" href="${esc(url)}" target="_blank" rel="noopener" id="wa-open-link">${ICON.wa} فتح واتساب</a>
+      <p class="small muted" style="margin-top:10px">لتجنب هذه الخطوة: اسمح بالنوافذ المنبثقة (Pop-ups) لهذا العنوان من شريط المتصفح.</p>`,
+    buttons: [{ label: "إغلاق" }],
+    onOpen: (m) => { $("#wa-open-link", m).onclick = () => setTimeout(() => Modal.close(), 100); },
+  });
+}
+
+// Coming back from WhatsApp on the phone may show a cached old page: reload the current customer.
+window.addEventListener("pageshow", (ev) => { if (ev.persisted) location.reload(); });
+
 async function sendWhatsApp(lead, btn) {
   const body = { tel: $("#wa-tel").value.trim(), text: $("#wa-text").value, template: $("#wa-text").dataset.tpl || "",
                  log: $("#wa-log").checked, next: $("#wa-next").checked };
   // Open the tab now (inside the click) so the browser does not block it, then point it at WhatsApp.
   const win = S.remote ? null : window.open("about:blank", "_blank");
+  const wantNext = body.next;
   await withBusy(btn, async () => {
     let r;
     try { r = await api("POST", `/api/lead/${lead.fingerprint}/whatsapp`, body); }
     catch (e) { if (win) win.close(); $("#wa-msg").innerHTML = `<div class="alert error">${esc(e.message)}</div>`; return; }
-    if (win) win.location.href = r.url; else window.location.href = r.url;
     Modal.close();
+    if (r.next && wantNext) { render(r.next); loadFilter(); }
+    if (win) win.location.href = r.url;
+    else if (S.remote) setTimeout(() => { window.location.href = r.url; }, 150);  // phone: the WhatsApp app
+    else showWaLink(r.url);  // the browser blocked the new tab: keep this page, offer a link
     const logged = r.logged && !r.dry_run ? " وتم تسجيلها في Odoo والـSheet" : r.dry_run && r.logged ? " (Dry Run: لم تُسجَّل)" : "";
     (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
-    if (r.next) {
-      toast(`تم فتح واتساب${logged}. انتقلنا للعميل التالي (العميل السابق في «المتخطَّون» لليوم).`, "success", 6000);
-      render(r.next);
-      loadFilter();
-    } else toast(`تم فتح واتساب${logged}. بعد الإرسال سجّل النتيجة.`, "success", 6000);
+    if (r.next && wantNext) toast(`تم فتح واتساب${logged}. انتقلنا للعميل التالي (العميل السابق في «المتخطَّون» لليوم).`, "success", 6000);
+    else toast(`تم فتح واتساب${logged}. بعد الإرسال سجّل النتيجة.`, "success", 6000);
   });
 }
 
@@ -521,6 +538,7 @@ function renderFatal(e, retry) {
 function render(payload) {
   S.payload = payload;
   S.lead = payload.lead;
+  S.position = payload.position || S.position || null;
   renderStats(payload.stats);
   renderBanner(payload.stats);
   renderSession(payload.session);
@@ -585,7 +603,7 @@ function renderLead(lead) {
   $("#lead-card").innerHTML = `
     <div class="lead-hero"><div class="lead-head">
       <div class="lead-title"><div class="avatar">${initials(lead.company_name)}</div><div style="min-width:0">
-        <div class="row small" style="gap:6px"><span class="badge blue">صف ${lead.sheet_row} (مرجع فقط)</span>${statusBadge(lead.followup_status)}
+        <div class="row small" style="gap:6px">${posBadge()}<span class="badge blue">صف ${lead.sheet_row} (مرجع فقط)</span>${statusBadge(lead.followup_status)}
           ${o.stage ? `<span class="badge indigo">${esc(o.stage)}</span>` : ""}</div>
         <h2 class="lead-name">${esc(lead.company_name || "(بدون اسم)")}</h2>
         <div class="lead-phone"><span class="ltr">${esc(lead.phone)}</span>
@@ -616,6 +634,9 @@ function renderLead(lead) {
       <button class="btn" id="btn-refresh">${ICON.refresh} تحديث <kbd>U</kbd></button>
       <span class="spacer"></span>
       <button class="btn ghost" id="btn-skip">${ICON.skip} تخطي مؤقتًا <kbd>S</kbd></button>
+      <span class="step-nav">
+        <button class="btn" id="btn-prev" title="العميل السابق بالحالات المختارة (B)">‹ السابق <kbd>B</kbd></button>
+        <button class="btn primary" id="btn-next" title="العميل التالي بالحالات المختارة — لا يُسجَّل شيء (N)">التالي › <kbd>N</kbd></button></span>
     </div>`;
   renderMatch(lead);
   const fp = lead.fingerprint;
@@ -628,7 +649,33 @@ function renderLead(lead) {
   $("#btn-research").onclick = () => searchOdoo();
   $("#btn-refresh").onclick = (ev) => withBusy(ev.currentTarget, () => refreshAll(fp));
   $("#btn-skip").onclick = () => askSkip(fp);
+  $("#btn-next").onclick = (ev) => stepLead(1, ev.currentTarget);
+  $("#btn-prev").onclick = (ev) => stepLead(-1, ev.currentTarget);
   $("#btn-result").onclick = () => openResultPanel();
+}
+
+function posBadge() {
+  const p = S.position;
+  if (!p || !p.total) return "";
+  return p.in_queue ? `<span class="badge indigo" title="ترتيبه بين العملاء بالحالات المختارة">${p.index} من ${p.total}</span>`
+    : `<span class="badge" title="العميل ليس ضمن الحالات المختارة">خارج الفلتر · ${p.total} بالانتظار</span>`;
+}
+
+/** «التالي / السابق»: browse the queue of the selected statuses; nothing is written anywhere. */
+async function stepLead(direction, btn) {
+  if (!S.lead || S.stepping) return;
+  if (resultOpen()) { toast("أغلق لوحة النتيجة أولًا (Esc) أو احفظها.", "warn"); return; }
+  if (S.call.startedAt) stopCall();
+  S.stepping = true;
+  try {
+    const run = async () => {
+      const r = await api("POST", `/api/lead/${S.lead.fingerprint}/step?direction=${direction}`);
+      render(r);
+      (r.warnings || []).forEach((w) => toast(w, "info", 3000));
+    };
+    if (btn) await withBusy(btn, run); else await run();
+  } catch (e) { toast(e.message, "error"); }
+  finally { S.stepping = false; }
 }
 
 function sourceBadge(lead) {

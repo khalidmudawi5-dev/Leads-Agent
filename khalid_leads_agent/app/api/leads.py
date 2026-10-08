@@ -74,6 +74,12 @@ async def queue_list(kind: str = "pending", c: AppContainer = Depends(container)
     return await c.workflow.queue_list(kind)
 
 
+@router.post("/lead/{fingerprint}/step")
+async def lead_step(fingerprint: str, direction: int = 1, c: AppContainer = Depends(container)) -> dict:
+    """Next (direction=1) or previous (-1) customer in the filtered queue; nothing is recorded."""
+    return await c.workflow.step(fingerprint, direction)
+
+
 @router.post("/lead/{fingerprint}/goto")
 async def lead_goto(fingerprint: str, c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.goto(fingerprint)

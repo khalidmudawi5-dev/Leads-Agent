@@ -84,6 +84,8 @@ class LeadWorkflowService:
         self.odoo = odoo
         self.mappings = mappings
         self._create_locks: dict[str, asyncio.Lock] = {}
+        # Where the current lead sat in the (filtered) queue, so «next» continues from there.
+        self._pos_hint: tuple[str, int] | None = None
         # (fingerprint, value) pairs already tried by the automatic source update: no repeated warnings.
         self._source_tried: set[tuple[str, str]] = set()
 
@@ -206,10 +208,21 @@ class LeadWorkflowService:
                 raise
             return [f"تعذر تحديث القائمة من Google Sheet؛ يتم استخدام آخر نسخة. ({exc.message_ar})"]
 
+    def _position(self, fingerprint: str | None) -> dict:
+        """Place of the lead in the queue of the selected statuses (for «السابق / التالي»)."""
+        queue = self.queue.queue() if self.queue.loaded else []
+        fps = [lead.fingerprint for lead in queue]
+        if fingerprint in fps:
+            index = fps.index(fingerprint)
+            self._pos_hint = (fingerprint, index)
+            return {"index": index + 1, "total": len(fps), "in_queue": True}
+        return {"index": 0, "total": len(fps), "in_queue": False}
+
     def _payload(self, fingerprint: str | None, warnings: list[str] | None = None) -> dict:
         sess = self.sessions.ensure()
         return {
             "lead": self.lead_view(fingerprint) if fingerprint else None,
+            "position": self._position(fingerprint),
             "done": fingerprint is None,
             "stats": self.stats(),
             "session": self.sessions.to_dict(sess),
@@ -234,7 +247,28 @@ class LeadWorkflowService:
             self.sessions.set_current(None, None)
             return self._payload(None, warnings)
         lead = queue[0]
+        hint = self._pos_hint
+        if hint and all(x.fingerprint != hint[0] for x in queue):
+            # The current lead just left the queue (result saved, skipped, WhatsApp): take the one after it.
+            lead = queue[min(hint[1], len(queue) - 1)]
         self.sessions.set_current(lead.fingerprint, lead.sheet_row)
+        return self._payload(lead.fingerprint, warnings)
+
+    async def step(self, fingerprint: str | None, direction: int) -> dict:
+        """«التالي» / «السابق»: move through the queue of the selected statuses without recording anything."""
+        if not self.queue.loaded:
+            await self._refresh(strict=False)
+        queue = self.queue.queue()
+        if not queue:
+            return self._payload(None)
+        fps = [lead.fingerprint for lead in queue]
+        if fingerprint in fps:
+            i = (fps.index(fingerprint) + (1 if direction >= 0 else -1)) % len(fps)
+        else:
+            i = 0 if direction >= 0 else len(fps) - 1
+        lead = queue[i]
+        self.sessions.set_current(lead.fingerprint, lead.sheet_row)
+        warnings = ["لا يوجد عميل آخر بالحالات المختارة."] if len(fps) == 1 and fingerprint == lead.fingerprint else []
         return self._payload(lead.fingerprint, warnings)
 
     async def skip(self, fingerprint: str, mode: str, reason: str = "") -> dict:

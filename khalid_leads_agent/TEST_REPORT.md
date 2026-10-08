@@ -1,5 +1,14 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 2.3.1 (2026-10-08): «التالي / السابق», WhatsApp → next fix
+
+**Result:** ✅ **174 passed, 1 skipped**.
+
+- Field report: after WhatsApp the page stayed on the same customer. Cause: when the browser blocks the new tab (or on the phone) the dashboard itself navigated to wa.me and coming back showed the cached old page. Now the next customer is rendered first, a «فتح واتساب» link is offered when the popup is blocked, and a cached page reloads on return.
+- `test_queue_and_session.py::test_step_next_and_previous_within_selected_statuses`: next / previous / wrap-around inside the selected statuses only; position `n من total`; remembered as current.
+- `test_queue_and_session.py::test_next_after_skip_continues_from_current_position`: after a skip (also used by WhatsApp) the following customer is shown, not the top of the list.
+- UI (mocks, Chromium): buttons and `N` / `B` keys; WhatsApp with a blocked popup keeps the dashboard and shows the next customer, also after reload; 0 JS errors.
+
 ## Update 2.3.0 (2026-10-08): customer report by status (Excel / PDF), one-line sheet notes, WhatsApp → next
 
 **Result:** ✅ **172 passed, 1 skipped** (display-only browser test).
