@@ -27,6 +27,9 @@ async function api(method, url, body) {
   }
   let data = {};
   try { data = await res.json(); } catch (e) { data = {}; }
+  if (res.status === 401 && data.error && data.error.code === "LOGIN_REQUIRED") {
+    window.location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+  }
   if (!res.ok) throw new ApiError(data.error, res.status);
   return data;
 }
@@ -206,14 +209,34 @@ Shortcuts.register([
 
 const ACTION_LABELS = {
   retry: "إعادة المحاولة", open_odoo: "فتح Odoo", skip: "تخطي", open_login: "فتح Odoo لتسجيل الدخول",
-  open_settings: "فتح الإعدادات", open_crm: "فتح CRM",
+  open_settings: "فتح الإعدادات", open_crm: "فتح CRM", reconnect_google: "إعادة ربط Google",
 };
+
+/** Sign in to Google again (expired / revoked token) without leaving the page; reloads when done. */
+async function reconnectGoogle(btn) {
+  try {
+    const st = await api("GET", "/api/status");
+    if (st.remote) { toast("إعادة ربط Google تتم من جهاز الكمبيوتر (تفتح صفحة Google هناك).", "warn", 8000); return; }
+    await api("POST", "/api/google/connect");
+  } catch (e) { toast(e.message, "error", 8000); return; }
+  toast("فُتحت صفحة Google في المتصفح: اختر حسابك ووافق، ثم ارجع هنا.", "info", 10000);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> بانتظار تسجيل الدخول في Google…'; }
+  for (let i = 0; i < 150; i++) {  // up to 5 minutes, like the sign-in page itself
+    await new Promise((r) => setTimeout(r, 2000));
+    let r;
+    try { r = await api("GET", "/api/google/connect-status"); } catch (e) { continue; }
+    if (r.flow && r.flow.done) { toast("تم ربط Google بنجاح", "success"); setTimeout(() => location.reload(), 800); return; }
+    if (r.flow && r.flow.error) { toast(r.flow.error, "error", 9000); break; }
+    if (r.flow && !r.flow.running) break;
+  }
+  if (btn) { btn.disabled = false; btn.textContent = ACTION_LABELS.reconnect_google; }
+}
 
 /** Render an Arabic error with action buttons into `container` (or a toast when none). */
 function showError(err, container, handlers = {}) {
   const message = err && err.message ? err.message : "حدث خطأ غير متوقع.";
   if (!container) { toast(message, "error", 6000); return; }
-  const actions = (err.actions || []).filter((a) => handlers[a] || a === "open_settings" || a === "open_login");
+  const actions = (err.actions || []).filter((a) => handlers[a] || ["open_settings", "open_login", "reconnect_google"].includes(a));
   container.innerHTML = `<div class="alert error"><div><b>${esc(message)}</b></div>
     ${actions.length ? `<div class="actions">${actions.map((a) => `<button class="btn sm" data-act="${a}">${ACTION_LABELS[a] || a}</button>`).join("")}</div>` : ""}</div>`;
   $$("button[data-act]", container).forEach((b) => {
@@ -221,6 +244,7 @@ function showError(err, container, handlers = {}) {
       const act = b.dataset.act;
       if (handlers[act]) return handlers[act]();
       if (act === "open_settings") location.href = "/settings";
+      if (act === "reconnect_google") return reconnectGoogle(b);
       if (act === "open_login") { try { await api("POST", "/api/odoo/open-login"); toast("تم فتح Odoo. سجّل الدخول ثم اضغط تحقق.", "info"); } catch (e) { toast(e.message, "error"); } }
     };
   });
@@ -319,7 +343,7 @@ const Reminders = {
         o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.12);
       });
     } catch (e) { /* no sound before the first click: fine */ }
-    if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+    if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate([150, 80, 150]);
   },
   show(item) {
     this.mark(item.key, Date.now() + this.REPEAT_MS);

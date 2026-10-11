@@ -193,11 +193,12 @@ def make_app(state: FakeOdooState) -> FastAPI:
         elif model == "crm.stage" and method == "search_read":
             result = [{"id": i, "name": n, "sequence": i} for i, n in STAGES.items()]
         elif model == "crm.lead" and method == "write":
-            for i in args[0]:
-                vals = args[1]
+            ids, vals = args[0], dict(args[1])
+            for i in ids:
                 if "stage_id" in vals and i in state.leads:
                     state.leads[i]["stage_id"] = [vals["stage_id"], STAGES[vals["stage_id"]]]
-                    state.leads[i]["write_date"] = state.now()
+                state.leads[i].update({k: v for k, v in vals.items() if k != "stage_id"})
+                state.leads[i]["write_date"] = state.now()
             result = True
         elif model == "crm.lead" and method == "message_post":
             state.rpc_log_notes += 1

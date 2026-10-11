@@ -21,6 +21,7 @@ from app.services.customer_report_service import CustomerReportService
 from app.services.report_service import ReportService
 from app.services.settings_service import SettingsService
 from app.services.sync_service import SyncService
+from app.services.attachment_service import AttachmentService
 from app.services.whatsapp_service import WhatsAppService
 
 
@@ -95,7 +96,7 @@ def build_container(
     sync = SyncService(db, sheets, odoo)
     results = ResultService(db, settings, mappings, sync, sessions)
     workflow = LeadWorkflowService(db, settings, sheets, queue, sessions, odoo, mappings)
-    whatsapp = WhatsAppService(db, settings, sync)
+    whatsapp = WhatsAppService(db, settings, sync, AttachmentService(env.data_path / "attachments"))
     return AppContainer(env, db, settings, auth, sheets, odoo, sessions, queue, mappings, sync, results, workflow,
                         followups, whatsapp, ReportService(db, mappings),
                         CustomerReportService(db, settings, queue, odoo))

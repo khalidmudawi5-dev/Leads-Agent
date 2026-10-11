@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import traceback
 from contextlib import asynccontextmanager
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -16,7 +16,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.config import PROJECT_ROOT, EnvSettings
 from app.container import AppContainer, build_container
 from app.errors import AgentError
-from app.remote_access import COOKIE, COOKIE_MAX_AGE, LOCAL_ONLY_PATHS, PUBLIC_PATHS, RemoteAccess, is_loopback, is_tailscale, valid_pin
+from app.remote_access import COOKIE, COOKIE_MAX_AGE, LOCAL_ONLY_PATHS, LOCAL_OPEN_PATHS, PUBLIC_PATHS, RemoteAccess, is_loopback, is_tailscale, valid_pin
+from app.login_service import COOKIE as LOGIN_COOKIE, LoginService
 from app.repositories.log_repo import LogRepository
 from app.utils.logging import setup_logging
 
@@ -55,59 +56,104 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
     app.state.templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
     app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 
+    login = LoginService(env.data_path)
+    app.state.login = login
+    app.state.templates.env.globals["login_enabled"] = lambda: login.enabled
     remote = None
     if env.remote_access:
-        if valid_pin(env.access_pin):
+        if valid_pin(env.access_pin) or login.enabled:
             remote = RemoteAccess(env.access_pin, env.data_path / "remote-secret.bin")
-            log.info("Remote access over Tailscale is ON (PIN protected)")
+            log.info("Remote access over Tailscale is ON (%s)", "sign-in" if login.enabled else "PIN protected")
         else:
-            log.error("REMOTE_ACCESS=true ignored: ACCESS_PIN must be at least 6 digits")
+            log.error("REMOTE_ACCESS=true ignored: set ACCESS_PIN (6+ digits) or a sign-in password")
     app.state.remote = remote
 
     # Remote mode is reached by Tailscale IP or name: the client-address check below replaces the host list.
     hosts = allowed_hosts or (["*"] if remote else ["127.0.0.1", "localhost"])
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
-    @app.middleware("http")
-    async def remote_guard(request: Request, call_next):
-        """PC (loopback): as before. Tailscale devices: PIN cookie required. Anything else: refused."""
-        client = request.client.host if request.client else ""
-        if remote is None:
-            return await call_next(request)
-        if is_loopback(client):
-            # The PC keeps the local-only host check (blocks DNS-rebinding pages in the PC's browser).
-            if request.url.hostname not in ("127.0.0.1", "localhost"):
-                return PlainTextResponse("Forbidden", status_code=403)
-            return await call_next(request)
-        path = request.url.path
-        if not is_tailscale(client) or path.startswith(LOCAL_ONLY_PATHS):
-            log.warning("Refused %s %s from %s", request.method, path, client)
-            return PlainTextResponse("Forbidden", status_code=403)
-        if path.startswith(PUBLIC_PATHS) or remote.authenticated(request.cookies.get(COOKIE)):
-            return await call_next(request)
+    def _need_login(path: str, message: str):
         if path.startswith("/api/"):
-            return JSONResponse({"error": {"code": "LOGIN_REQUIRED", "message": "أدخل رمز الدخول (PIN) أولًا.",
-                                           "actions": []}}, status_code=401)
-        return RedirectResponse("/login", status_code=303)
+            return JSONResponse({"error": {"code": "LOGIN_REQUIRED", "message": message, "actions": []}}, status_code=401)
+        nxt = path if path.startswith("/") and not path.startswith("//") else "/"
+        return RedirectResponse(f"/login?next={quote(nxt)}", status_code=303)
+
+    @app.middleware("http")
+    async def access_guard(request: Request, call_next):
+        """Who may use the agent.
+
+        * PC (loopback): free, unless a sign-in password is set (then the login cookie is needed, except
+          for the stop/version endpoints the .bat files call).
+        * Tailscale devices (remote access on): sign-in cookie, or the PIN cookie when no password is set.
+        * Anything else: refused.
+        """
+        client = request.client.host if request.client else ""
+        path = request.url.path
+        local = is_loopback(client)
+        if remote is not None and local and request.url.hostname not in ("127.0.0.1", "localhost"):
+            # The PC keeps the local-only host check (blocks DNS-rebinding pages in the PC's browser).
+            return PlainTextResponse("Forbidden", status_code=403)
+        if not local:
+            if remote is None:
+                return await call_next(request)  # only reachable in tests (the server listens on 127.0.0.1)
+            if not is_tailscale(client) or path.startswith(LOCAL_ONLY_PATHS):
+                log.warning("Refused %s %s from %s", request.method, path, client)
+                return PlainTextResponse("Forbidden", status_code=403)
+        if path.startswith(PUBLIC_PATHS) or (local and path.startswith(LOCAL_OPEN_PATHS)):
+            return await call_next(request)
+        if login.enabled:
+            if login.authenticated(request.cookies.get(LOGIN_COOKIE)):
+                return await call_next(request)
+            return _need_login(path, "سجّل الدخول أولًا.")
+        if local or remote.authenticated(request.cookies.get(COOKIE)):
+            return await call_next(request)
+        return _need_login(path, "أدخل رمز الدخول (PIN) أولًا.")
+
+    def _safe_next(value: str) -> str:
+        return value if value.startswith("/") and not value.startswith("//") and "\\" not in value else "/"
 
     @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
-    async def login_page(request: Request, error: str = ""):
-        return app.state.templates.TemplateResponse(request, "login.html", {"error": error, "version": VERSION})
+    async def login_page(request: Request, error: str = "", next: str = "/"):
+        mode = "password" if login.enabled else "pin" if remote is not None else ""
+        if not mode:
+            return RedirectResponse("/", status_code=303)
+        return app.state.templates.TemplateResponse(
+            request, "login.html", {"error": error, "version": VERSION, "mode": mode, "next": _safe_next(next),
+                                    "username": login.username if is_loopback(request.client.host if request.client else "") else ""})
 
     @app.post("/login", include_in_schema=False)
     async def login_submit(request: Request):
+        client = request.client.host if request.client else ""
+        form = parse_qs((await request.body()).decode("utf-8", "replace"))
+        field = lambda k: form.get(k, [""])[0]  # noqa: E731
+        nxt = _safe_next(field("next") or "/")
+        back = f"&next={quote(nxt)}"
+        if login.enabled:
+            wait = login.locked_for(client)
+            if wait:
+                return RedirectResponse(f"/login?error=locked{wait // 60 + 1}{back}", status_code=303)
+            if not login.check(client, field("username"), field("password")):
+                return RedirectResponse(f"/login?error=wrong{back}", status_code=303)
+            value, ttl = login.token(remember=field("remember") == "1")
+            resp = RedirectResponse(nxt, status_code=303)
+            resp.set_cookie(LOGIN_COOKIE, value, max_age=ttl if field("remember") == "1" else None,
+                            httponly=True, samesite="strict")
+            return resp
         if remote is None:
             return RedirectResponse("/", status_code=303)
-        client = request.client.host if request.client else ""
         wait = remote.locked_for(client)
         if wait:
-            return RedirectResponse(f"/login?error=locked{wait // 60 + 1}", status_code=303)
-        form = (await request.body()).decode("utf-8", "replace")
-        pin = parse_qs(form).get("pin", [""])[0]
-        if not remote.check_pin(client, pin):
-            return RedirectResponse("/login?error=wrong", status_code=303)
-        resp = RedirectResponse("/", status_code=303)
+            return RedirectResponse(f"/login?error=locked{wait // 60 + 1}{back}", status_code=303)
+        if not remote.check_pin(client, field("pin")):
+            return RedirectResponse(f"/login?error=wrong{back}", status_code=303)
+        resp = RedirectResponse(nxt, status_code=303)
         resp.set_cookie(COOKIE, remote.token(), max_age=COOKIE_MAX_AGE, httponly=True, samesite="strict")
+        return resp
+
+    @app.post("/logout", include_in_schema=False)
+    async def logout():
+        resp = RedirectResponse("/login", status_code=303)
+        resp.delete_cookie(LOGIN_COOKIE)
         return resp
 
     @app.middleware("http")
@@ -144,8 +190,9 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
                                        "message": "حدث خطأ غير متوقع. تم تسجيل التفاصيل في ملف السجل (logs/agent.log).",
                                        "actions": ["retry"]}}, status_code=500)
 
-    from app.api import diagnostics_api, history_api, leads, pages, reports_api, settings_api
+    from app.api import auth_api, diagnostics_api, history_api, leads, pages, reports_api, settings_api
 
+    app.include_router(auth_api.router)
     app.include_router(leads.router)
     app.include_router(settings_api.router)
     app.include_router(history_api.router)

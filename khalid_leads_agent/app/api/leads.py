@@ -8,7 +8,7 @@ from app.container import AppContainer
 from app.errors import AgentError
 from app.remote_access import is_loopback
 from app.version import VERSION
-from app.schemas.api import CallIn, CreateLeadIn, WhatsAppIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
+from app.schemas.api import CallIn, CreateLeadIn, LinkOdooIn, WhatsAppIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
 
 router = APIRouter(prefix="/api")
 
@@ -116,6 +116,12 @@ async def lead_select(fingerprint: str, body: SelectCandidateIn, c: AppContainer
     return await c.workflow.select_candidate(fingerprint, body.odoo_id, body.ui_index, body.ui_query)
 
 
+@router.post("/lead/{fingerprint}/link")
+async def lead_link(fingerprint: str, body: LinkOdooIn, c: AppContainer = Depends(container)) -> dict:
+    """Link the customer in front of the user to a lead they found in Odoo (optionally adding the number)."""
+    return await c.workflow.link_to_odoo(fingerprint, body.odoo_id, body.ui_index, body.ui_query, body.add_phone)
+
+
 @router.post("/lead/{fingerprint}/create-odoo")
 async def lead_create_odoo(fingerprint: str, body: CreateLeadIn, c: AppContainer = Depends(container)) -> dict:
     """Add a customer missing from Odoo as a new opportunity/lead (after a fresh duplicate check)."""
@@ -129,13 +135,17 @@ def lead_whatsapp_options(fingerprint: str, c: AppContainer = Depends(container)
 
 
 @router.post("/lead/{fingerprint}/whatsapp")
-async def lead_whatsapp(fingerprint: str, body: WhatsAppIn, c: AppContainer = Depends(container)) -> dict:
+async def lead_whatsapp(fingerprint: str, body: WhatsAppIn, request: Request,
+                       c: AppContainer = Depends(container)) -> dict:
     """Returns the wa.me link (the page opens it) and records the message in Odoo/Sheet when enabled.
+    With an attachment, the file goes on this PC's clipboard (not when the request comes from the phone).
 
     With auto-next the customer is skipped for today (listed in «المتخطَّون», restorable) and the next
     customer is returned in ``next``.
     """
-    res = await c.whatsapp.send(fingerprint, body.tel, body.text, body.template, body.log)
+    local = is_loopback(request.client.host if request.client else "")
+    res = await c.whatsapp.send(fingerprint, body.tel, body.text, body.template, body.log,
+                                file_id=body.file, file_name=body.file_name, clipboard=local and body.agent_copy)
     if c.settings.get().whatsapp_auto_next if body.next is None else body.next:
         res["next"] = await c.workflow.skip(fingerprint, "today", "تم إرسال رسالة واتساب")
     return res

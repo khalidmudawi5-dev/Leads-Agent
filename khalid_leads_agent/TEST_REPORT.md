@@ -1,15 +1,17 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
-## Update 2.4.0 (2026-10-11): quick notes, Odoo stage per result, follow-up reminders, report → queue, day summary
+## Update 2.7.0 (2026-10-11): merged with 2.6.0 (other session) + quick notes, Odoo stage per result, follow-up reminders, report → queue, day summary
 
-**Result:** ✅ **182 passed, 1 skipped**.
+**Result:** ✅ **208 passed, 1 skipped** (after merging 2.6.0: login, WhatsApp attachments, follow-up as an action, link to another lead).
+
+- Merge notes: WhatsApp keeps both the attachment flow and auto-next; when the browser blocks the WhatsApp tab and a file is attached, the attachment dialog offers «فتح واتساب». The lead card's «التالي» button got its own id (`btn-step-next`) so the «العميل التالي» button shown after a save works again. Reminders now also cover follow-ups scheduled with any result.
 
 - `test_results.py::test_result_moves_odoo_stage` / `test_stage_not_changed_in_dry_run`: mapped stage applied after the note; unknown stage → warning while the note and sheet still succeed; per-save opt-out; Dry Run changes nothing.
 - `test_browser_adapter.py::test_set_stage_via_rpc` (real Chromium + fake Odoo): stages listed in order, case-insensitive match, no write when already there, unknown stage message.
 - `test_reminders.py`: reminder inside the lead time, not before; date-only uses the default time; upcoming not reminded; switch off; time validation; day summary numbers / interested / tomorrow / text; quick notes and stage-mapping validation; a report status list becomes the queue starting from its first customer.
 - UI (mocks, Chromium): quick-note chips fill the note; write summary shows «مرحلة Odoo ← …»; reminder card appears after a due follow-up and opens the customer; day summary modal; Status Mapping shows stage selects from Odoo; «ابدأ الاتصال» sets the filter and opens the first customer; 0 JS errors.
 
-## Update 2.3.1 (2026-10-08): «التالي / السابق», WhatsApp → next fix
+## Update 2.7.0-b (2026-10-08): «التالي / السابق», WhatsApp → next fix
 
 **Result:** ✅ **174 passed, 1 skipped**.
 
@@ -18,7 +20,7 @@
 - `test_queue_and_session.py::test_next_after_skip_continues_from_current_position`: after a skip (also used by WhatsApp) the following customer is shown, not the top of the list.
 - UI (mocks, Chromium): buttons and `N` / `B` keys; WhatsApp with a blocked popup keeps the dashboard and shows the next customer, also after reload; 0 JS errors.
 
-## Update 2.3.0 (2026-10-08): customer report by status (Excel / PDF), one-line sheet notes, WhatsApp → next
+## Update 2.7.0-a (2026-10-08): customer report by status (Excel / PDF), one-line sheet notes, WhatsApp → next
 
 **Result:** ✅ **172 passed, 1 skipped** (display-only browser test).
 

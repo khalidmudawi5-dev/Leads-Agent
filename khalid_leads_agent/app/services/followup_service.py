@@ -37,7 +37,7 @@ class LeadOutcome:
 
     def followup_state(self, today: date) -> str:
         """due | overdue | upcoming | "" (no open follow-up)."""
-        d = self.followup_date if self.last_code == "FOLLOW_UP" else None
+        d = self.followup_date if self.followup_at else None
         if d is None:
             return ""
         return "overdue" if d < today else "due" if d == today else "upcoming"
@@ -71,11 +71,12 @@ class FollowupService:
         if o is None:
             return None
         s = self.settings.get()
+        if o.followup_at and o.followup_date:  # a scheduled follow-up decides when the customer returns
+            if s.hide_future_followups and o.followup_date > localnow().date():
+                return datetime.max
+            return None
         if o.last_code == "NO_ANSWER" and s.no_answer_retry_hours:
             return o.last_at + timedelta(hours=s.no_answer_retry_hours)
-        if o.last_code == "FOLLOW_UP" and s.hide_future_followups and o.followup_date:
-            if o.followup_date > localnow().date():
-                return datetime.max
         return None
 
     def comes_back(self, o: LeadOutcome | None) -> bool:

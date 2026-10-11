@@ -27,7 +27,7 @@ const ICON = {
 const KIND_LABEL = { note: "ملاحظة داخلية", message: "رسالة", email: "بريد", tracking: "تغيير", system: "نظام" };
 const FILTERS = [["all", "الكل"], ["note", "الملاحظات"], ["message", "الرسائل"], ["tracking", "التغييرات"]];
 const PHONE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>';
-const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", "phone+company": "الهاتف + اسم المنشأة", company_exact: "اسم المنشأة (مطابق)", user_choice: "اختيار يدوي" };
+const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", "phone+company": "الهاتف + اسم المنشأة", company_exact: "اسم المنشأة (مطابق)", user_choice: "اختيار يدوي", user_link: "ربط يدوي" };
 
 // ------------------------------------------------------------------ boot
 document.addEventListener("DOMContentLoaded", init);
@@ -101,6 +101,7 @@ Shortcuts.register([
   { code: "KeyU", label: "U", title: "تحديث من Google Sheet (عملاء جدد + بيانات العميل)", group: "العميل الحالي", when: () => !S.manual && !resultOpen(),
     run: () => { if ($("#btn-refresh")) clickIf("#btn-refresh"); else clickIf("#btn-refresh-queue"); } },
   { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
+  { code: "KeyL", label: "L", title: "ربط العميل بعميل وجدته في Odoo (بحث بالاسم أو الرقم)", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-link"), run: () => clickIf("#btn-link") },
   { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
   { code: "KeyW", label: "W", title: "رسالة واتساب للعميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !resultOpen(), run: () => clickIf("#btn-wa") },
   { code: "KeyP", label: "P", title: "نسخ رقم الجوال", group: "العميل الحالي", when: hasLead, run: copyPhone },
@@ -396,8 +397,13 @@ function renderGoal(st) {
   const reached = done >= goal;
   box.classList.toggle("done", reached);
   box.setAttribute("aria-valuemax", goal); box.setAttribute("aria-valuenow", done);
-  box.innerHTML = `<span class="g-label">هدف اليوم</span><span class="g-track"><span class="g-fill" style="width:${pctDone}%"></span></span>
-    <span class="g-num">${done} / ${goal} ${reached ? "🎉 تم تحقيق الهدف" : `(${pctDone}%)`}</span>`;
+  if (!$(".g-fill", box)) {
+    box.innerHTML = `<span class="g-label">هدف اليوم</span><span class="g-track"><span class="g-fill"></span></span><span class="g-num"></span>`;
+  }
+  // Keep the same element so the bar grows smoothly from its previous width on every save.
+  const fill = $(".g-fill", box);
+  requestAnimationFrame(() => { fill.style.width = `${done > 0 ? Math.max(pctDone, 2) : 0}%`; });
+  $(".g-num", box).textContent = `${done} / ${goal} ${reached ? "🎉 تم تحقيق الهدف" : `(${pctDone}%)`}`;
   if (reached && S.goalShown !== new Date().toDateString()) {
     if (S.goalShown !== undefined) toast(`أحسنت! وصلت لهدف اليوم (${goal}).`, "success", 6000);
     S.goalShown = new Date().toDateString();
@@ -465,6 +471,7 @@ async function askWhatsApp(lead) {
         <input type="text" inputmode="tel" id="wa-tel" class="ltr" value="${esc(nums[0] ? nums[0].raw : "")}"></label>
       ${tpls.length ? `<div class="field"><span>القالب</span><div class="row" style="gap:6px;flex-wrap:wrap">${tpls.map((tp, i) => `<button type="button" class="btn sm ${i === 0 ? "primary" : ""}" data-tpl="${i}">${esc(tp.name || "قالب " + (i + 1))}</button>`).join("")}</div></div>` : ""}
       <label class="field"><span>نص الرسالة (يمكنك تعديله)</span><textarea id="wa-text" rows="6">${esc(tpls[0] ? tpls[0].text : "")}</textarea></label>
+      <div id="wa-file"></div>
       <label class="check"><input type="checkbox" id="wa-log" ${o.log ? "checked" : ""}> تسجيل الرسالة في Odoo (Log note) وملاحظات Google Sheet</label>
       <label class="check"><input type="checkbox" id="wa-next" ${o.auto_next ? "checked" : ""}> الانتقال للعميل التالي بعد الإرسال</label>
       <div class="small muted">سيفتح واتساب والرسالة جاهزة؛ اضغط «إرسال» داخل واتساب.</div><div id="wa-msg"></div>`,
@@ -472,6 +479,7 @@ async function askWhatsApp(lead) {
     onOpen: (m) => {
       let tplName = tpls[0] ? tpls[0].name : "";
       $("#wa-text", m).dataset.tpl = tplName;
+      renderWaFile(tpls[0] && tpls[0].file);
       $$("[data-num]", m).forEach((b) => b.onclick = () => {
         $$("[data-num]", m).forEach((x) => x.classList.toggle("primary", x === b));
         $("#wa-tel", m).value = nums[+b.dataset.num].raw;
@@ -481,6 +489,7 @@ async function askWhatsApp(lead) {
         const tp = tpls[+b.dataset.tpl];
         $("#wa-text", m).value = tp.text;
         $("#wa-text", m).dataset.tpl = tp.name;
+        renderWaFile(tp.file);
       });
     },
   });
@@ -500,9 +509,84 @@ function showWaLink(url) {
 // Coming back from WhatsApp on the phone may show a cached old page: reload the current customer.
 window.addEventListener("pageshow", (ev) => { if (ev.persisted) location.reload(); });
 
+/** The template's image/PDF in the WhatsApp dialog (with a switch to leave it out this time). */
+function renderWaFile(file) {
+  const box = $("#wa-file");
+  if (!box) return;
+  box.dataset.id = file ? file.id : ""; box.dataset.name = file ? file.name : "";
+  box.dataset.kind = file ? file.kind : ""; box.dataset.url = file ? file.url : "";
+  box.innerHTML = file ? `<div class="wa-file"><span class="file-chip">
+      <a class="fc-thumb" href="${esc(file.url)}" target="_blank" rel="noopener" title="عرض">${file.kind === "image" ? `<img src="${esc(file.url)}" alt="">` : "<b style='font-size:.7rem'>PDF</b>"}</a>
+      <span class="fc-name" title="${esc(file.name)}">${esc(file.name)}</span></span>
+      <label class="check" style="margin:0"><input type="checkbox" id="wa-attach" checked> إرفاق ${file.kind === "image" ? "الصورة" : "الملف"}</label></div>` : "";
+}
+
+/** The picture as PNG (the only image type browsers can put on the clipboard). */
+async function pngBlob(url) {
+  const blob = await (await fetch(url)).blob();
+  if (blob.type === "image/png") return blob;
+  const bmp = await createImageBitmap(blob);
+  const canvas = Object.assign(document.createElement("canvas"), { width: bmp.width, height: bmp.height });
+  canvas.getContext("2d").drawImage(bmp, 0, 0);
+  return new Promise((ok, fail) => canvas.toBlob((b) => b ? ok(b) : fail(new Error("png")), "image/png"));
+}
+
+/** Put the picture itself on the clipboard (WhatsApp pastes it like a screenshot). Must run inside a click. */
+async function copyPicture(url) {
+  if (S.remote || !navigator.clipboard || !window.ClipboardItem) return false;
+  try { await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob(url) })]); return true; }
+  catch (e) { return false; }
+}
+
+/** After WhatsApp opens: how to add the file (Ctrl+V on this PC, or download/share on the phone). */
+function waFileSteps(file) {
+  const what = file.kind === "image" ? "الصورة" : "ملف الـPDF";
+  const dl = `${file.url}?download=1&name=${encodeURIComponent(file.name)}`;
+  const steps = file.copied
+    ? `<div class="alert success">تم نسخ ${what} «${esc(file.name)}» ✔</div>
+       <ol class="wa-steps"><li>انتظر حتى تفتح المحادثة في واتساب والرسالة مكتوبة.</li>
+         <li>اضغط داخل المحادثة <kbd class="ltr">Ctrl</kbd>+<kbd class="ltr">V</kbd> فيظهر ${what} للإرسال.</li>
+         <li>اضغط «إرسال». إذا بقي النص في خانة الكتابة أرسله أيضًا.</li></ol>`
+    : `<ol class="wa-steps"><li>${S.remote ? "حمّل" : "افتح أو حمّل"} ${what} من الزر بالأسفل.</li>
+         <li>في محادثة واتساب اضغط 📎 (إرفاق) واختر الملف ثم «إرسال».</li></ol>`;
+  const canShare = !file.copied && navigator.canShare;
+  Modal.open({
+    title: `إرفاق ${what} في واتساب`,
+    html: steps,
+    buttons: [
+      ...(file.waUrl ? [{ label: "فتح واتساب", cls: "wa", onClick: () => window.open(file.waUrl, "_blank", "noopener") }] : []),
+      ...(!S.remote ? [{ label: file.copied ? "نسخ مرة أخرى" : `نسخ ${what}`, onClick: async () => {
+        let ok = file.kind === "image" && await copyPicture(file.url);
+        if (!ok) { try { ok = (await api("POST", `/api/attachments/${file.id}/copy`)).copied; } catch (e) { ok = false; } }
+        toast(ok ? "تم النسخ. اضغط Ctrl+V داخل محادثة واتساب." : "تعذر النسخ؛ استخدم «تحميل الملف» وأرفقه من 📎.", ok ? "success" : "warn", 6000);
+      } }] : []),
+      ...(!file.copied ? [{ label: "تحميل الملف", onClick: () => { window.location.href = dl; } }] : []),
+      ...(canShare ? [{ label: "مشاركة إلى واتساب", onClick: () => shareWaFile(file) }] : []),
+      { label: "تم", cls: "primary" },
+    ],
+  });
+}
+
+async function shareWaFile(file) {
+  try {
+    const blob = await (await fetch(file.url)).blob();
+    const f = new File([blob], file.name, { type: blob.type });
+    if (!navigator.canShare({ files: [f] })) throw new Error("share");
+    await navigator.share({ files: [f] });
+  } catch (e) {
+    if (e && e.name !== "AbortError") toast("المشاركة غير متاحة هنا؛ استخدم «تحميل الملف».", "warn");
+  }
+}
+
 async function sendWhatsApp(lead, btn) {
+  const fileBox = $("#wa-file");
+  const withFile = fileBox && fileBox.dataset.id && $("#wa-attach") && $("#wa-attach").checked;
+  // A picture is copied by this page first (still inside the click, before WhatsApp takes the focus);
+  // a PDF, or a picture the browser could not copy, is copied by the agent.
+  const pictureCopied = withFile && fileBox.dataset.kind === "image" && await copyPicture(fileBox.dataset.url);
   const body = { tel: $("#wa-tel").value.trim(), text: $("#wa-text").value, template: $("#wa-text").dataset.tpl || "",
-                 log: $("#wa-log").checked, next: $("#wa-next").checked };
+                 log: $("#wa-log").checked, next: $("#wa-next").checked,
+                 ...(withFile ? { file: fileBox.dataset.id, file_name: fileBox.dataset.name, agent_copy: !pictureCopied } : {}) };
   // Open the tab now (inside the click) so the browser does not block it, then point it at WhatsApp.
   const win = S.remote ? null : window.open("about:blank", "_blank");
   const wantNext = body.next;
@@ -514,11 +598,12 @@ async function sendWhatsApp(lead, btn) {
     if (r.next && wantNext) { render(r.next); loadFilter(); }
     if (win) win.location.href = r.url;
     else if (S.remote) setTimeout(() => { window.location.href = r.url; }, 150);  // phone: the WhatsApp app
-    else showWaLink(r.url);  // the browser blocked the new tab: keep this page, offer a link
+    else if (!r.file) showWaLink(r.url);  // the browser blocked the new tab: keep this page, offer a link
     const logged = r.logged && !r.dry_run ? " وتم تسجيلها في Odoo والـSheet" : r.dry_run && r.logged ? " (Dry Run: لم تُسجَّل)" : "";
     (r.warnings || []).forEach((w) => toast(w, "warn", 8000));
     if (r.next && wantNext) toast(`تم فتح واتساب${logged}. انتقلنا للعميل التالي (العميل السابق في «المتخطَّون» لليوم).`, "success", 6000);
     else toast(`تم فتح واتساب${logged}. بعد الإرسال سجّل النتيجة.`, "success", 6000);
+    if (r.file) waFileSteps({ ...r.file, copied: r.file.copied || pictureCopied, waUrl: !win && !S.remote ? r.url : "" });
   });
 }
 
@@ -648,8 +733,8 @@ function renderLead(lead) {
       <span class="spacer"></span>
       <button class="btn ghost" id="btn-skip">${ICON.skip} تخطي مؤقتًا <kbd>S</kbd></button>
       <span class="step-nav">
-        <button class="btn" id="btn-prev" title="العميل السابق بالحالات المختارة (B)">‹ السابق <kbd>B</kbd></button>
-        <button class="btn primary" id="btn-next" title="العميل التالي بالحالات المختارة — لا يُسجَّل شيء (N)">التالي › <kbd>N</kbd></button></span>
+        <button class="btn" id="btn-step-prev" title="العميل السابق بالحالات المختارة (B)">‹ السابق <kbd>B</kbd></button>
+        <button class="btn primary" id="btn-step-next" title="العميل التالي بالحالات المختارة — لا يُسجَّل شيء (N)">التالي › <kbd>N</kbd></button></span>
     </div>`;
   renderMatch(lead);
   const fp = lead.fingerprint;
@@ -662,8 +747,8 @@ function renderLead(lead) {
   $("#btn-research").onclick = () => searchOdoo();
   $("#btn-refresh").onclick = (ev) => withBusy(ev.currentTarget, () => refreshAll(fp));
   $("#btn-skip").onclick = () => askSkip(fp);
-  $("#btn-next").onclick = (ev) => stepLead(1, ev.currentTarget);
-  $("#btn-prev").onclick = (ev) => stepLead(-1, ev.currentTarget);
+  $("#btn-step-next").onclick = (ev) => stepLead(1, ev.currentTarget);
+  $("#btn-step-prev").onclick = (ev) => stepLead(-1, ev.currentTarget);
   $("#btn-result").onclick = () => openResultPanel();
 }
 
@@ -705,29 +790,35 @@ function renderMatch(lead) {
   const st = lead.match_status;
   if (st === "matched") {
     area.innerHTML = `<div class="alert success">تمت المطابقة مع Odoo: <b>${esc((lead.odoo || {}).name || "")}</b>
-      ${lead.odoo && lead.odoo.salesperson ? ` · المسؤول: ${esc(lead.odoo.salesperson)}` : ""}</div>`;
+      ${lead.odoo && lead.odoo.salesperson ? ` · المسؤول: ${esc(lead.odoo.salesperson)}` : ""}
+      <button class="linklike" id="btn-link" title="ربط بعميل آخر في Odoo (L)">تغيير العميل المربوط</button></div>`;
+    $("#btn-link").onclick = () => askLinkOdoo(lead);
   } else if (st === "multiple" && WEAK_MATCH.includes(lead.match_strategy)) {
     area.innerHTML = `<div class="alert error"><b>هذا العميل غير موجود في Odoo</b>
       <div class="small">لا يوجد Lead بنفس رقم الجوال أو نفس اسم المنشأة. وجدنا ${(lead.candidates || []).length} ${(lead.candidates || []).length > 2 ? "أسماء مشابهة" : "اسم مشابه"} فقط — تأكد أنه ليس منها، أو أضفه إلى Odoo.</div>
       <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة العميل إلى Odoo <kbd>A</kbd></button>
-      <button class="btn sm" id="btn-choose">عرض الأسماء المشابهة</button><button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
+      <button class="btn sm" id="btn-link">🔗 ربط بعميل في Odoo <kbd>L</kbd></button><button class="btn sm" id="btn-choose">عرض الأسماء المشابهة</button><button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
     $("#btn-create").onclick = () => askCreateLead(lead);
+    $("#btn-link").onclick = () => askLinkOdoo(lead);
     $("#btn-choose").onclick = () => chooseCandidate(lead);
     $("#btn-skip2").onclick = () => askSkip(lead.fingerprint);
   } else if (st === "multiple") {
     area.innerHTML = `<div class="alert warn"><b>وجدنا أكثر من عميل محتمل في Odoo.</b> لن يتم الاختيار تلقائيًا.
       <div class="actions"><button class="btn primary sm" id="btn-choose">اختيار العميل الصحيح</button>
-      <button class="btn sm" id="btn-create">${ICON.plus} ليس منهم؟ إضافته كعميل جديد</button></div></div>`;
+      <button class="btn sm" id="btn-link">🔗 ربط بعميل في Odoo <kbd>L</kbd></button><button class="btn sm" id="btn-create">${ICON.plus} ليس منهم؟ إضافته كعميل جديد</button></div></div>`;
+    $("#btn-link").onclick = () => askLinkOdoo(lead);
     $("#btn-choose").onclick = () => chooseCandidate(lead);
     $("#btn-create").onclick = () => askCreateLead(lead);
   } else if (st === "not_found") {
     area.innerHTML = `<div class="alert error"><b>هذا العميل غير موجود في Odoo</b>
-      <div class="small">لم نجد Lead بنفس رقم الجوال أو اسم المنشأة. يمكنك إضافته الآن إلى Odoo، أو البحث باسم أو رقم آخر.</div>
-      <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة العميل إلى Odoo <kbd>A</kbd></button></div>
+      <div class="small">لم نجد Lead بنفس رقم الجوال أو اسم المنشأة. إذا كان موجودًا في Odoo باسم أو رقم آخر اربطه به، وإلا أضفه الآن.</div>
+      <div class="actions"><button class="btn primary sm" id="btn-create">${ICON.plus} إضافة العميل إلى Odoo <kbd>A</kbd></button>
+      <button class="btn sm" id="btn-link">🔗 ربط بعميل في Odoo <kbd>L</kbd></button></div>
       <div class="row" style="margin-top:10px"><input type="text" id="custom-q" placeholder="بحث باسم أو رقم آخر" style="max-width:320px">
       <button class="btn sm" id="btn-re">إعادة البحث</button><button class="btn sm" id="btn-crm">فتح CRM</button>
       <button class="btn sm" id="btn-skip2">تخطي العميل</button></div></div>`;
     $("#btn-create").onclick = () => askCreateLead(lead);
+    $("#btn-link").onclick = () => askLinkOdoo(lead);
     $("#btn-re").onclick = () => searchOdoo($("#custom-q").value);
     $("#btn-crm").onclick = openCrm;
     $("#btn-skip2").onclick = () => askSkip(lead.fingerprint);
@@ -910,6 +1001,55 @@ function chooseCandidate(lead) {
       Modal.close();
       await leadAction(`/api/lead/${lead.fingerprint}/select`, { odoo_id: c.id, ui_index: c.ui_index, ui_query: c.ui_query || "" }, "تم اختيار العميل");
     })),
+  });
+}
+
+// ------------------------------------------------------ link to a customer found in Odoo
+/** «ربط بعميل في Odoo»: search Odoo by any name or number and link the result to the customer in front of you. */
+function askLinkOdoo(lead) {
+  const phone = lead.phone_raw || lead.phone || "";
+  const linkedId = lead.odoo && lead.odoo.id;
+  let cands = [];
+  Modal.open({
+    title: "ربط العميل بعميل في Odoo", wide: true,
+    html: `<p class="muted">ابحث في Odoo باسم آخر أو رقم آخر، ثم اضغط «ربط» على العميل الصحيح. يُربط بصف <b>${esc(lead.company_name)}</b> في Google Sheet بدل إنشاء عميل مكرر.</p>
+      <form class="row" id="lk-form" style="gap:8px;margin-bottom:10px"><input type="text" id="lk-q" value="${esc(lead.company_name)}" placeholder="اسم الشركة أو جهة الاتصال أو رقم الجوال" style="flex:1;min-width:200px">
+        <button class="btn primary" type="submit">بحث في Odoo</button></form>
+      ${phone ? `<label class="check"><input type="checkbox" id="lk-phone" checked> أضف رقم الشيت <span class="ltr">${esc(phone)}</span> إلى العميل في Odoo (في خانة Mobile أو Phone الفارغة) حتى يتطابق تلقائيًا في المرات القادمة</label>` : ""}
+      <div id="lk-results" style="margin-top:10px"></div>`,
+    buttons: [{ label: "إغلاق" }],
+    onKey: digitPicker,
+    onOpen: (m) => {
+      const run = async () => {
+        const q = $("#lk-q", m).value.trim();
+        const box = $("#lk-results", m);
+        if (q.length < 2) { box.innerHTML = '<div class="alert warn">اكتب اسمًا أو رقمًا (حرفان على الأقل).</div>'; return; }
+        box.innerHTML = '<div class="alert info"><span class="spinner"></span> جاري البحث في Odoo…</div>';
+        try { cands = (await api("POST", "/api/manual/search", { query: q })).candidates || []; }
+        catch (e) { box.innerHTML = `<div class="alert error">${esc(e.message)}</div>`; return; }
+        box.innerHTML = cands.length
+          ? `<p class="small muted">${cands.length} نتيجة · اضغط رقم الصف <kbd>1</kbd>…<kbd>9</kbd> للربط.</p>${candidateTable(cands, "ربط")}`
+          : '<div class="alert warn">لا توجد نتائج. جرّب جزءًا من الاسم، أو اسم جهة الاتصال، أو رقمًا آخر.</div>';
+        $$("button[data-i]", box).forEach((b) => {
+          const c = cands[+b.dataset.i];
+          if (linkedId && c.id === linkedId) { b.disabled = true; b.textContent = "مربوط حاليًا"; return; }
+          b.onclick = () => withBusy(b, async () => {
+            const body = { odoo_id: c.id ?? null, ui_index: c.ui_index ?? null, ui_query: c.ui_query || "",
+                           add_phone: !!($("#lk-phone", m) && $("#lk-phone", m).checked) };
+            try {
+              const payload = await api("POST", `/api/lead/${lead.fingerprint}/link`, body);
+              Modal.close();
+              render(payload);
+              toast(`تم ربط العميل بـ«${c.company_name || c.name}» في Odoo`, "success", 5000);
+              (payload.warnings || []).forEach((w) => toast(w, "warn", 9000));  // notices: shown by render()
+            } catch (e) { handleOdooError(e, () => askLinkOdoo(lead)); }
+          });
+        });
+      };
+      $("#lk-form", m).onsubmit = (ev) => { ev.preventDefault(); run(); };
+      const input = $("#lk-q", m); input.focus(); input.select();
+      run();
+    },
   });
 }
 
@@ -1198,6 +1338,7 @@ async function openResultPanel(prev = null) {
         <textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
       ${(S.settings.quick_notes || []).length ? `<div class="quick-notes" id="r-quick" aria-label="ملاحظات جاهزة">${S.settings.quick_notes.map((q, i) =>
         `<button type="button" class="qn" data-q="${i}" title="إضافة للملاحظة">+ ${esc(q)}</button>`).join("")}</div>` : ""}
+      <label class="check fu-toggle"><input type="checkbox" id="r-fu"> 📅 <b>جدولة متابعة لاحقة</b> <span class="small muted">— مع أي نتيجة: Activity في Odoo + تذكير في الـAgent يوم الموعد</span></label>
       <div id="r-followup" class="form-grid hidden">
         <label class="field"><span>تاريخ المتابعة</span><input type="date" id="r-fdate"></label>
         <label class="field"><span>الوقت</span><input type="time" id="r-ftime"></label>
@@ -1231,6 +1372,8 @@ async function openResultPanel(prev = null) {
   $$("#r-quick .qn").forEach((b) => b.onclick = () => addQuickNote(S.settings.quick_notes[+b.dataset.q], b));
   updateWriteSummary();
   $("#r-cancel").onclick = () => { Dictation.stop(); card.classList.add("hidden"); };
+  $("#r-fu").onchange = (ev) => setFollowup(ev.target.checked);
+  ["#r-fdate", "#r-ftime"].forEach((sel) => { $(sel).onchange = updateWriteSummary; });
   if ($("#r-mic")) $("#r-mic").onclick = () => Dictation.toggle($("#r-note"), $("#r-mic"));
   $("#r-save").onclick = (ev) => saveResult(ev.currentTarget, false);
   $("#r-preview").onclick = (ev) => saveResult(ev.currentTarget, true);
@@ -1261,6 +1404,8 @@ async function openResultPanel(prev = null) {
   }
   // Every other value of the sheet's follow-up dropdown, written to the sheet as-is ("S:<value>").
   const statusOpts = await loadOptions("followup_status");
+  S.followupOptions = statusOpts;
+  updateWriteSummary();
   const mainValues = new Set(S.statuses.map((x) => (x.sheet_value || "").trim()));
   const extra = statusOpts.filter((v) => v && !mainValues.has(v.trim()));
   if (extra.length) {
@@ -1270,7 +1415,7 @@ async function openResultPanel(prev = null) {
   }
   if (prev && (S.statuses.some((x) => x.code === prev.result_code) || (prev.result_code || "").startsWith("S:"))) {
     selectResult(prev.result_code);
-    if (prev.followup_date) { $("#r-fdate").value = prev.followup_date; $("#r-ftime").value = prev.followup_time || "10:00"; }
+    if (prev.followup_date) { $("#r-fdate").value = prev.followup_date; $("#r-ftime").value = prev.followup_time || "10:00"; setFollowup(true); }
     if (prev.not_subscribed_reason) $("#r-reason-in").value = prev.not_subscribed_reason;
     if (prev.subscription_expiry) $("#r-exp").value = prev.subscription_expiry;
   }
@@ -1312,11 +1457,13 @@ function updateWriteSummary() {
   if (srcSel) srcSel.classList.toggle("needs-choice", sheetOn && !src && !!srcInfo.odoo_value);
   const rows = [];
   rows.push(`<li><span class="sys">Odoo</span>${odooOn
-    ? `<span class="ok">✓ Log Note في Chatter</span>${S.result.code === "FOLLOW_UP" ? ' <span class="ok">+ Activity</span>' : ""}`
+    ? `<span class="ok">✓ Log Note في Chatter</span>${followupOn() ? ` <span class="ok">+ Activity يوم <span class="ltr">${esc($("#r-fdate").value || "؟")}${$("#r-ftime").value ? " " + esc($("#r-ftime").value) : ""}</span></span>` : ""}`
     : `<span class="no">لن تتم إضافة Log Note${ctx.odooId ? "" : " (العميل غير مربوط بـOdoo)"}</span>`}</li>`);
   if (stageFor(code)) rows.push(`<li><span class="sys">مرحلة Odoo</span><span class="ok">← ${esc(stageFor(code))}</span></li>`);
   if (sheetOn) {
-    rows.push(`<li><span class="sys">حالة المتابعة</span>${st ? `<span class="ok">← ${esc(st.sheet_value || "(غير مربوطة – راجع Status Mapping)")}</span>` : '<span class="warn-t">اختر النتيجة أولًا</span>'}</li>`);
+    const fuOnly = S.result.code === "FOLLOW_UP" && !(st && st.sheet_value && (S.followupOptions || []).includes(st.sheet_value));
+    rows.push(`<li><span class="sys">حالة المتابعة</span>${fuOnly ? '<span class="ok">بدون تغيير (متابعة فقط)</span>'
+      : st ? `<span class="ok">← ${esc(st.sheet_value || "(غير مربوطة – راجع Status Mapping)")}</span>` : '<span class="warn-t">اختر النتيجة أولًا</span>'}</li>`);
     rows.push(`<li><span class="sys">مصدر العميل</span>${src
       ? `<span class="ok">← ${esc(src)}</span>${srcInfo.mapped && src === srcInfo.sheet_value ? ` <span class="badge green">من UTM Source${srcInfo.auto ? " (مطابق تلقائيًا)" : ""}</span>` : ""}`
       : `<span class="warn-t">بدون تغيير${srcInfo.odoo_value ? ` — UTM Source = «${esc(srcInfo.odoo_value)}»، اختر القيمة المقابلة من القائمة لتحديثه` : ""}</span>`}</li>`);
@@ -1337,15 +1484,25 @@ function selectResult(code) {
   S.result.code = code;
   setTimeout(updateWriteSummary, 0);
   $$(".result-btn").forEach((b) => b.classList.toggle("selected", b.dataset.code === code));
-  $("#r-followup").classList.toggle("hidden", code !== "FOLLOW_UP");
   $("#r-expiry").classList.toggle("hidden", code !== "SUBSCRIBED");
   $("#r-reason").classList.toggle("hidden", code !== "NOT_INTERESTED");
-  if (code === "FOLLOW_UP" && !$("#r-fdate").value) {
+  if (code === "FOLLOW_UP") setFollowup(true);
+}
+
+/** «جدولة متابعة لاحقة»: shows the date / time / note fields (tomorrow 10:00 by default). */
+function setFollowup(on) {
+  const box = $("#r-fu");
+  if (!box) return;
+  box.checked = on;
+  $("#r-followup").classList.toggle("hidden", !on);
+  if (on && !$("#r-fdate").value) {
     const d = new Date(Date.now() + 86400000);
-    $("#r-fdate").value = d.toISOString().slice(0, 10);
+    $("#r-fdate").value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     $("#r-ftime").value = "10:00";
   }
+  setTimeout(updateWriteSummary, 0);
 }
+const followupOn = () => !!($("#r-fu") && $("#r-fu").checked);
 
 function buildResultBody(previewOnly) {
   const ctx = S.result.ctx;
@@ -1361,9 +1518,10 @@ function buildResultBody(previewOnly) {
     not_subscribed_reason: S.result.code === "NOT_INTERESTED" ? $("#r-reason-in").value : "",
     trial_registered: ctx.manual ? "" : (S.result.trial || ""),
     subscription_expiry: S.result.code === "SUBSCRIBED" ? $("#r-exp").value : "",
-    followup_date: S.result.code === "FOLLOW_UP" ? $("#r-fdate").value : "",
-    followup_time: S.result.code === "FOLLOW_UP" ? $("#r-ftime").value : "",
-    followup_note: S.result.code === "FOLLOW_UP" ? $("#r-fnote").value : "",
+    followup_date: followupOn() ? $("#r-fdate").value : "",
+    followup_time: followupOn() ? $("#r-ftime").value : "",
+    followup_note: followupOn() ? $("#r-fnote").value : "",
+    schedule_followup: followupOn(),
     update_sheet: $("#r-sheet").checked, add_odoo_note: $("#r-odoo").checked, update_stage: !!($("#r-stage") && $("#r-stage").checked),
     call_started_at: S.call.startedAt ? S.call.startedAt.toISOString() : null,
     call_ended_at: S.call.startedAt ? (S.call.endedAt || new Date()).toISOString() : null,
@@ -1440,6 +1598,7 @@ function outcomeLine(res) {
 
 function afterSave(res) {
   stopCall();
+  api("GET", "/api/stats").then((st) => { renderStats(st); renderBanner(st); }).catch(() => {});
   S.call = { startedAt: null, endedAt: null, timer: null };
   $("#result-card").classList.add("hidden");
   if (S.manual) { S.manual = null; loadCurrent(); return; }

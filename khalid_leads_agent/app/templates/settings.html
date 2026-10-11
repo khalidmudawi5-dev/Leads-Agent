@@ -12,6 +12,7 @@
     <button class="tab" data-tab="source">Source Mapping</button>
     <button class="tab" data-tab="automation">Automation</button>
     <button class="tab" data-tab="followup">واتساب والمتابعة</button>
+    <button class="tab" data-tab="security">الأمان</button>
     <button class="tab" data-tab="advanced">Advanced</button>
   </div>
 
@@ -141,6 +142,7 @@
   <section class="tab-panel" data-panel="followup">
     <h3>قوالب رسائل واتساب</h3>
     <p class="muted small">المتغيرات: <span class="ltr">{company}</span> اسم المنشأة · <span class="ltr">{owner}</span> اسمك · <span class="ltr">{contact}</span> جهة الاتصال في Odoo · <span class="ltr">{date}</span> تاريخ اليوم.</p>
+    <p class="muted small">📎 يمكنك إرفاق صورة (مثل بوستر العرض) أو ملف PDF بأي قالب (حتى 16 ميجابايت). عند فتح واتساب ينسخ الـAgent الملف، فتضغط <span class="ltr">Ctrl+V</span> داخل المحادثة ثم «إرسال».</p>
     <div data-key="whatsapp_templates" data-type="templates" class="tpl-editor"></div>
     <div class="actions" style="margin:8px 0 16px"><button class="btn sm" type="button" id="btn-add-tpl">+ إضافة قالب</button></div>
     <div class="form-grid">
@@ -175,6 +177,23 @@
       <label class="field"><span>فحص Google Sheet للعملاء الجدد كل (دقائق) — 0 = إيقاف</span><input type="number" min="0" max="120" data-key="sheet_poll_minutes"></label>
     </div>
     <div class="actions"><button class="btn primary" data-save="followup">حفظ</button></div>
+  </section>
+
+  <section class="tab-panel" data-panel="security">
+    <h3>تسجيل الدخول</h3>
+    <p class="muted small">عند تفعيله يطلب الـAgent اسم المستخدم وكلمة المرور على هذا الكمبيوتر ومن الجوال (Tailscale). كلمة المرور لا تُحفظ نصًا، بل بصيغة مشفّرة (scrypt) في <span class="ltr">data\login.json</span>. نسيتها؟ شغّل <span class="ltr">06_reset_login.bat</span> على هذا الكمبيوتر.</p>
+    <div id="auth-state"></div>
+    <form id="auth-form" class="form-grid" autocomplete="off">
+      <label class="field"><span>اسم المستخدم</span><input type="text" id="auth-user" autocomplete="username" maxlength="40" required></label>
+      <label class="field auth-on"><span>كلمة المرور الحالية</span><input type="password" id="auth-current" autocomplete="current-password"></label>
+      <label class="field"><span id="auth-new-label">كلمة المرور (8 أحرف على الأقل)</span><input type="password" id="auth-pass" autocomplete="new-password" minlength="8" required></label>
+      <label class="field"><span>تأكيد كلمة المرور</span><input type="password" id="auth-pass2" autocomplete="new-password" minlength="8" required></label>
+      <div class="actions" style="grid-column:1/-1"><button class="btn primary" type="submit" id="auth-save">تفعيل تسجيل الدخول</button></div>
+    </form>
+    <div class="actions auth-on" style="margin-top:6px">
+      <button class="btn" type="button" id="auth-signout-all">تسجيل الخروج من كل الأجهزة الأخرى</button>
+      <button class="btn danger" type="button" id="auth-disable">إيقاف تسجيل الدخول</button>
+    </div>
   </section>
 
   <section class="tab-panel" data-panel="advanced">

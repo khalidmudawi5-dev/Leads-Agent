@@ -38,9 +38,12 @@ class AgentError(Exception):
         return {"code": self.code, "message": self.message_ar, "actions": self.actions, "details": self.details}
 
 
+RECONNECT_GOOGLE = "reconnect_google"
+
+
 class GoogleNotConnected(AgentError):
-    def __init__(self, message_ar: str = "Google غير متصل. افتح الإعدادات واضغط Connect Google.") -> None:
-        super().__init__("GOOGLE_NOT_CONNECTED", message_ar, actions=[OPEN_SETTINGS], status_code=409)
+    def __init__(self, message_ar: str = "Google غير متصل. اضغط «إعادة ربط Google» وسجّل الدخول بحسابك.") -> None:
+        super().__init__("GOOGLE_NOT_CONNECTED", message_ar, actions=[RECONNECT_GOOGLE, OPEN_SETTINGS], status_code=409)
 
 
 class ConfigIncomplete(AgentError):

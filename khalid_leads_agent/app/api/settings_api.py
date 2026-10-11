@@ -6,12 +6,15 @@ import os
 import signal
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi.responses import FileResponse
 
 from app.api.deps import container
 from app.config import COLUMN_LABELS_AR, EMPTY_TOKEN, REQUIRED_COLUMNS
 from app.container import AppContainer
 from app.errors import AgentError
+from app.remote_access import is_loopback
 from app.schemas.api import SearchIn, SourceMappingIn, StatusMappingIn
+from app.services.attachment_service import MAX_BYTES, MEDIA_TYPES, safe_name
 
 router = APIRouter(prefix="/api")
 
@@ -41,6 +44,8 @@ def put_settings(body: dict, c: AppContainer = Depends(container)) -> dict:
             before.google_auth_mode, before.spreadsheet_id, before.sheet_name, before.column_mapping, before.header_row):
         c.sheets.reset_client()
         c.queue.loaded = False
+    if "whatsapp_templates" in body:
+        c.whatsapp.attachments.cleanup({t.get("file", "") for t in s.whatsapp_templates})
     return {"settings": s.model_dump()}
 
 
@@ -90,6 +95,33 @@ async def sheet_options(key: str, c: AppContainer = Depends(container)) -> dict:
     if key not in COLUMN_LABELS_AR:
         raise AgentError("BAD_COLUMN", "عمود غير معروف.")
     return {"key": key, "options": await asyncio.to_thread(c.sheets.dropdown_options, key)}
+
+
+# --------------------------------------------------------------- WhatsApp attachments
+@router.post("/attachments")
+async def attachment_upload(file: UploadFile = File(...), c: AppContainer = Depends(container)) -> dict:
+    """An image or a PDF for a WhatsApp template (saved with the template when Settings are saved)."""
+    content = await file.read(MAX_BYTES + 1)
+    return {"file": c.whatsapp.attachments.save(file.filename or "", content)}
+
+
+@router.get("/attachments/{file_id}")
+def attachment_get(file_id: str, download: bool = False, name: str = "", c: AppContainer = Depends(container)):
+    p = c.whatsapp.attachments.path(file_id)
+    if p is None:
+        raise AgentError("FILE_NOT_FOUND", "المرفق غير موجود. ارفعه مرة أخرى من الإعدادات › واتساب.", status_code=404)
+    ext = p.suffix.lower()
+    return FileResponse(p, media_type=MEDIA_TYPES[ext], filename=safe_name(name, ext),
+                        content_disposition_type="attachment" if download else "inline")
+
+
+@router.post("/attachments/{file_id}/copy")
+def attachment_copy(file_id: str, request: Request, c: AppContainer = Depends(container)) -> dict:
+    """Copy the file to this PC's clipboard again (for Ctrl+V in WhatsApp)."""
+    if c.whatsapp.attachments.path(file_id) is None:
+        raise AgentError("FILE_NOT_FOUND", "المرفق غير موجود. ارفعه مرة أخرى من الإعدادات › واتساب.", status_code=404)
+    local = is_loopback(request.client.host if request.client else "")
+    return {"copied": local and c.whatsapp.attachments.copy_to_clipboard(file_id)}
 
 
 # --------------------------------------------------------------- google
