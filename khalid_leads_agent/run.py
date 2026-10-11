@@ -25,11 +25,13 @@ def _port_open(host: str, port: int) -> bool:
 
 def _running_version(url: str) -> str:
     """Version reported by an agent already listening on ``url`` ("" if unknown / older than 1.8)."""
-    try:
-        with urllib.request.urlopen(url + "/api/status", timeout=3) as resp:
-            return str(json.loads(resp.read().decode("utf-8")).get("version") or "")
-    except Exception:  # noqa: BLE001
-        return ""
+    for path in ("/api/version", "/api/status"):  # /api/version: 2.6+, open even with sign-in on
+        try:
+            with urllib.request.urlopen(url + path, timeout=3) as resp:
+                return str(json.loads(resp.read().decode("utf-8")).get("version") or "")
+        except Exception:  # noqa: BLE001
+            continue
+    return ""
 
 
 def _stop_running(url: str, host: str, port: int) -> bool:
@@ -51,6 +53,7 @@ def main() -> None:
     from app.config import EnvSettings
     from app.main import create_app
 
+    from app.login_service import login_configured
     from app.remote_access import valid_pin
 
     env = EnvSettings()
@@ -59,12 +62,12 @@ def main() -> None:
         print("WARNING: APP_HOST is not local; forcing 127.0.0.1 for safety (use REMOTE_ACCESS for other devices).")
     listen = host
     if env.remote_access:
-        if valid_pin(env.access_pin):
-            # Other devices are filtered in the app: Tailscale addresses + PIN only.
+        if valid_pin(env.access_pin) or login_configured(env.data_path):
+            # Other devices are filtered in the app: Tailscale addresses + sign-in (or PIN) only.
             listen = "0.0.0.0"
-            print("Remote access ON: open http://<this PC's Tailscale IP>:%s on your phone (PIN required)." % env.app_port)
+            print("Remote access ON: open http://<this PC's Tailscale IP>:%s on your phone (sign-in required)." % env.app_port)
         else:
-            print("WARNING: REMOTE_ACCESS=true but ACCESS_PIN is missing or shorter than 6 digits; staying local only.")
+            print("WARNING: REMOTE_ACCESS=true but no sign-in password and no ACCESS_PIN (6+ digits); staying local only.")
     url = f"http://{host}:{env.app_port}"
     if _port_open(host, env.app_port):
         running = _running_version(url)

@@ -27,6 +27,9 @@ async function api(method, url, body) {
   }
   let data = {};
   try { data = await res.json(); } catch (e) { data = {}; }
+  if (res.status === 401 && data.error && data.error.code === "LOGIN_REQUIRED") {
+    window.location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+  }
   if (!res.ok) throw new ApiError(data.error, res.status);
   return data;
 }

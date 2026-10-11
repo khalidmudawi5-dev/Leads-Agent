@@ -27,6 +27,8 @@ LOCK_SECONDS = 600
 TAILSCALE_NETS = (ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_network("fd7a:115c:a1e0::/48"))
 PUBLIC_PATHS = ("/login", "/static/", "/favicon.ico")
 LOCAL_ONLY_PATHS = ("/api/admin/shutdown",)
+# Open on the PC even when a sign-in password is set: 03_stop_agent.bat and run.py use them.
+LOCAL_OPEN_PATHS = ("/api/admin/shutdown", "/api/version")
 
 
 def tailscale_ips() -> list[str]:
@@ -85,7 +87,7 @@ class RemoteAccess:
         return hmac.new(self._secret, b"kla-remote|" + self.pin.encode(), hashlib.sha256).hexdigest()
 
     def authenticated(self, cookie: str | None) -> bool:
-        return bool(cookie) and hmac.compare_digest(cookie, self.token())
+        return valid_pin(self.pin) and bool(cookie) and hmac.compare_digest(cookie, self.token())
 
     def locked_for(self, client: str) -> int:
         """Seconds this device must wait before trying again (0 = may try)."""
@@ -97,7 +99,7 @@ class RemoteAccess:
         return 0
 
     def check_pin(self, client: str, pin: str) -> bool:
-        if hmac.compare_digest(pin.strip().encode(), self.pin.encode()):
+        if valid_pin(self.pin) and hmac.compare_digest(pin.strip().encode(), self.pin.encode()):
             self._failures.pop(client, None)
             return True
         self._failures.setdefault(client, []).append(time.time())

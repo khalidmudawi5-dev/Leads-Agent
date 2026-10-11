@@ -393,3 +393,53 @@ document.addEventListener("DOMContentLoaded", () => {
   const add = $("#btn-add-tpl");
   if (add) add.onclick = () => $('[data-key="whatsapp_templates"]').appendChild(tplRow({ name: "", text: "" }));
 });
+
+// ------------------------------------------------------------------ security (sign-in)
+async function loadAuth() {
+  const box = $("#auth-state");
+  if (!box) return;
+  let st;
+  try { st = await api("GET", "/api/auth/status"); } catch (e) { box.innerHTML = `<div class="alert error">${esc(e.message)}</div>`; return; }
+  box.innerHTML = st.enabled
+    ? `<div class="alert success">تسجيل الدخول <b>مفعّل</b> باسم المستخدم «${esc(st.username)}». لتغيير الاسم أو كلمة المرور اكتب كلمة المرور الحالية ثم الجديدة.</div>`
+    : `<div class="alert warn">تسجيل الدخول <b>غير مفعّل</b>: أي شخص يستخدم هذا الكمبيوتر يقدر يفتح الـAgent${st.remote ? "، ومن الجوال يُطلب رمز PIN فقط" : ""}.</div>`;
+  $$(".auth-on").forEach((el) => el.classList.toggle("hidden", !st.enabled));
+  $("#auth-user").value = st.username || $("#auth-user").value || "";
+  $("#auth-new-label").textContent = st.enabled ? "كلمة المرور الجديدة (8 أحرف على الأقل)" : "كلمة المرور (8 أحرف على الأقل)";
+  $("#auth-save").textContent = st.enabled ? "حفظ التغيير" : "تفعيل تسجيل الدخول";
+  ["#auth-current", "#auth-pass", "#auth-pass2"].forEach((s) => { $(s).value = ""; });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const form = $("#auth-form");
+  if (!form) return;
+  form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const pass = $("#auth-pass").value;
+    if (pass !== $("#auth-pass2").value) { toast("كلمتا المرور غير متطابقتين.", "warn"); return; }
+    await withBusy($("#auth-save"), async () => {
+      try {
+        const wasOn = !$("#auth-current").closest(".auth-on").classList.contains("hidden");
+        await api("POST", "/api/auth/password", { username: $("#auth-user").value.trim(), password: pass,
+                                                   current_password: $("#auth-current").value });
+        toast(wasOn ? "تم حفظ التغيير. الأجهزة الأخرى ستطلب الدخول من جديد." : "تم تفعيل تسجيل الدخول. احفظ كلمة المرور في مكان آمن.", "success", 7000);
+        await loadAuth();
+        setTimeout(() => location.reload(), 1200);  // show the logout button in the sidebar
+      } catch (e) { toast(e.message, "error", 7000); }
+    });
+  };
+  $("#auth-disable").onclick = () => Modal.open({
+    title: "إيقاف تسجيل الدخول",
+    html: `<p>بعد الإيقاف يفتح الـAgent على هذا الكمبيوتر بدون كلمة مرور.</p>
+      <label class="field"><span>كلمة المرور الحالية</span><input type="password" id="auth-off-pass" autocomplete="current-password"></label>`,
+    buttons: [{ label: "إيقاف", cls: "danger", onClick: (btn) => withBusy(btn, async () => {
+      try { await api("POST", "/api/auth/disable", { current_password: $("#auth-off-pass").value }); Modal.close(); toast("تم إيقاف تسجيل الدخول.", "success"); setTimeout(() => location.reload(), 900); }
+      catch (e) { toast(e.message, "error", 7000); }
+    }) }, { label: "إلغاء" }],
+  });
+  $("#auth-signout-all").onclick = async () => {
+    try { await api("POST", "/api/auth/sign-out-all"); toast("تم تسجيل الخروج من كل الأجهزة الأخرى.", "success"); }
+    catch (e) { toast(e.message, "error"); }
+  };
+  loadAuth();
+});
