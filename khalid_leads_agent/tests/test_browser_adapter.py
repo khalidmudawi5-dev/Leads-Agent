@@ -351,3 +351,13 @@ def test_render_pdf_with_headless_browser(adapter, tmp_path):
     assert pdf.startswith(b"%PDF") and len(pdf) > 2000
     (tmp_path / "r.pdf").write_bytes(pdf)
     assert adapter._context is None  # the Odoo browser window was never opened
+
+
+def test_set_stage_via_rpc(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    assert run(adapter, adapter.list_stages()) == ["جديد", "Qualified", "Proposition", "Won"]
+    out = run(adapter, adapter.set_stage(7, "qualified"))  # case-insensitive
+    assert out.success and fake_odoo.state.leads[7]["stage_id"] == [2, "Qualified"]
+    assert run(adapter, adapter.set_stage(7, "Qualified")).already_done
+    bad = run(adapter, adapter.set_stage(7, "Lost"))
+    assert not bad.success and "غير موجودة" in bad.message

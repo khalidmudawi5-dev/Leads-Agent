@@ -127,7 +127,20 @@ async function crLoadOptions() {
     if (want.length) crShow($("#cr-show"));
   } catch (e) { $("#cr-chips").innerHTML = `<div class="alert error">${esc(e.message)}</div>`; }
 }
-function crSetExport(on) { ["#cr-xlsx", "#cr-pdf", "#cr-print"].forEach((s) => { $(s).disabled = !on; }); }
+function crSetExport(on) { ["#cr-xlsx", "#cr-pdf", "#cr-print", "#cr-start"].forEach((s) => { $(s).disabled = !on; }); }
+
+/** Make the dashboard queue look for exactly these statuses, then go call them in order. */
+async function crStart(btn) {
+  const values = crSelected();
+  if (!values.length) return;
+  await withBusy(btn, async () => {
+    try {
+      const r = await api("PUT", "/api/queue/filter", { values });
+      toast(`تم: الرئيسية تبحث الآن عن ${values.join("، ")} (${r.stats.pending} عميل)`, "success");
+      setTimeout(() => { location.href = "/"; }, 600);
+    } catch (e) { toast(e.message, "error"); }
+  });
+}
 async function crShow(btn) {
   if (!crSelected().length) { toast("اختر حالة متابعة واحدة على الأقل.", "warn"); return; }
   crSetExport(false);
@@ -180,6 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#cr-xlsx").onclick = (ev) => crDownload(ev.currentTarget, "xlsx");
   $("#cr-pdf").onclick = (ev) => crDownload(ev.currentTarget, "pdf");
   $("#cr-print").onclick = () => window.open(crQuery("print"), "_blank");
+  $("#cr-start").onclick = (ev) => crStart(ev.currentTarget);
   ["#cr-odoo", "#cr-search"].forEach((s) => { $(s).onchange = () => { crSetExport(false); if (s === "#cr-odoo") $("#cr-search").disabled = !$("#cr-odoo").checked; }; });
   crLoadOptions();
   const custom = $("#rep-custom");

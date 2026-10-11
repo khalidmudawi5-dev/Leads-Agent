@@ -66,6 +66,12 @@ The workflow is deterministic end to end. No LLM decides customer identity, row 
 - **Activity:** created with `activity_schedule`. A failure only produces a warning; the note and the sheet update still complete.
 - There are screenshots on automation errors, limited retries, configurable timeouts, and one relaunch if the user closed the browser window.
 
+### Stage, reminders, day summary (2.4.0)
+- `odoo_stage_mapping` (result code → stage name): after the Log note, `SyncService.odoo_stage` → `adapter.set_stage` (crm.stage matched by name, case-insensitive; no write when already there). Failures are warnings; Dry Run only audits. `update_stage` in the result body turns it off per save.
+- `GET /api/reminders` (polled by every page each minute, `app.js` `Reminders`): open follow-ups that are overdue or whose time minus `followup_remind_minutes` has passed; date-only ones use `followup_default_time`. The page shows a card + desktop Notification (secure context only) and remembers shown keys in localStorage (repeat every 30 min until «تم»).
+- `GET /api/reports/day-summary`: today's totals, interested customers, tomorrow's follow-ups and a ready text; shown automatically once a day after `day_summary_time`.
+- `quick_notes`: phrases appended to the result note.
+
 ### Customer report by status (read-only)
 `CustomerReportService` filters the owner's fresh sheet rows by «حالة المتابعة», reads linked Odoo leads in one `crm.lead.read` batch (`adapter.read_leads`) and matches unlinked rows with the queue's matcher (capped at 150), then exports Excel (`utils.xlsx`), PDF (`adapter.render_pdf`: a separate headless Chromium/Chrome prints `report_customers_print.html`; the Odoo window is never used) or a printable HTML page. The last build is reused for exports for 5 minutes. Nothing is written anywhere.
 

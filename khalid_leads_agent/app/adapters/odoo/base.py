@@ -117,6 +117,14 @@ class OdooAdapter(ABC):
                     raise
         return out
 
+    async def list_stages(self) -> list[str]:
+        """CRM stage names in pipeline order."""
+        return []
+
+    async def set_stage(self, lead_id: int, stage_name: str) -> ActionOutcome:
+        """Move the lead to the stage named ``stage_name`` (exact name, case-insensitive)."""
+        return ActionOutcome(False, "none", "تغيير المرحلة غير مدعوم.")
+
     async def render_pdf(self, html: str) -> bytes:
         """Print an HTML page to PDF (A4) with a headless browser."""
         raise AgentError("PDF_UNAVAILABLE", "تصدير PDF غير متاح؛ استخدم «طباعة / حفظ PDF».")

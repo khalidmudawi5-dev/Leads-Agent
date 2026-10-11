@@ -201,7 +201,8 @@ class ResultService:
             dry_run=dry_run, manual_mode=manual, update_sheet=update_sheet, add_odoo_note=inp.add_odoo_note,
             status="processing", errors=[], warnings=warnings,
         )
-        preview: dict = {"odoo_note": odoo_body if inp.add_odoo_note and odoo_id else "",
+        stage = s.odoo_stage_mapping.get(inp.result_code, "").strip() if (inp.update_stage and odoo_id) else ""
+        preview: dict = {"odoo_note": odoo_body if inp.add_odoo_note and odoo_id else "", "stage": stage,
                          "activity": activity, "sheet": [], "sheet_error": "", "ref": ref,
                          "note_entry": note_entry}
         lead_ref = LeadRef(cache.fingerprint, cache.sheet_row, cache.company_name, cache.phone_norm) if cache else None
@@ -223,6 +224,9 @@ class ResultService:
             if activity and odoo_id:
                 await self.sync.odoo_activity(odoo_id, activity["date_deadline"], activity["summary"],
                                               activity["note"], dry_run=True, action_id=inp.idempotency_key)
+            if stage:
+                await self.sync.odoo_stage(odoo_id, stage, dry_run=True, action_id=inp.idempotency_key)
+                preview["stage_status"] = "dry_run"
             row.odoo_note_status = "dry_run" if inp.add_odoo_note and odoo_id else "skipped"
             row.odoo_activity_status = "dry_run" if activity and odoo_id else "skipped"
             row.sheet_status = ("blocked" if preview["sheet_error"] else "dry_run") if update_sheet else "skipped"
@@ -248,6 +252,11 @@ class ResultService:
             row.odoo_activity_status = step.status
             if step.status == "failed":
                 warnings.append("تعذر إنشاء Activity في Odoo (Activity creation failed)؛ تم إكمال الملاحظة وتحديث Sheet.")
+        if stage:
+            step = await self.sync.odoo_stage(odoo_id, stage, dry_run=False, action_id=inp.idempotency_key)
+            preview["stage_status"] = step.status
+            if step.status == "failed":
+                warnings.append(f"لم تتغير المرحلة في Odoo إلى «{stage}»: {step.message}")
         if update_sheet and lead_ref:
             step = await asyncio.to_thread(self.sync.update_sheet, lead_ref, sheet_changes, note_entry,
                                            dry_run=False, action_id=inp.idempotency_key)

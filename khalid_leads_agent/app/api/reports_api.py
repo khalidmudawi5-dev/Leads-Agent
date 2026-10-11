@@ -52,6 +52,11 @@ async def customer_report_export(fmt: str = "xlsx", statuses: list[str] = Query(
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
+@router.get("/day-summary")
+def day_summary(c: AppContainer = Depends(container)) -> dict:
+    return c.reports.day_summary(c.workflow.followup_items(), c.settings.get().agent_owner)
+
+
 @router.get("/export")
 def export(period: str = "week", start: str = "", end: str = "", c: AppContainer = Depends(container)) -> Response:
     data, name = c.reports.export_xlsx(period, start, end)

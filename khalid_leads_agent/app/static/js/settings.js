@@ -204,6 +204,22 @@ async function loadStatus() {
   const r = await api("GET", "/api/settings/status-mapping");
   let options = null;
   try { options = (await api("GET", "/api/sheet/options/followup_status")).options; } catch (e) { /* sheet not connected yet */ }
+  const stageMap = (CFG && CFG.settings.odoo_stage_mapping) || {};
+  let stages = null;
+  try { stages = (await api("GET", "/api/odoo/stages")).stages; } catch (e) {
+    $("#stage-msg").innerHTML = `<div class="alert info small">لم تُقرأ مراحل Odoo (${esc(e.message)}). سجّل الدخول إلى Odoo ثم افتح هذا التبويب مرة أخرى، أو اكتب اسم المرحلة كما هو في Odoo.</div>`;
+  }
+  if (stages) $("#stage-msg").innerHTML = "";
+  const stageCtl = (code) => {
+    const cur = stageMap[code] || "";
+    if (stages && stages.length) {
+      const lost = cur && !stages.includes(cur);
+      return `<select data-stage="${code}"><option value="">— بدون تغيير —</option>
+        ${lost ? `<option value="${esc(cur)}" selected>⚠ ${esc(cur)} (غير موجودة)</option>` : ""}
+        ${stages.map((n) => `<option value="${esc(n)}" ${n === cur ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
+    }
+    return `<input type="text" data-stage="${code}" value="${esc(cur)}" placeholder="بدون تغيير">`;
+  };
   $("#status-rows").innerHTML = r.items.map((i) => {
     let ctl;
     if (options && options.length) {
@@ -214,12 +230,19 @@ async function loadStatus() {
     } else {
       ctl = `<input type="text" data-sv="${i.code}" value="${esc(i.sheet_value)}">`;
     }
-    return `<tr><td class="ltr">${esc(i.code)}</td><td><input type="text" data-label="${i.code}" value="${esc(i.label)}"></td><td>${ctl}</td></tr>`;
+    return `<tr><td class="ltr">${esc(i.code)}</td><td><input type="text" data-label="${i.code}" value="${esc(i.label)}"></td><td>${ctl}</td><td>${stageCtl(i.code)}</td></tr>`;
   }).join("");
 }
 async function saveStatus() {
   const items = $$("[data-sv]").map((el, i) => ({ code: el.dataset.sv, sheet_value: el.value, label: $(`[data-label="${el.dataset.sv}"]`).value, sort_order: i }));
-  try { await api("PUT", "/api/settings/status-mapping", { items }); toast("تم حفظ Status Mapping", "success"); }
+  const stageMap = {};
+  $$("[data-stage]").forEach((el) => { if (el.value.trim()) stageMap[el.dataset.stage] = el.value.trim(); });
+  try {
+    await api("PUT", "/api/settings/status-mapping", { items });
+    await api("PUT", "/api/settings", { odoo_stage_mapping: stageMap });
+    CFG.settings.odoo_stage_mapping = stageMap;
+    toast("تم حفظ Status Mapping ومراحل Odoo", "success");
+  }
   catch (e) { toast(e.message, "error"); }
 }
 

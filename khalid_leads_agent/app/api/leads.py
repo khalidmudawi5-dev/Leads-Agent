@@ -35,6 +35,12 @@ def status(request: Request, c: AppContainer = Depends(container)) -> dict:
     }
 
 
+@router.get("/reminders")
+def reminders(c: AppContainer = Depends(container)) -> dict:
+    """Follow-ups due now (polled by every page every minute)."""
+    return c.workflow.reminders()
+
+
 @router.get("/session")
 def session_status(c: AppContainer = Depends(container)) -> dict:
     return c.sessions.status()

@@ -7,7 +7,8 @@
       <button class="btn primary" id="cr-show" type="button">عرض التقرير</button>
       <button class="btn" id="cr-xlsx" type="button" disabled>Excel</button>
       <button class="btn" id="cr-pdf" type="button" disabled>PDF</button>
-      <button class="btn ghost" id="cr-print" type="button" disabled title="يفتح نسخة للطباعة؛ اختر «حفظ كـPDF» من نافذة الطباعة">طباعة</button></div></div>
+      <button class="btn ghost" id="cr-print" type="button" disabled title="يفتح نسخة للطباعة؛ اختر «حفظ كـPDF» من نافذة الطباعة">طباعة</button>
+      <button class="btn success" id="cr-start" type="button" disabled title="تُضبط حالات البحث في الرئيسية على نفس الحالات وتبدأ الاتصال بالترتيب">ابدأ الاتصال على هذه القائمة</button></div></div>
   <div class="fb-chips" id="cr-chips"><span class="skeleton" style="width:260px"></span></div>
   <div class="row cr-opts">
     <label class="check"><input type="checkbox" id="cr-odoo" checked> قراءة البيانات من Odoo (الإيميل، جهة الاتصال، المرحلة…)</label>
@@ -19,7 +20,7 @@
 <div class="card" style="margin-top:16px">
   <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
     <div><h2>تقرير الأداء</h2><p>أداؤك حسب الفترة: المكالمات المسجلة، نسبة الرد، الاهتمام، الاشتراكات، واتساب، والنتائج حسب المصدر. لا تُحتسب نتائج Dry Run.</p></div>
-    <div class="pi-actions"><a class="btn" id="btn-export" href="#">تصدير Excel</a></div></div>
+    <div class="pi-actions"><button class="btn primary" type="button" data-day-summary>ملخص اليوم</button><a class="btn" id="btn-export" href="#">تصدير Excel</a></div></div>
   <form class="rep-filters" id="rep-filters">
     <div class="seg" id="rep-period">
       <button type="button" data-p="today">اليوم</button><button type="button" data-p="week" class="on">هذا الأسبوع</button>

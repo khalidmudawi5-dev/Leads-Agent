@@ -5,7 +5,7 @@ import asyncio
 import logging
 import re
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 
@@ -176,6 +176,32 @@ class LeadWorkflowService:
         order = {"overdue": 0, "due": 1, "upcoming": 2}
         items.sort(key=lambda i: (order[i["state"]], i["followup_at"]))
         return items
+
+    def reminders(self) -> dict:
+        """Follow-ups to remind now: today's whose time (minus the lead time) has come, and overdue ones.
+
+        Follow-ups saved with a date only use «followup_default_time». The page shows each key once.
+        """
+        s = self.settings.get()
+        now = localnow().replace(tzinfo=None)
+        base = {"enabled": s.followup_reminders, "now": now.strftime("%Y-%m-%d %H:%M"),
+                "day_summary_time": s.day_summary_time, "items": []}
+        if not s.followup_reminders:
+            return base
+        lead = timedelta(minutes=s.followup_remind_minutes)
+        for item in self.followup_items():
+            if item["state"] == "upcoming":
+                continue
+            raw = item["followup_at"].strip()
+            text = raw if len(raw) > 10 else f"{raw[:10]} {s.followup_default_time or '09:00'}"
+            try:
+                at = datetime.strptime(text[:16], "%Y-%m-%d %H:%M")
+            except ValueError:
+                continue
+            if item["state"] == "overdue" or at - lead <= now:
+                base["items"].append({**item, "key": f"{item['fingerprint']}|{raw}", "at": at.strftime("%H:%M"),
+                                      "date": at.strftime("%Y-%m-%d"), "late": at < now})
+        return base
 
     def stats(self) -> dict:
         since = start_of_local_day_utc()
@@ -699,6 +725,7 @@ class LeadWorkflowService:
         if not clean:
             raise AgentError("STATUS_FILTER_EMPTY", "اختر حالة متابعة واحدة على الأقل.")
         self.settings.update({"pending_status_values": clean})
+        self._pos_hint = None  # a new list starts from its first customer
         sess = self.sessions.ensure()
         fp = sess.current_fingerprint
         if fp and any(lead.fingerprint == fp for lead in self.queue.queue()):

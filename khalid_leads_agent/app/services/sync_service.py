@@ -83,6 +83,24 @@ class SyncService:
             return StepResult("success")
         return StepResult("failed", "تعذر إضافة Log Note في Odoo.")
 
+    async def odoo_stage(self, lead_id: int, stage: str, *, dry_run: bool, action_id: str) -> StepResult:
+        record = f"crm.lead {lead_id}"
+        if dry_run:
+            self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=None,
+                       after={"stage": stage}, success=True, dry_run=True)
+            return StepResult("dry_run")
+        try:
+            outcome = await self.odoo.adapter.set_stage(lead_id, stage)
+        except AgentError as exc:
+            self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=None,
+                       after={"stage": stage}, success=False, error=exc.message_ar)
+            return StepResult("failed", exc.message_ar)
+        if outcome.already_done:
+            return StepResult("nochange")
+        self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=None,
+                   after={"stage": stage}, success=outcome.success, error="" if outcome.success else outcome.message)
+        return StepResult("success") if outcome.success else StepResult("failed", outcome.message)
+
     async def odoo_activity(self, lead_id: int, date_deadline: str, summary: str, note: str, *, dry_run: bool,
                             action_id: str) -> StepResult:
         record = f"crm.lead {lead_id}"

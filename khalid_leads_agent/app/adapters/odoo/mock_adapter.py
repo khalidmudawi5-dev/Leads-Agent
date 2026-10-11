@@ -125,6 +125,24 @@ class MockOdooAdapter(OdooAdapter):
         self.leads[new_id] = lead
         return self._with_history(lead)
 
+    stages = ["جديد", "Qualified", "Proposition", "Won"]
+
+    async def list_stages(self) -> list[str]:
+        self._check()
+        return list(self.stages)
+
+    async def set_stage(self, lead_id: int, stage_name: str) -> ActionOutcome:
+        self._check()
+        found = next((s for s in self.stages if s.lower() == stage_name.strip().lower()), None)
+        if found is None or lead_id not in self.leads:
+            return ActionOutcome(False, "none", f"المرحلة «{stage_name}» غير موجودة في Odoo.")
+        if self.leads[lead_id].stage == found:
+            return ActionOutcome(True, "mock", already_done=True)
+        self.leads[lead_id].stage = found
+        self.stage_changes = getattr(self, "stage_changes", []) + [(lead_id, found)]
+        self.touch(lead_id)
+        return ActionOutcome(True, "mock")
+
     async def read_leads(self, ids: list[int]) -> list[OdooLead]:
         self._check()
         return [self.leads[i] for i in ids if i in self.leads]

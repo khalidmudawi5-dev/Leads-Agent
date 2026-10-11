@@ -62,18 +62,31 @@ async function init() {
     S.statuses = st.items; S.settings = cfg.settings;
     $("#dry-ribbon").classList.toggle("hidden", !S.settings.dry_run);
     SheetWatch.start();
-    const updateId = new URLSearchParams(location.search).get("update");
+    const params = new URLSearchParams(location.search);
+    const updateId = params.get("update");
+    const gotoFp = params.get("goto");  // from a follow-up reminder on another page
     const sess = await api("GET", "/api/session");
-    if (sess.needs_prompt && !updateId) return askResume(sess.session);
+    if (sess.needs_prompt && !updateId && !gotoFp) return askResume(sess.session);
     await api("POST", "/api/session/start", { resume: true });
     await loadCurrent();
     loadFilter();
+    if (gotoFp) {
+      history.replaceState(null, "", "/");
+      await window.KLA_openLead(gotoFp);
+    }
     if (updateId) {
       history.replaceState(null, "", "/");
       await openUpdate(updateId);
     }
   } catch (e) { showError(e, $("#lead-card"), { retry: init }); }
 }
+
+/** Open a customer of the list (used by follow-up reminders). */
+window.KLA_openLead = async (fp) => {
+  if (resultOpen()) { toast("أغلق لوحة النتيجة أولًا ثم افتح العميل من التنبيه.", "warn"); return; }
+  try { S.manual = null; render(await api("POST", `/api/lead/${encodeURIComponent(fp)}/goto`)); }
+  catch (e) { toast(e.message, "error"); }
+};
 
 // ------------------------------------------------------------- shortcuts
 const hasLead = () => !!(S.manual || S.lead);
@@ -1183,6 +1196,8 @@ async function openResultPanel(prev = null) {
       <label class="field"><span class="note-head">ملاحظة حرة ${Dictation.supported() ? `<button type="button" class="btn sm mic" id="r-mic" title="إملاء الملاحظة بالصوت (M)">${MIC_ICON}<span>إملاء بالصوت</span></button>`
         : S.remote ? '<span class="small muted">للإملاء: اضغط ميكروفون لوحة مفاتيح الجوال 🎤</span>' : ""}</span>
         <textarea id="r-note" placeholder="مثال: العميل مهتم بنظام رصد التواجد ويرغب في عرض سعر."></textarea></label>
+      ${(S.settings.quick_notes || []).length ? `<div class="quick-notes" id="r-quick" aria-label="ملاحظات جاهزة">${S.settings.quick_notes.map((q, i) =>
+        `<button type="button" class="qn" data-q="${i}" title="إضافة للملاحظة">+ ${esc(q)}</button>`).join("")}</div>` : ""}
       <div id="r-followup" class="form-grid hidden">
         <label class="field"><span>تاريخ المتابعة</span><input type="date" id="r-fdate"></label>
         <label class="field"><span>الوقت</span><input type="time" id="r-ftime"></label>
@@ -1200,6 +1215,7 @@ async function openResultPanel(prev = null) {
       <div class="row" style="margin:6px 0 12px">
         <label class="check"><input type="checkbox" id="r-sheet" ${ctx.manual ? "disabled" : "checked"}> تحديث Google Sheet</label>
         <label class="check"><input type="checkbox" id="r-odoo" ${ctx.odooId ? "checked" : "disabled"}> إضافة Log Note في Odoo</label>
+        ${ctx.odooId && Object.keys(S.settings.odoo_stage_mapping || {}).length ? '<label class="check"><input type="checkbox" id="r-stage" checked> تغيير المرحلة في Odoo حسب الربط</label>' : ""}
       </div>
       ${ctx.manual ? '<div class="alert info small">وضع يدوي: العميل غير مربوط بصف مؤكد في Google Sheet، لذلك لن يتم تحديث Sheet.</div>' : ""}
       <div id="r-summary" class="write-summary"></div>
@@ -1211,7 +1227,8 @@ async function openResultPanel(prev = null) {
       </div>
     </div>`;
   $$(".result-btn", card).forEach((b) => b.onclick = () => selectResult(b.dataset.code));
-  ["#r-sheet", "#r-odoo"].forEach((sel) => { $(sel).onchange = updateWriteSummary; });
+  ["#r-sheet", "#r-odoo", "#r-stage"].forEach((sel) => { if ($(sel)) $(sel).onchange = updateWriteSummary; });
+  $$("#r-quick .qn").forEach((b) => b.onclick = () => addQuickNote(S.settings.quick_notes[+b.dataset.q], b));
   updateWriteSummary();
   $("#r-cancel").onclick = () => { Dictation.stop(); card.classList.add("hidden"); };
   if ($("#r-mic")) $("#r-mic").onclick = () => Dictation.toggle($("#r-note"), $("#r-mic"));
@@ -1261,6 +1278,24 @@ async function openResultPanel(prev = null) {
   $("#reason-list").innerHTML = reasons.map((r) => `<option value="${esc(r)}">`).join("");
 }
 
+/** Append a ready phrase to the note (one line, joined with " - "). */
+function addQuickNote(text, btn) {
+  const ta = $("#r-note");
+  if (!ta || !text) return;
+  const cur = ta.value.trim();
+  if (cur.split(" - ").includes(text)) return;
+  ta.value = cur ? `${cur} - ${text}` : text;
+  if (btn) btn.classList.add("used");
+  ta.dispatchEvent(new Event("input"));
+}
+
+/** Odoo stage the selected result moves the lead to ("" = none). */
+function stageFor(code) {
+  const box = $("#r-stage");
+  if (!box || !box.checked || !code) return "";
+  return (S.settings.odoo_stage_mapping || {})[code] || "";
+}
+
 /** Live "what will be written" box, so it is clear before saving what Odoo and the sheet receive. */
 function updateWriteSummary() {
   const box = $("#r-summary");
@@ -1279,6 +1314,7 @@ function updateWriteSummary() {
   rows.push(`<li><span class="sys">Odoo</span>${odooOn
     ? `<span class="ok">✓ Log Note في Chatter</span>${S.result.code === "FOLLOW_UP" ? ' <span class="ok">+ Activity</span>' : ""}`
     : `<span class="no">لن تتم إضافة Log Note${ctx.odooId ? "" : " (العميل غير مربوط بـOdoo)"}</span>`}</li>`);
+  if (stageFor(code)) rows.push(`<li><span class="sys">مرحلة Odoo</span><span class="ok">← ${esc(stageFor(code))}</span></li>`);
   if (sheetOn) {
     rows.push(`<li><span class="sys">حالة المتابعة</span>${st ? `<span class="ok">← ${esc(st.sheet_value || "(غير مربوطة – راجع Status Mapping)")}</span>` : '<span class="warn-t">اختر النتيجة أولًا</span>'}</li>`);
     rows.push(`<li><span class="sys">مصدر العميل</span>${src
@@ -1328,7 +1364,7 @@ function buildResultBody(previewOnly) {
     followup_date: S.result.code === "FOLLOW_UP" ? $("#r-fdate").value : "",
     followup_time: S.result.code === "FOLLOW_UP" ? $("#r-ftime").value : "",
     followup_note: S.result.code === "FOLLOW_UP" ? $("#r-fnote").value : "",
-    update_sheet: $("#r-sheet").checked, add_odoo_note: $("#r-odoo").checked,
+    update_sheet: $("#r-sheet").checked, add_odoo_note: $("#r-odoo").checked, update_stage: !!($("#r-stage") && $("#r-stage").checked),
     call_started_at: S.call.startedAt ? S.call.startedAt.toISOString() : null,
     call_ended_at: S.call.startedAt ? (S.call.endedAt || new Date()).toISOString() : null,
     manual_company: ctx.manual ? ctx.company || "" : "", manual_phone: ctx.manual ? ctx.phone || "" : "",
@@ -1370,6 +1406,7 @@ function showPreview(res, title, onClose, offerRealSave = false) {
     ${p.sheet_error ? `<div class="alert error">${esc(p.sheet_error)}</div>` : ""}
     ${sheet ? `<div class="table-wrap"><table class="table"><thead><tr><th>الحقل</th><th>القيمة الحالية</th><th>القيمة الجديدة</th></tr></thead><tbody>${sheet}</tbody></table></div>` : (p.sheet_error ? "" : '<div class="muted">لا تغييرات على Google Sheet.</div>')}
     <h3 style="margin-top:16px">Odoo Note</h3>${p.odoo_note ? `<div class="info note-box">${esc(p.odoo_note)}</div>` : '<div class="muted">لن تتم إضافة ملاحظة.</div>'}
+    ${p.stage ? `<h3 style="margin-top:16px">مرحلة Odoo</h3><div class="info">← <b>${esc(p.stage)}</b></div>` : ""}
     ${p.activity ? `<h3 style="margin-top:16px">Odoo Activity</h3><div class="info">${esc(p.activity.date_deadline)} — ${esc(p.activity.summary)}<div class="small muted">${esc(p.activity.note || "")}</div></div>` : ""}
     ${(res.warnings || []).map((w) => `<div class="alert warn" style="margin-top:10px">${esc(w)}</div>`).join("")}`;
   const buttons = [{ label: onClose ? "متابعة بدون حفظ" : "إغلاق", cls: offerRealSave ? "" : "primary", onClick: () => { Modal.close(); if (onClose) onClose(); } }];

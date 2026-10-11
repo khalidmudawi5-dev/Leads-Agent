@@ -108,6 +108,11 @@ DEFAULT_NOTE_TEMPLATE = (
 )
 
 
+DEFAULT_QUICK_NOTES = [
+    "طلب عرض سعر", "مهتم بنظام رصد التواجد", "أرسلنا العرض بالإيميل", "يحتاج موافقة الإدارة",
+    "مشغول، يتصل لاحقًا", "الرقم مغلق", "طلب التواصل عبر واتساب", "لديه نظام آخر حاليًا",
+]
+
 DEFAULT_WHATSAPP_TEMPLATES: list[dict[str, str]] = [
     {"name": "لم يتم الرد", "text": "السلام عليكم ورحمة الله،\nمعك {owner}. حاولت أتواصل معكم بخصوص طلب {company}، متى يناسبكم نتواصل؟"},
     {"name": "متابعة", "text": "السلام عليكم ورحمة الله،\nمعك {owner}، أتابع معكم بخصوص طلب {company}. هل عندكم أي استفسار؟"},
@@ -184,6 +189,17 @@ class AppSettings(BaseModel):
     daily_call_goal: int = Field(default=40, ge=0, le=1000)
     # Check the sheet for new customers every N minutes while the dashboard is open (0 = off).
     sheet_poll_minutes: int = Field(default=5, ge=0, le=120)
+    # One-click phrases under the result note.
+    quick_notes: list[str] = Field(default_factory=lambda: list(DEFAULT_QUICK_NOTES))
+    # Result code → Odoo stage name to move the lead to when the result is saved (empty / missing = unchanged).
+    odoo_stage_mapping: dict[str, str] = Field(default_factory=dict)
+    # Follow-up reminders (desktop notification + in-page alert) N minutes before the time;
+    # follow-ups saved with a date only are reminded at followup_default_time.
+    followup_reminders: bool = True
+    followup_remind_minutes: int = Field(default=5, ge=0, le=120)
+    followup_default_time: str = "09:00"
+    # End-of-day summary shown automatically at this local time ("" = only on demand).
+    day_summary_time: str = "17:00"
     # Advanced
     browser_profile_path: str = ""
     browser_channel: str = "chromium"
@@ -193,6 +209,30 @@ class AppSettings(BaseModel):
     action_timeout_ms: int = Field(default=10000, ge=1000, le=120000)
     retry_attempts: int = Field(default=2, ge=1, le=5)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+
+    @field_validator("followup_default_time", "day_summary_time")
+    @classmethod
+    def _hhmm(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            return ""
+        try:
+            h, m = (int(x) for x in v.split(":"))
+        except ValueError as exc:
+            raise ValueError("الوقت بصيغة HH:MM") from exc
+        if not (0 <= h < 24 and 0 <= m < 60):
+            raise ValueError("الوقت بصيغة HH:MM")
+        return f"{h:02d}:{m:02d}"
+
+    @field_validator("quick_notes")
+    @classmethod
+    def _notes(cls, v: list[str]) -> list[str]:
+        return [x.strip()[:120] for x in v if x and x.strip()][:30]
+
+    @field_validator("odoo_stage_mapping")
+    @classmethod
+    def _stages(cls, v: dict[str, str]) -> dict[str, str]:
+        return {k.strip(): (s or "").strip() for k, s in v.items() if k and k.strip() and (s or "").strip()}
 
     @field_validator("odoo_base_url")
     @classmethod

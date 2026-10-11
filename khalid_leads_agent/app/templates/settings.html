@@ -92,9 +92,10 @@
   </section>
 
   <section class="tab-panel" data-panel="status">
-    <p class="muted">اربط كل نتيجة داخلية بقيمة Dropdown الفعلية في عمود «حالة المتابعة».</p>
-    <table class="table"><thead><tr><th>الرمز الداخلي</th><th>الزر</th><th>قيمة Google Sheet</th></tr></thead><tbody id="status-rows"></tbody></table>
-    <datalist id="status-options"></datalist>
+    <p class="muted">اربط كل نتيجة داخلية بقيمة Dropdown الفعلية في عمود «حالة المتابعة»، واختياريًا بمرحلة في Odoo ينتقل لها العميل عند الحفظ.</p>
+    <div id="stage-msg"></div>
+    <table class="table"><thead><tr><th>الرمز الداخلي</th><th>الزر</th><th>قيمة Google Sheet</th><th>مرحلة Odoo (اختياري)</th></tr></thead><tbody id="status-rows"></tbody></table>
+    <datalist id="status-options"></datalist><datalist id="stage-options"></datalist>
     <div class="actions" style="margin-top:12px"><button class="btn primary" id="btn-save-status">حفظ Status Mapping</button></div>
   </section>
 
@@ -145,6 +146,18 @@
     <div class="form-grid">
       <label class="check"><input type="checkbox" data-key="whatsapp_log"> تسجيل رسائل واتساب في Odoo (Log note) وملاحظات Google Sheet</label>
       <label class="check"><input type="checkbox" data-key="whatsapp_auto_next"> بعد إرسال الواتساب انتقل للعميل التالي تلقائيًا (ويُتخطّى العميل لليوم)</label>
+    </div>
+    <h3 style="margin-top:18px">ملاحظات جاهزة (أزرار تحت ملاحظة النتيجة)</h3>
+    <div class="form-grid">
+      <label class="field full"><span>عبارة في كل سطر — تُضاف للملاحظة بضغطة</span><textarea data-key="quick_notes" data-type="lines" rows="6"></textarea></label>
+    </div>
+    <h3 style="margin-top:18px">تنبيه موعد المتابعة وملخص اليوم</h3>
+    <div class="form-grid">
+      <label class="check"><input type="checkbox" data-key="followup_reminders"> تنبيه عند حلول موعد المتابعة (إشعار ويندوز + تنبيه في الصفحة)</label>
+      <label class="field"><span>التنبيه قبل الموعد بـ (دقائق)</span><input type="number" min="0" max="120" data-key="followup_remind_minutes"></label>
+      <label class="field"><span>وقت التنبيه للمتابعات بدون وقت</span><input type="time" data-key="followup_default_time"></label>
+      <label class="field"><span>عرض «ملخص اليوم» تلقائيًا الساعة (فارغ = إيقاف)</span><input type="time" data-key="day_summary_time"></label>
+      <div class="field"><span>&nbsp;</span><button type="button" class="btn" id="btn-notify-perm">السماح بإشعارات الويندوز</button></div>
     </div>
     <h3 style="margin-top:18px">المتابعات</h3>
     <div class="form-grid">

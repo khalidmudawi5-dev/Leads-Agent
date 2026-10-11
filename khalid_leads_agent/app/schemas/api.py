@@ -30,6 +30,7 @@ class ResultIn(BaseModel):
     followup_note: str = ""
     update_sheet: bool = True
     add_odoo_note: bool = True
+    update_stage: bool = True  # move the Odoo lead to the stage mapped to this result (if any)
     call_started_at: datetime | None = None
     call_ended_at: datetime | None = None
     input_channel: Literal["form", "voice"] = "form"

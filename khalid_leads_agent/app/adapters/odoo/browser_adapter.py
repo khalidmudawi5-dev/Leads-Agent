@@ -869,6 +869,35 @@ class BrowserOdooAdapter(OdooAdapter):
             log.info("Batch read unavailable; reading leads one by one", exc_info=True)
             return await super().read_leads(ids)
 
+    async def _w_stages(self) -> list[dict]:
+        return await self._w_call_kw("crm.stage", "search_read", [],
+                                     {"domain": [], "fields": ["name", "sequence"], "order": "sequence, id"}) or []
+
+    async def list_stages(self) -> list[str]:
+        return [str(s["name"]) for s in await self._exec(self._w_stages)]
+
+    async def _w_set_stage(self, lead_id: int, stage_name: str) -> ActionOutcome:
+        key = _norm_label(stage_name)
+        stages = await self._w_stages()
+        match = [s for s in stages if _norm_label(s["name"]) == key]
+        if not match:
+            names = "، ".join(str(s["name"]) for s in stages[:12])
+            return ActionOutcome(False, "none", f"المرحلة «{stage_name}» غير موجودة في Odoo (المتاح: {names}).")
+        current = await self._w_call_kw("crm.lead", "read", [[lead_id]], {"fields": ["stage_id"]}) or []
+        if current and isinstance(current[0].get("stage_id"), list) and current[0]["stage_id"][0] == match[0]["id"]:
+            return ActionOutcome(True, "rpc", "already in stage", already_done=True)
+        await self._w_call_kw("crm.lead", "write", [[lead_id], {"stage_id": match[0]["id"]}])
+        return ActionOutcome(True, "rpc")
+
+    async def set_stage(self, lead_id: int, stage_name: str) -> ActionOutcome:
+        try:
+            return await self._exec(self._w_set_stage, lead_id, stage_name)
+        except OdooLoginRequired:
+            raise
+        except (OdooRpcError, OdooRpcUnavailable) as exc:
+            log.warning("Stage change failed for lead %s", lead_id, exc_info=True)
+            return ActionOutcome(False, "none", f"تعذر تغيير المرحلة في Odoo: {exc}")
+
     async def _w_render_pdf(self, html: str) -> bytes:
         """A separate headless browser (the Odoo window is never touched)."""
         from playwright.async_api import async_playwright

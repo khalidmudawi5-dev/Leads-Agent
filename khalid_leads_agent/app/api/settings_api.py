@@ -146,6 +146,11 @@ async def odoo_check_login(c: AppContainer = Depends(container)) -> dict:
     return {"logged_in": st.logged_in, "user": st.user_name, "message": st.message, "url": st.url}
 
 
+@router.get("/odoo/stages")
+async def odoo_stages(c: AppContainer = Depends(container)) -> dict:
+    return {"stages": await c.odoo.adapter.list_stages()}
+
+
 @router.post("/odoo/test-search")
 async def odoo_test_search(body: SearchIn, c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.manual_search(body.query)

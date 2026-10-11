@@ -276,3 +276,127 @@ document.addEventListener("DOMContentLoaded", () => {
     refreshStatus();
   };
 });
+
+// --------------------------------------------------------- follow-up reminders (every page)
+/** Polls /api/reminders every minute: a desktop notification + an in-page card when a follow-up is due.
+ *  A shown reminder comes back every 30 minutes until «تم» or the customer is opened / gets a new result. */
+const Reminders = {
+  KEY: "kla-fu-seen", REPEAT_MS: 30 * 60 * 1000, timer: null,
+  seen() { try { return JSON.parse(localStorage.getItem(this.KEY) || "{}"); } catch (e) { return {}; } },
+  mark(key, untilMs) {
+    try {
+      const s = this.seen(); const now = Date.now();
+      Object.keys(s).forEach((k) => { if (s[k] < now - 3 * 864e5) delete s[k]; });  // keep it small
+      s[key] = untilMs; localStorage.setItem(this.KEY, JSON.stringify(s));
+    } catch (e) { /* private window: show again next time */ }
+  },
+  start() { setTimeout(() => this.poll(), 4000); this.timer = setInterval(() => this.poll(), 60000); },
+  async poll() {
+    let r;
+    try { r = await api("GET", "/api/reminders"); } catch (e) { return; }
+    DaySummary.maybeAuto(r);
+    if (!r.enabled) return;
+    const seen = this.seen(); const now = Date.now();
+    r.items.filter((i) => !(seen[i.key] > now)).slice(0, 3).forEach((i) => this.show(i));
+  },
+  async askPermission() {
+    if (!("Notification" in window)) { toast("المتصفح لا يدعم الإشعارات. ستظهر التنبيهات داخل الصفحة.", "warn"); return; }
+    if (!window.isSecureContext) { toast("إشعارات الويندوز تعمل على جهازك (127.0.0.1) فقط؛ على الجوال تظهر داخل الصفحة.", "info", 7000); return; }
+    const p = await Notification.requestPermission();
+    toast(p === "granted" ? "تم تفعيل إشعارات الويندوز ✓" : "لم يُسمح بالإشعارات؛ ستظهر داخل الصفحة فقط.", p === "granted" ? "success" : "warn");
+  },
+  open(item) {
+    this.mark(item.key, 9e15);
+    if (typeof window.KLA_openLead === "function") window.KLA_openLead(item.fingerprint);
+    else location.href = `/?goto=${encodeURIComponent(item.fingerprint)}`;
+  },
+  beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.18].forEach((t) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(ctx.destination);
+        o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.12);
+      });
+    } catch (e) { /* no sound before the first click: fine */ }
+    if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+  },
+  show(item) {
+    this.mark(item.key, Date.now() + this.REPEAT_MS);
+    const when = item.state === "overdue" ? `متأخرة (${item.date} ${item.at})` : item.late ? `الآن (${item.at})` : `الساعة ${item.at}`;
+    if ("Notification" in window && Notification.permission === "granted") {
+      try {
+        const n = new Notification(`موعد متابعة: ${item.company}`, { body: `${when}${item.note ? " — " + item.note : ""}`, tag: item.key, requireInteraction: true });
+        n.onclick = () => { window.focus(); n.close(); this.open(item); };
+      } catch (e) { /* some browsers need a service worker */ }
+    }
+    let stack = $("#reminder-stack");
+    if (!stack) { stack = document.createElement("div"); stack.id = "reminder-stack"; document.body.appendChild(stack); }
+    if ($(`[data-key="${CSS.escape(item.key)}"]`, stack)) return;
+    const card = document.createElement("div");
+    card.className = "reminder-card";
+    card.dataset.key = item.key;
+    card.innerHTML = `<div class="rc-head"><span class="rc-ic">⏰</span><b>موعد متابعة ${item.state === "overdue" ? "متأخرة" : ""}</b><span class="spacer"></span>
+        <button type="button" class="icon-btn rc-x" title="إغلاق">✕</button></div>
+      <div class="rc-co">${esc(item.company)}</div>
+      <div class="small muted"><span class="ltr">${esc(item.phone || "")}</span> · ${esc(when)}</div>
+      ${item.note ? `<div class="small rc-note">${esc(item.note)}</div>` : ""}
+      <div class="rc-actions"><button type="button" class="btn sm primary" data-a="open">فتح العميل</button>
+        <button type="button" class="btn sm" data-a="snooze">بعد 10 دقائق</button>
+        <button type="button" class="btn sm ghost" data-a="done">تم</button></div>`;
+    const close = () => card.remove();
+    $(".rc-x", card).onclick = close;
+    $('[data-a="open"]', card).onclick = () => { close(); this.open(item); };
+    $('[data-a="snooze"]', card).onclick = () => { this.mark(item.key, Date.now() + 10 * 60000); close(); };
+    $('[data-a="done"]', card).onclick = () => { this.mark(item.key, 9e15); close(); };
+    stack.appendChild(card);
+    this.beep();
+  },
+};
+
+// --------------------------------------------------------------------- day summary
+const DaySummary = {
+  KEY: "kla-summary-shown",
+  maybeAuto(r) {
+    if (!r || !r.day_summary_time) return;
+    const [day, hm] = (r.now || "").split(" ");
+    let shown = "";
+    try { shown = localStorage.getItem(this.KEY) || ""; } catch (e) { return; }
+    if (shown === day || !hm || hm < r.day_summary_time) return;
+    try { localStorage.setItem(this.KEY, day); } catch (e) { /* ignore */ }
+    if (!$("#modal-backdrop")) this.open(true);
+  },
+  async open(auto = false) {
+    let d;
+    try { d = await api("GET", "/api/reports/day-summary"); } catch (e) { if (!auto) toast(e.message, "error"); return; }
+    const t = d.totals;
+    const tile = (l, v, sub = "") => `<div class="rtile"><div class="rt-label">${esc(l)}</div><div class="rt-value">${v}</div>${sub ? `<div class="rt-sub">${esc(sub)}</div>` : ""}</div>`;
+    const list = (rows, fmt) => rows.length ? `<ul class="ds-list">${rows.map(fmt).join("")}</ul>` : '<div class="muted small">لا يوجد.</div>';
+    Modal.open({
+      title: `ملخص اليوم — ${d.date}`, wide: true,
+      html: `${auto ? '<div class="alert info small">ملخص نهاية اليوم التلقائي (يمكن تغيير الوقت من الإعدادات ← واتساب والمتابعة).</div>' : ""}
+        <div class="rep-tiles ds-tiles">${tile("النتائج المسجلة", t.calls, `${t.customers} عميل`)}${tile("تم الرد", t.answered, `${t.answer_rate}%`)}
+          ${tile("مهتم", t.interested)}${tile("تم الاشتراك", t.subscribed)}${tile("متابعة لاحقة", t.follow_up)}${tile("رسائل واتساب", t.whatsapp)}</div>
+        <div class="grid-2 ds-grid"><div><h3>المهتمون اليوم (${d.interested.length})</h3>
+          ${list(d.interested, (h) => `<li><b>${esc(h.company)}</b> <span class="ltr small muted">${esc(h.phone)}</span>${h.note ? `<div class="small muted">${esc(h.note)}</div>` : ""}</li>`)}</div>
+          <div><h3>متابعات الغد (${d.tomorrow.length})${d.overdue ? ` · <span class="badge red">متأخرة: ${d.overdue}</span>` : ""}</h3>
+          ${list(d.tomorrow, (f) => `<li><span class="ltr">${esc(f.followup_at.slice(11, 16) || "—")}</span> <b>${esc(f.company)}</b>${f.note ? `<div class="small muted">${esc(f.note)}</div>` : ""}</li>`)}</div></div>
+        <label class="field" style="margin-top:12px"><span>نص الملخص (للنسخ أو الإرسال)</span><textarea id="ds-text" rows="7" readonly>${esc(d.text)}</textarea></label>`,
+      buttons: [
+        { label: "نسخ النص", cls: "primary", onClick: async () => {
+          try { await navigator.clipboard.writeText(d.text); toast("تم نسخ الملخص", "success"); }
+          catch (e) { $("#ds-text").select(); document.execCommand("copy"); toast("تم نسخ الملخص", "success"); }
+        } },
+        { label: "إرسال واتساب", cls: "wa", onClick: () => window.open(`https://wa.me/?text=${encodeURIComponent(d.text)}`, "_blank", "noopener") },
+        { label: "تنزيل Excel", onClick: () => { location.href = "/api/reports/export?period=today"; } },
+        { label: "إغلاق" },
+      ],
+    });
+  },
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  Reminders.start();
+  const perm = $("#btn-notify-perm"); if (perm) perm.onclick = () => Reminders.askPermission();
+  $$("[data-day-summary]").forEach((b) => b.onclick = () => DaySummary.open());
+});

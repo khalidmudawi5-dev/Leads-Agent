@@ -744,3 +744,27 @@ td.ltr, th.ltr { display: table-cell; direction: ltr; text-align: right; }
 /* «السابق / التالي» in the lead action bar */
 .step-nav { display: inline-flex; gap: 6px; margin-inline-start: 4px; padding-inline-start: 10px; border-inline-start: 1px solid var(--border); }
 @media (max-width: 700px) { .step-nav { width: 100%; padding: 0; border: 0; margin: 0; } .step-nav .btn { flex: 1; justify-content: center; } }
+
+/* Ready phrases under the result note */
+.quick-notes { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+.quick-notes .qn { border: 1px dashed var(--border-strong); background: var(--surface); color: var(--text-2); font: inherit; font-size: .82rem;
+  font-weight: 600; padding: 4px 10px; border-radius: 999px; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.quick-notes .qn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.quick-notes .qn.used { border-style: solid; border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+
+/* Follow-up reminder cards (every page) */
+#reminder-stack { position: fixed; top: 76px; left: 18px; z-index: 90; display: flex; flex-direction: column; gap: 10px; width: min(340px, calc(100vw - 32px)); }
+.reminder-card { background: var(--surface); border: 1px solid var(--border); border-inline-start: 4px solid var(--primary); border-radius: 14px;
+  box-shadow: var(--shadow-lg, 0 18px 40px -12px rgba(15, 23, 42, .35)); padding: 12px 14px; animation: rc-in .25s ease-out; }
+.reminder-card .rc-head { display: flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--primary); }
+.reminder-card .rc-co { font-weight: 800; font-size: 1.02rem; margin: 6px 0 2px; }
+.reminder-card .rc-note { margin-top: 6px; color: var(--text-2); }
+.reminder-card .rc-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+@keyframes rc-in { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Day summary */
+.ds-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; margin-bottom: 14px; }
+.ds-grid { gap: 18px; }
+.ds-list { list-style: none; padding: 0; margin: 6px 0 0; max-height: 220px; overflow: auto; }
+.ds-list li { padding: 7px 0; border-bottom: 1px solid var(--border); }
+#ds-text { font-size: .86rem; }
+@media (max-width: 700px) { .ds-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } #reminder-stack { top: auto; bottom: 86px; } }
