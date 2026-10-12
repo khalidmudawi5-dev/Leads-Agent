@@ -182,6 +182,11 @@ class AppSettings(BaseModel):
     # suggest WhatsApp / invalid number (0 = never).
     no_answer_retry_hours: int = Field(default=4, ge=0, le=168)
     no_answer_max_attempts: int = Field(default=3, ge=0, le=20)
+    # Count earlier attempts from the sheet's notes cell (entries with these words = no answer).
+    sheet_history_enabled: bool = True
+    no_answer_keywords: list[str] = Field(default_factory=lambda: [
+        "لم يتم الرد", "لم يرد", "لا يرد", "ما رد", "مارد", "ماترد", "لا يوجد رد", "بدون رد", "مغلق", "مقفل",
+        "خارج التغطية", "خارج الخدمة", "no answer"])
     # Daily goal (results recorded today); 0 = hidden.
     daily_call_goal: int = Field(default=40, ge=0, le=1000)
     # Check the sheet for new customers every N minutes while the dashboard is open (0 = off).

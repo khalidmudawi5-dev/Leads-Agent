@@ -62,13 +62,16 @@ class SummaryService:
         need_wa = []
         for lead in wf.queue.owner_leads:
             o = outcomes.get(lead.fingerprint)
-            if not o or o.last_code != "NO_ANSWER" or o.no_answer_streak < limit:
+            if not o or o.last_code != "NO_ANSWER":
+                continue
+            streak, _ = wf.no_answer_streak(lead.fingerprint, lead.notes, o.no_answer_streak)
+            if streak < limit:
                 continue
             sent = wa_last.get(lead.fingerprint)
             if sent is not None and sent >= o.last_at:
                 continue
             need_wa.append({"fingerprint": lead.fingerprint, "company": lead.company_name,
-                            "phone": format_phone(lead.phone_raw), "attempts": o.no_answer_streak})
+                            "phone": format_phone(lead.phone_raw), "attempts": streak})
         need_wa.sort(key=lambda x: -x["attempts"])
 
         goal = s.daily_call_goal

@@ -23,6 +23,7 @@ from app.services.mapping_service import _SEP, MappingService
 from app.services.odoo_service import MatchResult, OdooService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
+from app.services.sheet_history import combined_streak, drop_saved, history_view, parse_notes
 from app.utils.phone import check_phone, format_phone, normalize_phone, phones_match, to_ascii_digits
 from app.utils.text import normalize_company, normalize_text
 from app.utils.timeutils import end_of_local_day_utc, fmt_local, localnow, start_of_local_day_utc, utcnow
@@ -122,19 +123,37 @@ class LeadWorkflowService:
             "duplicates": self._duplicates(c.phone_norm, c.sheet_row),
         }
 
+    def no_answer_streak(self, fingerprint: str, notes: str, db_streak: int) -> tuple[int, dict | None]:
+        """No-answer attempts in a row, including earlier ones written in the sheet's notes cell."""
+        s = self.settings.get()
+        fu = self.queue.followups
+        if not s.sheet_history_enabled or not (notes or "").strip() or fu is None:
+            return db_streak, None
+        results = fu.results(fingerprint)
+        entries = drop_saved(parse_notes(notes, s.no_answer_keywords), [at for at, _ in results])
+        if not entries:
+            return db_streak, None
+        return combined_streak(entries, results), history_view(entries)
+
     def _outcome_view(self, fingerprint: str) -> dict | None:
-        """Follow-up date and no-answer attempts from the results saved for this customer."""
+        """Follow-up date and no-answer attempts from the results saved for this customer (+ the sheet notes)."""
         fu = self.queue.followups
         o = fu.outcomes().get(fingerprint) if fu else None
-        if o is None:
+        c = self._cache(fingerprint)
+        streak, history = self.no_answer_streak(fingerprint, c.notes, o.no_answer_streak if o else 0)
+        if o is None and history is None:
             return None
         s = self.settings.get()
-        return {"last_code": o.last_code, "last_at": fmt_local(o.last_at), "no_answer_streak": o.no_answer_streak,
-                "max_attempts": s.no_answer_max_attempts,
-                "attempts_reached": bool(s.no_answer_max_attempts and o.no_answer_streak >= s.no_answer_max_attempts),
+        reached = bool(s.no_answer_max_attempts and streak >= s.no_answer_max_attempts)
+        if o is None:  # only the sheet knows this customer
+            return {"last_code": "", "last_at": history["last_at"], "no_answer_streak": streak,
+                    "max_attempts": s.no_answer_max_attempts, "attempts_reached": reached, "followup_at": "",
+                    "followup_note": "", "followup_state": "", "sheet_history": history}
+        return {"last_code": o.last_code, "last_at": fmt_local(o.last_at), "no_answer_streak": streak,
+                "max_attempts": s.no_answer_max_attempts, "attempts_reached": reached,
                 "followup_at": o.followup_at,
                 "followup_note": o.followup_note if o.followup_at else "",
-                "followup_state": o.followup_state(localnow().date())}
+                "followup_state": o.followup_state(localnow().date()), "sheet_history": history}
 
     def _duplicates(self, phone_norm: str, sheet_row: int) -> list[dict]:
         """Other sheet rows (any owner) with the same phone number."""

@@ -166,6 +166,8 @@
     <div class="form-grid">
       <label class="field"><span>يرجع العميل للقائمة بعد (ساعات) — 0 = لا يرجع في نفس الجلسة</span><input type="number" min="0" max="168" data-key="no_answer_retry_hours"></label>
       <label class="field"><span>بعد كم محاولة بدون رد أقترح واتساب / رقم غير صحيح (0 = أبدًا)</span><input type="number" min="0" max="20" data-key="no_answer_max_attempts"></label>
+      <label class="check"><input type="checkbox" data-key="sheet_history_enabled"> احسب المحاولات القديمة من عمود «الملاحظات» في Google Sheet</label>
+      <label class="field"><span>كلمات تعني «لم يتم الرد» في الملاحظات (كلمة في كل سطر)</span><textarea rows="4" data-key="no_answer_keywords" data-type="lines"></textarea></label>
     </div>
     <h3 style="margin-top:18px">الهدف اليومي والعملاء الجدد</h3>
     <div class="form-grid">

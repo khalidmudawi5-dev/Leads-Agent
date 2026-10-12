@@ -613,6 +613,7 @@ table.hist { table-layout: auto; }
 .reminder .rm-name { font-size: 1rem; font-weight: 800; margin: 2px 0; }
 .reminder .rm-actions { display: flex; gap: 8px; margin-top: 8px; }
 @keyframes rm-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.sheet-hist { margin: 4px 2px 8px; }
 .sum-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
 @media (max-width: 760px) { .sum-grid { grid-template-columns: 1fr; } }
 .sum-sec { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--surface-2); }

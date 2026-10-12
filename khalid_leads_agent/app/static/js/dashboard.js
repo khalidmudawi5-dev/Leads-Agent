@@ -432,12 +432,16 @@ function outcomeAlerts(lead) {
   }
   if (o.no_answer_streak) {
     if (o.attempts_reached) {
-      out.push(`<div class="alert warn"><b>العميل لم يرد ${o.no_answer_streak} ${o.no_answer_streak <= 10 ? "مرات" : "مرة"} متتالية</b> (آخرها ${esc(o.last_at)}).
+      out.push(`<div class="alert warn"><b>العميل لم يرد ${o.no_answer_streak} ${o.no_answer_streak <= 10 ? "مرات" : "مرة"} متتالية</b>${o.last_at ? ` (آخرها ${esc(o.last_at)})` : ""}.
         <div class="actions"><button class="btn sm wa" data-oc="wa">${ICON.wa} إرسال واتساب</button>
         <button class="btn sm" data-oc="invalid">تسجيل: بيانات التواصل غير صحيحة</button></div></div>`);
     } else {
-      out.push(`<div class="alert info">لم يرد ${o.no_answer_streak === 1 ? "مرة واحدة" : `${o.no_answer_streak} مرات`} (آخرها ${esc(o.last_at)})${o.max_attempts ? ` · المحاولة ${o.no_answer_streak + 1} من ${o.max_attempts}` : ""}</div>`);
+      out.push(`<div class="alert info">لم يرد ${o.no_answer_streak === 1 ? "مرة واحدة" : `${o.no_answer_streak} مرات`} ${o.last_at ? `(آخرها ${esc(o.last_at)})` : ""}${o.max_attempts ? ` · المحاولة ${o.no_answer_streak + 1} من ${o.max_attempts}` : ""}</div>`);
     }
+  }
+  const h = o.sheet_history;
+  if (h && h.entries) {
+    out.push(`<div class="small muted sheet-hist">📝 من ملاحظات الشيت: ${h.entries} ${h.entries === 1 ? "ملاحظة سابقة" : "ملاحظات سابقة"}${h.no_answer ? ` · ${h.no_answer} منها «لم يتم الرد»` : ""}${h.last_at ? ` · آخرها <span class="ltr">${esc(h.last_at)}</span>` : ""}${o.no_answer_streak ? " (محسوبة في عدد المحاولات)" : ""}</div>`);
   }
   if ((lead.duplicates || []).length) {
     out.push(`<div class="alert warn">⚠ <b>هذا الرقم مكرر في Google Sheet:</b> ${lead.duplicates.map((d) => `صف ${d.row} — ${esc(d.company || "—")} (${esc(d.owner || "بدون مسؤول")}${d.status ? " · " + esc(d.status) : ""})`).join("، ")}</div>`);
