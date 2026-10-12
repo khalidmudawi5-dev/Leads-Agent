@@ -115,8 +115,18 @@ Shortcuts.register([
     when: () => resultOpen() || !!$("#btn-cancel-next"), run: () => { if ($("#btn-cancel-next")) $("#btn-cancel-next").click(); else $("#r-cancel").click(); } },
 ]);
 
+/** The number shown on the card: the sheet's, or Odoo's (the number that will be called) when the sheet cell is empty. */
+function shownPhone(lead) {
+  if (!lead) return "";
+  const sheet = (lead.phone || "").trim();
+  if (sheet) return sheet;
+  const t = lead.phone_check && lead.phone_check.target;
+  const o = lead.odoo || {};
+  return (t && (t.raw || t.tel)) || o.mobile || o.phone || "";
+}
+
 async function copyPhone() {
-  const phone = S.manual ? (S.manual.phone || S.manual.mobile) : (S.lead && S.lead.phone);
+  const phone = S.manual ? (S.manual.phone || S.manual.mobile) : shownPhone(S.lead);
   if (!phone) return;
   try { await navigator.clipboard.writeText(phone); toast("تم نسخ الرقم: " + phone, "info", 2500); }
   catch (e) { toast("تعذر النسخ", "warn"); }
@@ -680,7 +690,7 @@ function renderLead(lead) {
         <div class="row small" style="gap:6px"><span class="badge blue">صف ${lead.sheet_row} (مرجع فقط)</span>${statusBadge(lead.followup_status)}
           ${o.stage ? `<span class="badge indigo">${esc(o.stage)}</span>` : ""}</div>
         <h2 class="lead-name">${esc(lead.company_name || "(بدون اسم)")}</h2>
-        <div class="lead-phone"><span class="ltr">${esc(lead.phone)}</span>
+        <div class="lead-phone"><span class="ltr">${esc(shownPhone(lead))}</span>${!(lead.phone || "").trim() && shownPhone(lead) ? `<span class="badge" title="عمود الجوال في Google Sheet فارغ؛ هذا الرقم من Odoo">من Odoo</span>` : ""}
           <button class="icon-btn" id="btn-copy" title="نسخ الرقم (P)">${ICON.copy}</button>${phoneBadge(lead.phone_check)}</div></div></div>
     </div></div>
     <div class="lead-body">
