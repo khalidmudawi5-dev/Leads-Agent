@@ -483,21 +483,32 @@ const StageMap = {
   },
   draw() {
     const names = [...new Set([...StageMap.stages.map((s) => s.name), ...Object.values(StageMap.map || {}).filter(Boolean)])];
+    const hint = names.length ? "" : `<option value="" disabled>${StageMap.loading ? "جاري تحميل المراحل من Odoo…" : "لا توجد مراحل: اضغط «تحميل المراحل من Odoo»"}</option>`;
     $("#stage-rows").innerHTML = StageMap.results.map((r) => {
       const cur = (StageMap.map || {})[r.code] || "";
       return `<tr><td><b>${esc(r.label || r.code)}</b> <span class="small muted ltr">${esc(r.code)}</span></td>
-        <td><select data-code="${esc(r.code)}"><option value="">— بدون تغيير —</option>
+        <td><select data-code="${esc(r.code)}"><option value="">— بدون تغيير —</option>${hint}
           ${names.map((n) => `<option value="${esc(n)}" ${n === cur ? "selected" : ""}>${esc(n)}${StageMap.stages.length && !StageMap.stages.some((s) => s.name === n) ? " (غير موجودة في Odoo)" : ""}</option>`).join("")}</select></td></tr>`;
     }).join("");
   },
   async fetchStages(btn) {
-    await withBusy(btn, async () => {
+    const state = $("#stages-state");
+    const run = async () => {
+      StageMap.loading = true;
+      state.innerHTML = '<span class="spinner"></span> جاري تحميل المراحل من Odoo…';
       try {
         StageMap.stages = (await api("GET", "/api/odoo/stages")).stages || [];
-        $("#stages-state").textContent = `${StageMap.stages.length} مرحلة: ${StageMap.stages.map((s) => s.name).join(" ← ")}`;
+        state.innerHTML = StageMap.stages.length
+          ? `<span class="badge green">${StageMap.stages.length} مرحلة</span> ${StageMap.stages.map((s) => esc(s.name)).join(" · ")}`
+          : '<span class="badge amber">Odoo لم يرجع أي مرحلة</span> تأكد أن تطبيق CRM مثبت وأن لديك صلاحية عليه.';
+      } catch (e) {
+        state.innerHTML = `<span class="badge red">تعذر تحميل المراحل</span> ${esc(e.message)}${e.code === "ODOO_LOGIN_REQUIRED" ? " — سجّل الدخول إلى Odoo من الرئيسية ثم اضغط «تحميل المراحل من Odoo»." : ""}`;
+      } finally {
+        StageMap.loading = false;
         StageMap.draw();
-      } catch (e) { toast(e.message, "error", 7000); }
-    });
+      }
+    };
+    if (btn) await withBusy(btn, run); else await run();
   },
   async save(btn) {
     const map = {};
@@ -516,4 +527,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#btn-load-stages").onclick = (ev) => StageMap.fetchStages(ev.currentTarget);
   $("#btn-save-stages").onclick = (ev) => StageMap.save(ev.currentTarget);
   StageMap.load();
+  // Load the stages from Odoo the first time the Status Mapping tab is opened.
+  const tab = $('[data-tab="status"]');
+  const auto = () => { if (!StageMap.stages.length && !StageMap.loading) StageMap.fetchStages(); };
+  if (tab) tab.addEventListener("click", auto);
+  if ($('[data-panel="status"]').classList.contains("active")) auto();
 });
