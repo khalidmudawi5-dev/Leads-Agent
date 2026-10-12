@@ -357,3 +357,45 @@ const IdleWatch = {
   },
 };
 document.addEventListener("DOMContentLoaded", () => IdleWatch.start());
+
+// ------------------------------------------------------------ end-of-day summary
+async function showDaySummary() {
+  let d;
+  try { d = await api("GET", "/api/reports/summary"); } catch (e) { toast(e.message, "error"); return; }
+  const t = d.totals;
+  const n = (v) => Number(v || 0).toLocaleString("en-US");
+  const canOpen = typeof render === "function" && !!document.getElementById("stats");
+  const who = (x, extra = "") => `<li><span>${canOpen && x.fingerprint ? `<button type="button" class="linklike" data-fp="${esc(x.fingerprint)}">${esc(x.company)}</button>` : `<b>${esc(x.company)}</b>`}</span>
+    <span class="muted small">${extra}</span></li>`;
+  const section = (title, list, row, empty) => `<div class="sum-sec"><h4>${title} <span class="badge">${list.length}</span></h4>
+    ${list.length ? `<ul class="sum-list">${list.map(row).join("")}</ul>` : `<div class="small muted">${empty}</div>`}</div>`;
+  const tile = (label, value, sub = "") => `<div class="rtile"><div class="rt-label">${label}</div><div class="rt-value">${value}</div>${sub ? `<div class="rt-sub">${sub}</div>` : ""}</div>`;
+  Modal.open({
+    title: `ملخص اليوم · ${d.date.split("-").reverse().join("/")}`, wide: true,
+    html: `<div class="rep-tiles sum-tiles">
+        ${tile("النتائج المسجلة", n(t.calls), d.goal ? `من هدف ${n(d.goal)} (${d.goal_pct}%)` : "")}
+        ${tile("تم الرد", n(t.answered), `${t.answer_rate}% · لم يرد ${n(t.no_answer)}`)}
+        ${tile("مهتم / اشترك", `${n(t.interested)} / ${n(t.subscribed)}`, `متابعة لاحقة ${n(t.follow_up)}`)}
+        ${tile("واتساب", n(t.whatsapp), `بانتظار التواصل ${n(d.pending)}`)}
+      </div>
+      ${d.first_at ? `<p class="small muted" style="margin:8px 0 0">أول نتيجة ${d.first_at} · آخر نتيجة ${d.last_at}</p>` : ""}
+      <div class="sum-grid">
+        ${section("⭐ المهتمون اليوم", d.hot, (h) => who(h, esc(h.label) + (h.note ? " — " + esc(h.note) : "")), "لا يوجد اليوم.")}
+        ${section("📅 متابعات بكرة", d.followups_tomorrow, (i) => who(i, `<span class="ltr">${esc(i.followup_at.slice(11, 16) || "—")}</span>${i.note ? " · " + esc(i.note) : ""}`), "لا توجد متابعات بكرة.")}
+        ${section("⏰ متابعات مفتوحة لم تُنجز", d.followups_open, (i) => who(i, `<span class="ltr">${esc(i.followup_at.slice(0, 10))}</span>`), "ممتاز، لا يوجد.")}
+        ${section(`💬 يحتاجون واتساب (لم يردوا ${d.attempts_limit}+ مرات)`, d.need_whatsapp, (w) => who(w, `<span class="ltr">${esc(w.phone)}</span> · ${w.attempts} محاولات`), "لا يوجد.")}
+      </div>`,
+    buttons: [
+      { label: "نسخ الملخص", cls: "primary", onClick: async () => {
+        try { await navigator.clipboard.writeText(d.text); toast("تم نسخ الملخص.", "success"); }
+        catch (e) { toast("تعذر النسخ تلقائيًا.", "warn"); }
+      } },
+      { label: "إرسال واتساب", onClick: () => window.open(`https://wa.me/?text=${encodeURIComponent(d.text)}`, "_blank", "noopener") },
+      { label: "إغلاق" },
+    ],
+    onOpen: (m) => $$("[data-fp]", m).forEach((b) => b.onclick = async () => {
+      Modal.close();
+      try { render(await api("POST", `/api/lead/${b.dataset.fp}/goto`)); } catch (e) { toast(e.message, "error"); }
+    }),
+  });
+}

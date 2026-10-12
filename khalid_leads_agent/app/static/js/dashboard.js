@@ -52,6 +52,7 @@ function bindPageHandlers() {
   $("#manual-form").onsubmit = (ev) => { ev.preventDefault(); manualSearch(); };
   $$("#stats .stat").forEach((b) => b.onclick = () => openCard(b.dataset.go));
   $("#btn-refresh-queue").onclick = (ev) => withBusy(ev.currentTarget, refreshQueue);
+  $("#btn-summary").onclick = () => showDaySummary();
   $("#btn-end-call").onclick = () => { stopCall(); openResultPanel(); };
   $("#btn-result-from-call").onclick = () => { stopCall(); openResultPanel(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) Live.poll(); });
@@ -90,6 +91,7 @@ Shortcuts.register([
   { code: "KeyU", label: "U", title: "تحديث من Google Sheet (عملاء جدد + بيانات العميل)", group: "العميل الحالي", when: () => !S.manual && !resultOpen(),
     run: () => { if ($("#btn-refresh")) clickIf("#btn-refresh"); else clickIf("#btn-refresh-queue"); } },
   { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
+  { code: "KeyE", label: "E", title: "ملخص نهاية اليوم", group: "عام", run: () => showDaySummary() },
   { code: "KeyL", label: "L", title: "ربط العميل بعميل وجدته في Odoo (بحث بالاسم أو الرقم)", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-link"), run: () => clickIf("#btn-link") },
   { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
   { code: "KeyW", label: "W", title: "رسالة واتساب للعميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !resultOpen(), run: () => clickIf("#btn-wa") },

@@ -22,3 +22,11 @@ def export(period: str = "week", start: str = "", end: str = "", c: AppContainer
     data, name = c.reports.export_xlsx(period, start, end)
     return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
+
+
+@router.get("/summary")
+async def day_summary(c: AppContainer = Depends(container)) -> dict:
+    """End-of-day summary (today): numbers, interested customers, follow-ups, who needs WhatsApp."""
+    from app.services.summary_service import SummaryService
+
+    return await SummaryService(c.workflow, c.reports, c.settings).today()
