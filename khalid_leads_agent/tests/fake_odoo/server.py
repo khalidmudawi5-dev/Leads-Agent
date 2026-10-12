@@ -189,8 +189,14 @@ def make_app(state: FakeOdooState) -> FastAPI:
             state.leads[new_id] = rec
             state.created.append(dict(vals))
             result = new_id
+        elif model == "crm.stage" and method == "search_read":
+            result = [{"id": 1, "name": "جديد", "sequence": 1, "is_won": False},
+                      {"id": 2, "name": "Qualified", "sequence": 2, "is_won": False},
+                      {"id": 5, "name": "Won", "sequence": 70, "is_won": True}]
         elif model == "crm.lead" and method == "write":
-            ids, vals = args[0], args[1]
+            ids, vals = args[0], dict(args[1])
+            if "stage_id" in vals:
+                vals["stage_id"] = [vals["stage_id"], {1: "جديد", 2: "Qualified", 5: "Won"}[vals["stage_id"]]]
             for i in ids:
                 state.leads[i].update(vals)
                 state.leads[i]["write_date"] = state.now()

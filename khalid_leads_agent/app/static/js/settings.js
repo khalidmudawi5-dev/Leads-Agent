@@ -466,3 +466,54 @@ document.addEventListener("DOMContentLoaded", () => {
   btn.onclick = async () => { try { await Notification.requestPermission(); } catch (e) { /* ignore */ } show(); };
   show();
 });
+
+// ------------------------------------------------------------------ Odoo stage by result
+const StageMap = {
+  stages: [], results: [],
+  async load() {
+    const body = $("#stage-rows");
+    if (!body) return;
+    try {
+      const [st, cfg] = await Promise.all([api("GET", "/api/settings/status-mapping"), api("GET", "/api/settings")]);
+      StageMap.results = st.items || [];
+      StageMap.map = cfg.settings.odoo_stage_by_result || {};
+      $("#stage-no-back").checked = cfg.settings.odoo_stage_no_back !== false;
+    } catch (e) { body.innerHTML = `<tr><td colspan="2"><div class="alert error">${esc(e.message)}</div></td></tr>`; return; }
+    StageMap.draw();
+  },
+  draw() {
+    const names = [...new Set([...StageMap.stages.map((s) => s.name), ...Object.values(StageMap.map || {}).filter(Boolean)])];
+    $("#stage-rows").innerHTML = StageMap.results.map((r) => {
+      const cur = (StageMap.map || {})[r.code] || "";
+      return `<tr><td><b>${esc(r.label || r.code)}</b> <span class="small muted ltr">${esc(r.code)}</span></td>
+        <td><select data-code="${esc(r.code)}"><option value="">— بدون تغيير —</option>
+          ${names.map((n) => `<option value="${esc(n)}" ${n === cur ? "selected" : ""}>${esc(n)}${StageMap.stages.length && !StageMap.stages.some((s) => s.name === n) ? " (غير موجودة في Odoo)" : ""}</option>`).join("")}</select></td></tr>`;
+    }).join("");
+  },
+  async fetchStages(btn) {
+    await withBusy(btn, async () => {
+      try {
+        StageMap.stages = (await api("GET", "/api/odoo/stages")).stages || [];
+        $("#stages-state").textContent = `${StageMap.stages.length} مرحلة: ${StageMap.stages.map((s) => s.name).join(" ← ")}`;
+        StageMap.draw();
+      } catch (e) { toast(e.message, "error", 7000); }
+    });
+  },
+  async save(btn) {
+    const map = {};
+    $$("#stage-rows select").forEach((sel) => { if (sel.value) map[sel.dataset.code] = sel.value; });
+    await withBusy(btn, async () => {
+      try {
+        await api("PUT", "/api/settings", { odoo_stage_by_result: map, odoo_stage_no_back: $("#stage-no-back").checked });
+        StageMap.map = map;
+        toast(Object.keys(map).length ? "تم حفظ مراحل Odoo." : "تم الحفظ: لن تتغير مرحلة أي عميل.", "success");
+      } catch (e) { toast(e.message, "error"); }
+    });
+  },
+};
+document.addEventListener("DOMContentLoaded", () => {
+  if (!$("#stage-rows")) return;
+  $("#btn-load-stages").onclick = (ev) => StageMap.fetchStages(ev.currentTarget);
+  $("#btn-save-stages").onclick = (ev) => StageMap.save(ev.currentTarget);
+  StageMap.load();
+});

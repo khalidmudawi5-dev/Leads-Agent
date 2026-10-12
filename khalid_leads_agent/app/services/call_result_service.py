@@ -241,6 +241,7 @@ class ResultService:
             if activity and odoo_id:
                 await self.sync.odoo_activity(odoo_id, activity["date_deadline"], activity["summary"],
                                               activity["note"], dry_run=True, action_id=inp.idempotency_key)
+            await self._stage_step(inp, odoo_id, preview, warnings, dry_run=True)
             row.odoo_note_status = "dry_run" if inp.add_odoo_note and odoo_id else "skipped"
             row.odoo_activity_status = "dry_run" if activity and odoo_id else "skipped"
             row.sheet_status = ("blocked" if preview["sheet_error"] else "dry_run") if update_sheet else "skipped"
@@ -266,6 +267,7 @@ class ResultService:
             row.odoo_activity_status = step.status
             if step.status == "failed":
                 warnings.append("تعذر إنشاء Activity في Odoo (Activity creation failed)؛ تم إكمال الملاحظة وتحديث Sheet.")
+        await self._stage_step(inp, odoo_id, preview, warnings, dry_run=False)
         if update_sheet and lead_ref:
             step = await asyncio.to_thread(self.sync.update_sheet, lead_ref, sheet_changes, note_entry,
                                            dry_run=False, action_id=inp.idempotency_key)
@@ -287,6 +289,19 @@ class ResultService:
         row.errors, row.warnings, row.preview = errors, warnings, preview
         self._maybe_save_mapping(inp)
         return self._finish(row, inp, company, status_value if row.sheet_status == "success" else None)
+
+    async def _stage_step(self, inp: ResultIn, odoo_id: int | None, preview: dict, warnings: list[str], *,
+                          dry_run: bool) -> None:
+        """Optional: move the Odoo lead to the stage mapped to this result (never blocks the save)."""
+        s = self.settings.get()
+        stage = (s.odoo_stage_by_result.get(inp.result_code) or "").strip()
+        if not stage or not odoo_id:
+            return
+        step = await self.sync.odoo_stage(odoo_id, stage, no_back=s.odoo_stage_no_back, dry_run=dry_run,
+                                          action_id=inp.idempotency_key)
+        preview["odoo_stage"] = {"status": step.status, "stage": stage, "message": step.message}
+        if step.status == "failed":
+            warnings.append(f"لم تتغير مرحلة العميل في Odoo: {step.message}")
 
     def _maybe_save_mapping(self, inp: ResultIn) -> None:
         if inp.save_source_mapping and inp.source_odoo_value.strip() and inp.source_value.strip():

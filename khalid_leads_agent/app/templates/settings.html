@@ -96,6 +96,13 @@
     <table class="table"><thead><tr><th>الرمز الداخلي</th><th>الزر</th><th>قيمة Google Sheet</th></tr></thead><tbody id="status-rows"></tbody></table>
     <datalist id="status-options"></datalist>
     <div class="actions" style="margin-top:12px"><button class="btn primary" id="btn-save-status">حفظ Status Mapping</button></div>
+
+    <h3 style="margin-top:22px">مرحلة Odoo حسب النتيجة</h3>
+    <p class="muted small">اختياري: عند حفظ نتيجة ينتقل العميل في Odoo (Pipeline) إلى المرحلة المختارة. «— بدون تغيير —» يعني لا شيء. لا يُنقل عميل من مرحلة Won أبدًا. Dry Run لا يغيّر شيئًا.</p>
+    <div class="actions"><button class="btn sm" type="button" id="btn-load-stages">تحميل المراحل من Odoo</button><span class="small muted" id="stages-state"></span></div>
+    <table class="table" style="margin-top:8px"><thead><tr><th>النتيجة</th><th>مرحلة Odoo</th></tr></thead><tbody id="stage-rows"></tbody></table>
+    <label class="check" style="margin-top:8px"><input type="checkbox" id="stage-no-back"> لا ترجع العميل لمرحلة سابقة (مثلًا من Proposition إلى Qualified)</label>
+    <div class="actions" style="margin-top:12px"><button class="btn primary" type="button" id="btn-save-stages">حفظ مراحل Odoo</button></div>
   </section>
 
   <section class="tab-panel" data-panel="source">

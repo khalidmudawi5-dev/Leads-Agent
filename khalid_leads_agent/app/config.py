@@ -174,6 +174,10 @@ class AppSettings(BaseModel):
     # Remind N minutes before a follow-up that has a time (0 = off), with a soft sound.
     followup_reminder_minutes: int = Field(default=30, ge=0, le=240)
     followup_reminder_sound: bool = True
+    # Move the Odoo lead to a stage when a result is saved: {result code: Odoo stage name} (empty = off).
+    # A lead is never moved back to an earlier stage (unless turned off) and never out of a Won stage.
+    odoo_stage_by_result: dict[str, str] = Field(default_factory=dict)
+    odoo_stage_no_back: bool = True
     # No answer: back in the queue after N hours (0 = off: stays done for the session); after M attempts
     # suggest WhatsApp / invalid number (0 = never).
     no_answer_retry_hours: int = Field(default=4, ge=0, le=168)

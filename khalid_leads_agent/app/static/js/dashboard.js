@@ -1484,6 +1484,7 @@ function showPreview(res, title, onClose, offerRealSave = false) {
     ${p.sheet_error ? `<div class="alert error">${esc(p.sheet_error)}</div>` : ""}
     ${sheet ? `<div class="table-wrap"><table class="table"><thead><tr><th>الحقل</th><th>القيمة الحالية</th><th>القيمة الجديدة</th></tr></thead><tbody>${sheet}</tbody></table></div>` : (p.sheet_error ? "" : '<div class="muted">لا تغييرات على Google Sheet.</div>')}
     <h3 style="margin-top:16px">Odoo Note</h3>${p.odoo_note ? `<div class="info note-box">${esc(p.odoo_note)}</div>` : '<div class="muted">لن تتم إضافة ملاحظة.</div>'}
+    ${p.odoo_stage ? `<h3 style="margin-top:16px">مرحلة Odoo</h3><div class="info">${esc(p.odoo_stage.message || p.odoo_stage.stage)}</div>` : ""}
     ${p.activity ? `<h3 style="margin-top:16px">Odoo Activity</h3><div class="info">${esc(p.activity.date_deadline)} — ${esc(p.activity.summary)}<div class="small muted">${esc(p.activity.note || "")}</div></div>` : ""}
     ${(res.warnings || []).map((w) => `<div class="alert warn" style="margin-top:10px">${esc(w)}</div>`).join("")}`;
   const buttons = [{ label: onClose ? "متابعة بدون حفظ" : "إغلاق", cls: offerRealSave ? "" : "primary", onClick: () => { Modal.close(); if (onClose) onClose(); } }];
@@ -1512,6 +1513,7 @@ function outcomeLine(res) {
   const errs = (res.errors || []).map((e) => `<div class="small" style="color:var(--danger)">${esc(e)}</div>`).join("");
   return `<div class="row small" style="gap:6px;margin-top:6px">${stepBadge("Odoo Log Note", res.odoo_note_status)}
     ${res.odoo_activity_status && res.odoo_activity_status !== "skipped" ? stepBadge("Activity", res.odoo_activity_status) : ""}
+    ${res.preview && res.preview.odoo_stage ? `<span title="${esc(res.preview.odoo_stage.message || "")}">${stepBadge(`المرحلة → ${esc(res.preview.odoo_stage.stage)}`, res.preview.odoo_stage.status)}</span>` : ""}
     ${stepBadge("Google Sheet", res.sheet_status)}</div>${errs}`;
 }
 

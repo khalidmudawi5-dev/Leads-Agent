@@ -49,6 +49,12 @@ def put_settings(body: dict, c: AppContainer = Depends(container)) -> dict:
     return {"settings": s.model_dump()}
 
 
+@router.get("/odoo/stages")
+async def odoo_stages(c: AppContainer = Depends(container)) -> dict:
+    """CRM stages from Odoo (for «مرحلة Odoo حسب النتيجة»)."""
+    return {"stages": await c.odoo.adapter.list_stages()}
+
+
 @router.get("/settings/status-mapping")
 def get_status_mapping(c: AppContainer = Depends(container)) -> dict:
     return {"items": c.mappings.statuses()}

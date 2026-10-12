@@ -150,6 +150,17 @@ class OdooAdapter(ABC):
         user linked the customer and asked for it). Returns the lead as read back from Odoo."""
         raise AgentError("ODOO_WRITE_UNSUPPORTED", "تعديل رقم العميل في Odoo غير مدعوم في هذا الوضع.")
 
+    async def list_stages(self) -> list[dict[str, Any]]:
+        """CRM stages in pipeline order: ``[{"id", "name", "sequence", "is_won"}]``."""
+        raise AgentError("ODOO_STAGES_UNSUPPORTED", "قراءة مراحل Odoo غير مدعومة في هذا الوضع.")
+
+    async def lead_stage_id(self, lead_id: int) -> int | None:
+        """The lead's current stage id (fresh from Odoo)."""
+        raise AgentError("ODOO_STAGES_UNSUPPORTED", "قراءة مراحل Odoo غير مدعومة في هذا الوضع.")
+
+    async def set_lead_stage(self, lead_id: int, stage_id: int) -> None:
+        raise AgentError("ODOO_STAGES_UNSUPPORTED", "تغيير مرحلة العميل في Odoo غير مدعوم في هذا الوضع.")
+
     @property
     def browser_started(self) -> bool:
         """Whether the Odoo browser window is already open."""

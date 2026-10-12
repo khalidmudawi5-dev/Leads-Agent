@@ -343,3 +343,14 @@ def test_background_reads_use_saved_session_without_a_browser(adapter, fake_odoo
         run(adapter, adapter.lead_signature(7))
     assert not session_file.exists() and not adapter.browser_started
     assert run(adapter, adapter.lead_signature(7)) is None  # nothing saved any more: never launches
+
+
+def test_stages_via_rpc(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    stages = run(adapter, adapter.list_stages())
+    assert [s["name"] for s in stages] == ["جديد", "Qualified", "Won"] and stages[-1]["is_won"]
+    lead = run(adapter, adapter.create_lead({"name": "مرحلة", "partner_name": "مرحلة", "phone": "0110002222"}))
+    assert run(adapter, adapter.lead_stage_id(lead.id)) == 1
+    run(adapter, adapter.set_lead_stage(lead.id, 2))
+    assert run(adapter, adapter.lead_stage_id(lead.id)) == 2
+    assert run(adapter, adapter.get_lead(lead.id)).stage == "Qualified"
