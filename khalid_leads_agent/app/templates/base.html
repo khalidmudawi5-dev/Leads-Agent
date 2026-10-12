@@ -11,7 +11,7 @@
   <link rel="preload" href="/static/fonts/tajawal-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
 </head>
-<body>
+<body data-idle="{{ idle_minutes() }}">
 <div class="layout">
   <aside class="sidebar">
     <div class="brand">

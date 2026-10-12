@@ -17,6 +17,10 @@ class PasswordIn(BaseModel):
     current_password: str = Field(default="", max_length=200)
 
 
+class IdleIn(BaseModel):
+    minutes: int = Field(ge=0, le=240)
+
+
 class CurrentIn(BaseModel):
     current_password: str = Field(default="", max_length=200)
 
@@ -49,6 +53,19 @@ def auth_set_password(body: PasswordIn, request: Request):
     resp = JSONResponse(login.status())
     resp.set_cookie(COOKIE, value, httponly=True, samesite="strict")
     return resp
+
+
+@router.post("/auth/activity")
+def auth_activity(request: Request) -> dict:
+    """The user clicked/typed/touched in the page (sent at most once a minute)."""
+    _login(request).touch(request.cookies.get(COOKIE) or "")
+    return {"ok": True}
+
+
+@router.post("/auth/idle")
+def auth_idle(body: IdleIn, request: Request) -> dict:
+    _login(request).set_idle_minutes(body.minutes)
+    return _login(request).status()
 
 
 @router.post("/auth/disable")

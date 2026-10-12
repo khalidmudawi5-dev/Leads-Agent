@@ -31,6 +31,8 @@ const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", 
 
 // ------------------------------------------------------------------ boot
 document.addEventListener("DOMContentLoaded", init);
+// A call in progress is activity: never sign out in the middle of a call (idle sign-out).
+setInterval(() => { if (S.call && S.call.startedAt && typeof IdleWatch !== "undefined" && IdleWatch.minutes) IdleWatch.mark(); }, 30000);
 document.addEventListener("agent-status", (e) => {
   $("#dry-ribbon").classList.toggle("hidden", !e.detail.dry_run);
   S.remote = !!e.detail.remote;  // opened from the phone / another device (Tailscale)

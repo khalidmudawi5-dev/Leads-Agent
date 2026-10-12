@@ -175,6 +175,13 @@
       <label class="field"><span>تأكيد كلمة المرور</span><input type="password" id="auth-pass2" autocomplete="new-password" minlength="8" required></label>
       <div class="actions" style="grid-column:1/-1"><button class="btn primary" type="submit" id="auth-save">تفعيل تسجيل الدخول</button></div>
     </form>
+    <div class="auth-on" style="margin-top:14px">
+      <h3>تسجيل الخروج التلقائي</h3>
+      <div class="row" style="gap:8px;align-items:end;flex-wrap:wrap">
+        <label class="field" style="margin:0"><span>بعد كم دقيقة بدون نشاط؟ (0 = إيقاف)</span><input type="number" id="auth-idle" min="0" max="240" style="max-width:140px"></label>
+        <button class="btn" type="button" id="auth-idle-save">حفظ</button></div>
+      <p class="muted small">النشاط = تحريك الماوس أو الكتابة أو اللمس في أي صفحة من الـAgent. التحديثات التلقائية في الخلفية لا تُحسب. قبل الخروج بدقيقة يظهر تنبيه.</p>
+    </div>
     <div class="actions auth-on" style="margin-top:6px">
       <button class="btn" type="button" id="auth-signout-all">تسجيل الخروج من كل الأجهزة الأخرى</button>
       <button class="btn danger" type="button" id="auth-disable">إيقاف تسجيل الدخول</button>

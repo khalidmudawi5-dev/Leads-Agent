@@ -27,12 +27,13 @@
     {% if mode == "password" %}
     <p class="muted small">سجّل الدخول باسم المستخدم وكلمة المرور.</p>
     {% if error == "wrong" %}<div class="alert error">اسم المستخدم أو كلمة المرور غير صحيحة.</div>{% endif %}
+    {% if error == "idle" %}<div class="alert warn">تم تسجيل الخروج تلقائيًا بعد {{ idle }} دقائق بدون نشاط. سجّل الدخول للمتابعة.</div>{% endif %}
     {% if error.startswith("locked") %}<div class="alert error">محاولات كثيرة خاطئة. حاول بعد {{ error[6:] }} دقيقة.</div>{% endif %}
     <label class="field"><span>اسم المستخدم</span>
       <input type="text" name="username" value="{{ username }}" autocomplete="username" required {{ '' if username else 'autofocus' }}></label>
     <label class="field"><span>كلمة المرور</span>
       <input type="password" name="password" autocomplete="current-password" required {{ 'autofocus' if username else '' }}></label>
-    <label class="check"><input type="checkbox" name="remember" value="1"> تذكرني على هذا الجهاز (30 يومًا)</label>
+    {% if not idle %}<label class="check"><input type="checkbox" name="remember" value="1"> تذكرني على هذا الجهاز (30 يومًا)</label>{% endif %}
     <button class="btn primary lg" type="submit">دخول</button>
     <p class="muted small" style="margin:12px 0 0">نسيت كلمة المرور؟ على الكمبيوتر شغّل <span class="ltr">06_reset_login.bat</span>.</p>
     {% else %}

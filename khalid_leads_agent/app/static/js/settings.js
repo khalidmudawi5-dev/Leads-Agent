@@ -405,6 +405,7 @@ async function loadAuth() {
     : `<div class="alert warn">تسجيل الدخول <b>غير مفعّل</b>: أي شخص يستخدم هذا الكمبيوتر يقدر يفتح الـAgent${st.remote ? "، ومن الجوال يُطلب رمز PIN فقط" : ""}.</div>`;
   $$(".auth-on").forEach((el) => el.classList.toggle("hidden", !st.enabled));
   $("#auth-user").value = st.username || $("#auth-user").value || "";
+  $("#auth-idle").value = st.idle_minutes ?? 10;
   $("#auth-new-label").textContent = st.enabled ? "كلمة المرور الجديدة (8 أحرف على الأقل)" : "كلمة المرور (8 أحرف على الأقل)";
   $("#auth-save").textContent = st.enabled ? "حفظ التغيير" : "تفعيل تسجيل الدخول";
   ["#auth-current", "#auth-pass", "#auth-pass2"].forEach((s) => { $(s).value = ""; });
@@ -437,6 +438,14 @@ document.addEventListener("DOMContentLoaded", () => {
       catch (e) { toast(e.message, "error", 7000); }
     }) }, { label: "إلغاء" }],
   });
+  $("#auth-idle-save").onclick = async () => {
+    const minutes = Number($("#auth-idle").value);
+    try {
+      await api("POST", "/api/auth/idle", { minutes });
+      toast(minutes ? `سيتم تسجيل الخروج تلقائيًا بعد ${minutes} دقيقة بدون نشاط.` : "تم إيقاف تسجيل الخروج التلقائي.", "success");
+      setTimeout(() => location.reload(), 1000);  // apply the new limit to this page
+    } catch (e) { toast(e.message, "error"); }
+  };
   $("#auth-signout-all").onclick = async () => {
     try { await api("POST", "/api/auth/sign-out-all"); toast("تم تسجيل الخروج من كل الأجهزة الأخرى.", "success"); }
     catch (e) { toast(e.message, "error"); }

@@ -28,7 +28,8 @@ async function api(method, url, body) {
   let data = {};
   try { data = await res.json(); } catch (e) { data = {}; }
   if (res.status === 401 && data.error && data.error.code === "LOGIN_REQUIRED") {
-    window.location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+    const idle = (data.error.details || {}).reason === "idle" ? "error=idle&" : "";
+    window.location.href = `/login?${idle}next=${encodeURIComponent(location.pathname + location.search)}`;
   }
   if (!res.ok) throw new ApiError(data.error, res.status);
   return data;
@@ -300,3 +301,59 @@ document.addEventListener("DOMContentLoaded", () => {
     refreshStatus();
   };
 });
+
+// ------------------------------------------------------------ idle sign-out
+/**
+ * With sign-in on: no mouse/keyboard/touch for N minutes (any open tab of the agent) → sign out.
+ * Real activity is reported to the agent at most once a minute; background checks never count.
+ */
+const IdleWatch = {
+  KEY: "kla-last-activity",
+  minutes: 0, lastSent: 0, warned: false,
+  now() { return Date.now(); },
+  last() {
+    let v = 0;
+    try { v = Number(localStorage.getItem(IdleWatch.KEY)) || 0; } catch (e) { /* private mode */ }
+    return Math.max(v, IdleWatch._mem || 0);
+  },
+  mark() {
+    const t = IdleWatch.now();
+    IdleWatch._mem = t;
+    try { localStorage.setItem(IdleWatch.KEY, String(t)); } catch (e) { /* private mode */ }
+    if (IdleWatch.warned) { IdleWatch.warned = false; const w = $("#idle-warn"); if (w) w.remove(); }
+    if (t - IdleWatch.lastSent > 60000) {
+      IdleWatch.lastSent = t;
+      fetch("/api/auth/activity", { method: "POST", headers: { "X-KLA": "1" } }).catch(() => {});
+    }
+  },
+  async signOut() {
+    try { await fetch("/logout?reason=idle", { method: "POST" }); } catch (e) { /* already out */ }
+    window.location.href = "/login?error=idle&next=" + encodeURIComponent(location.pathname);
+  },
+  tick() {
+    const idleMs = IdleWatch.now() - IdleWatch.last();
+    const limit = IdleWatch.minutes * 60000;
+    if (idleMs >= limit) { IdleWatch.signOut(); return; }
+    if (idleMs >= limit - 60000 && !IdleWatch.warned) {
+      IdleWatch.warned = true;
+      const el = document.createElement("div");
+      el.id = "idle-warn"; el.className = "toast warn"; el.setAttribute("role", "alert");
+      el.textContent = "لا يوجد نشاط: سيتم تسجيل الخروج خلال دقيقة. حرّك الماوس أو اضغط أي زر للبقاء.";
+      ($("#toasts") || document.body).appendChild(el);
+    }
+  },
+  start() {
+    IdleWatch.minutes = Number(document.body.dataset.idle || 0);
+    if (!IdleWatch.minutes) return;
+    IdleWatch.lastSent = IdleWatch.now();  // opening the page already counted on the agent
+    IdleWatch._mem = IdleWatch.now();
+    try { localStorage.setItem(IdleWatch.KEY, String(IdleWatch._mem)); } catch (e) { /* private mode */ }
+    let throttle = 0;
+    const onAct = () => { const t = IdleWatch.now(); if (t - throttle > 5000) { throttle = t; IdleWatch.mark(); } };
+    ["mousemove", "mousedown", "keydown", "wheel", "touchstart", "scroll"].forEach((ev) =>
+      window.addEventListener(ev, onAct, { passive: true, capture: true }));
+    setInterval(IdleWatch.tick, 10000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) IdleWatch.tick(); });
+  },
+};
+document.addEventListener("DOMContentLoaded", () => IdleWatch.start());
