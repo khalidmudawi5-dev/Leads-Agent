@@ -15,7 +15,7 @@ from sqlalchemy import select
 from app.db import Database
 from app.models import CallResult
 from app.services.settings_service import SettingsService
-from app.utils.timeutils import localnow, start_of_local_day_utc, utcnow
+from app.utils.timeutils import localnow, start_of_local_day_utc, to_local, utcnow
 
 
 @dataclass
@@ -37,7 +37,7 @@ class LeadOutcome:
 
     def followup_state(self, today: date) -> str:
         """due | overdue | upcoming | "" (no open follow-up)."""
-        d = self.followup_date if self.last_code == "FOLLOW_UP" else None
+        d = self.followup_date if self.followup_at else None
         if d is None:
             return ""
         return "overdue" if d < today else "due" if d == today else "upcoming"
@@ -65,17 +65,27 @@ class FollowupService:
             out[fp] = LeadOutcome(fp, code, created, fu_at or "", fu_note or "", streak, rid)
         return out
 
+    def results(self, fingerprint: str) -> list[tuple[datetime, str]]:
+        """This customer's real saved results: (local time, result code), oldest first."""
+        with self.db.session() as s:
+            rows = s.execute(
+                select(CallResult.created_at, CallResult.result_code)
+                .where(CallResult.fingerprint == fingerprint, CallResult.dry_run.is_(False),
+                       CallResult.status != "failed").order_by(CallResult.id)).all()
+        return [(to_local(at), code) for at, code in rows]
+
     # ------------------------------------------------------------------ queue rules
     def not_before(self, o: LeadOutcome | None) -> datetime | None:
         """UTC time before which the customer should not come back to the queue (None = no wait)."""
         if o is None:
             return None
         s = self.settings.get()
+        if o.followup_at and o.followup_date:  # a scheduled follow-up decides when the customer returns
+            if s.hide_future_followups and o.followup_date > localnow().date():
+                return datetime.max
+            return None
         if o.last_code == "NO_ANSWER" and s.no_answer_retry_hours:
             return o.last_at + timedelta(hours=s.no_answer_retry_hours)
-        if o.last_code == "FOLLOW_UP" and s.hide_future_followups and o.followup_date:
-            if o.followup_date > localnow().date():
-                return datetime.max
         return None
 
     def comes_back(self, o: LeadOutcome | None) -> bool:

@@ -51,11 +51,11 @@ def test_other_networks_are_refused(remote_env, sheet, odoo):
 def test_phone_needs_pin_then_works(remote_env, sheet, odoo):
     with _client(remote_env, sheet, odoo, PHONE) as tc:
         r = tc.get("/", follow_redirects=False)
-        assert r.status_code == 303 and r.headers["location"] == "/login"
+        assert r.status_code == 303 and r.headers["location"] == "/login?next=/"
         assert tc.get("/api/status").status_code == 401
         assert tc.get("/static/css/app.css").status_code == 200
         wrong = tc.post("/login", data={"pin": "000000"}, follow_redirects=False)
-        assert wrong.headers["location"] == "/login?error=wrong" and "kla_auth" not in tc.cookies
+        assert wrong.headers["location"].startswith("/login?error=wrong") and "kla_auth" not in tc.cookies
         ok = tc.post("/login", data={"pin": PIN}, follow_redirects=False)
         assert ok.status_code == 303 and "kla_auth" in tc.cookies
         st = tc.get("/api/status").json()

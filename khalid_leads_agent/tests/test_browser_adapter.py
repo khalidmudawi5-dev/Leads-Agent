@@ -235,9 +235,41 @@ def test_create_lead_via_rpc(adapter, fake_odoo):
     other = run(adapter, adapter.create_lead({"name": "ب", "partner_name": "ب", "phone": "0550002222",
                                               "source_name": "meta", "medium_name": "Leads"}))
     assert other.source == "Meta" and other.medium == "Leads"
+    assert other.utm_source == "meta"  # the "UTM Source" text field is written too
     unknown = run(adapter, adapter.create_lead({"name": "ج", "partner_name": "ج", "phone": "0550003333",
                                                 "source_name": "تيك توك", "medium_name": ""}))
     assert unknown.source == "" and "source_id" not in fake_odoo.state.created[-1]
+    assert unknown.utm_source == "تيك توك"
+
+
+def test_set_lead_phone_via_rpc(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    lead = run(adapter, adapter.create_lead({"name": "ربط", "partner_name": "ربط", "phone": "0110001111"}))
+    after = run(adapter, adapter.set_lead_phone(lead.id, "mobile", "+966 55 444 5555"))
+    assert after.mobile == "+966 55 444 5555" and after.phone == "0110001111"
+    assert [f.id for f in run(adapter, adapter.search_by_phone("966554445555"))] == [lead.id]
+
+
+def test_utm_source_field_detection():
+    from app.adapters.odoo.browser_adapter import find_utm_field
+    std = {"source_id": {"string": "Source", "type": "many2one"}, "medium_id": {"string": "Medium", "type": "many2one"}}
+    assert find_utm_field(std, "source") == "source_id"  # no separate field: Odoo's standard UTM source
+    labelled = {**std, "x_studio_char_field_1a2b": {"string": "UTM  Source", "type": "char"}}
+    assert find_utm_field(labelled, "source") == "x_studio_char_field_1a2b"
+    named = {**std, "x_utm_source_id": {"string": "مصدر الحملة", "type": "many2one"}}
+    assert find_utm_field(named, "source") == "x_utm_source_id"
+    assert find_utm_field(named, "medium") == "medium_id"
+    assert find_utm_field(labelled, "source", override="source_id") == "source_id"
+    assert find_utm_field(labelled, "source", override="missing") == "x_studio_char_field_1a2b"
+    not_usable = {**std, "x_utm_source_html": {"string": "UTM Source", "type": "html"}}
+    assert find_utm_field(not_usable, "source") == "source_id"
+
+
+def test_lead_reads_utm_source_field(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    lead = run(adapter, adapter.get_lead(7))
+    assert lead.source == "Meta" and lead.utm_source == "Meta / Leads"
+    assert lead.utm_medium == "Leads"  # no separate "UTM Medium": standard medium_id
 
 
 def test_ui_search_fallback_removes_filters_ignores_samples_and_returns(adapter, fake_odoo):
@@ -311,3 +343,14 @@ def test_background_reads_use_saved_session_without_a_browser(adapter, fake_odoo
         run(adapter, adapter.lead_signature(7))
     assert not session_file.exists() and not adapter.browser_started
     assert run(adapter, adapter.lead_signature(7)) is None  # nothing saved any more: never launches
+
+
+def test_stages_via_rpc(adapter, fake_odoo):
+    login(adapter, fake_odoo)
+    stages = run(adapter, adapter.list_stages())
+    assert [s["name"] for s in stages] == ["جديد", "Qualified", "Won"] and stages[-1]["is_won"]
+    lead = run(adapter, adapter.create_lead({"name": "مرحلة", "partner_name": "مرحلة", "phone": "0110002222"}))
+    assert run(adapter, adapter.lead_stage_id(lead.id)) == 1
+    run(adapter, adapter.set_lead_stage(lead.id, 2))
+    assert run(adapter, adapter.lead_stage_id(lead.id)) == 2
+    assert run(adapter, adapter.get_lead(lead.id)).stage == "Qualified"

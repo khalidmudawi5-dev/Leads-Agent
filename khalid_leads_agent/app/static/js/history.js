@@ -23,14 +23,21 @@ function syncUrl(params) {
   history.replaceState(null, "", "/history" + (clean.toString() ? "?" + clean : ""));
 }
 
+function setResultFilter(code) {
+  const sel = $("#f-result");
+  if (code && ![...sel.options].some((o) => o.value === code)) sel.add(new Option(code.startsWith("S:") ? code.slice(2) : code, code));
+  sel.value = code;
+}
+function resultName(code) { return code.startsWith("S:") ? code.slice(2) : ((LABELS || {})[code] || code); }
+
 function renderSummary(items) {
   const counts = {};
   items.forEach((i) => { counts[i.result_code] = (counts[i.result_code] || 0) + 1; });
   const current = $("#f-result").value;
   $("#summary").innerHTML = `<span class="pill ${current ? "" : "active"}" data-r="">الكل: ${items.length}</span>` +
     Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([code, n]) =>
-      `<span class="pill r-${esc(code)} ${current === code ? "active" : ""}" data-r="${esc(code)}">${esc((LABELS || {})[code] || code)}: ${n}</span>`).join("");
-  $$("#summary .pill").forEach((p) => p.onclick = () => { $("#f-result").value = p.dataset.r; loadHistory(); });
+      `<span class="pill r-${esc(code)} ${current === code ? "active" : ""}" data-r="${esc(code)}">${esc(code.startsWith("S:") ? code.slice(2) : ((LABELS || {})[code] || code))}: ${n}</span>`).join("");
+  $$("#summary .pill").forEach((p) => p.onclick = () => { setResultFilter(p.dataset.r); loadHistory(); });
 }
 
 async function loadHistory() {
@@ -48,9 +55,9 @@ async function loadHistory() {
       sel.value = keep;
     }
     if (!params.get("result")) renderSummary(r.items); else $("#summary").innerHTML =
-      `<span class="pill r-${esc(params.get("result"))} active">${esc(r.result_labels[params.get("result")] || params.get("result"))}: ${r.items.length}</span>
+      `<span class="pill r-${esc(params.get("result"))} active">${esc(resultName(params.get("result")))}: ${r.items.length}</span>
        <span class="pill" data-r="">عرض الكل</span>`;
-    $$("#summary .pill[data-r]").forEach((p) => p.onclick = () => { $("#f-result").value = p.dataset.r; loadHistory(); });
+    $$("#summary .pill[data-r]").forEach((p) => p.onclick = () => { setResultFilter(p.dataset.r); loadHistory(); });
     if (!r.items.length) { tbody.innerHTML = emptyRow(9, "لا توجد سجلات لهذه الفلاتر", "غيّر الفترة أو النتيجة، أو اضغط «مسح».", "history"); return; }
     tbody.innerHTML = r.items.map((i) => `<tr>
       <td class="who"><b>${esc(i.company)}</b><div class="meta"><span>${esc(i.time)}</span>

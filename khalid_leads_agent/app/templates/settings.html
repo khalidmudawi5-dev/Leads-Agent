@@ -12,6 +12,7 @@
     <button class="tab" data-tab="source">Source Mapping</button>
     <button class="tab" data-tab="automation">Automation</button>
     <button class="tab" data-tab="followup">واتساب والمتابعة</button>
+    <button class="tab" data-tab="security">الأمان</button>
     <button class="tab" data-tab="advanced">Advanced</button>
   </div>
 
@@ -95,16 +96,24 @@
     <table class="table"><thead><tr><th>الرمز الداخلي</th><th>الزر</th><th>قيمة Google Sheet</th></tr></thead><tbody id="status-rows"></tbody></table>
     <datalist id="status-options"></datalist>
     <div class="actions" style="margin-top:12px"><button class="btn primary" id="btn-save-status">حفظ Status Mapping</button></div>
+
+    <h3 style="margin-top:22px">مرحلة Odoo حسب النتيجة</h3>
+    <p class="muted small">اختياري: عند حفظ نتيجة ينتقل العميل في Odoo (Pipeline) إلى المرحلة المختارة. «— بدون تغيير —» يعني لا شيء. لا يُنقل عميل من مرحلة Won أبدًا. Dry Run لا يغيّر شيئًا.</p>
+    <div class="actions"><button class="btn sm" type="button" id="btn-load-stages">تحميل المراحل من Odoo</button><span class="small muted" id="stages-state"></span></div>
+    <table class="table" style="margin-top:8px"><thead><tr><th>النتيجة</th><th>مرحلة Odoo</th></tr></thead><tbody id="stage-rows"></tbody></table>
+    <label class="check" style="margin-top:8px"><input type="checkbox" id="stage-no-back"> لا ترجع العميل لمرحلة سابقة (مثلًا من Proposition إلى Qualified)</label>
+    <div class="actions" style="margin-top:12px"><button class="btn primary" type="button" id="btn-save-stages">حفظ مراحل Odoo</button></div>
   </section>
 
   <section class="tab-panel" data-panel="source">
-    <p class="muted">لا يتم تخمين الربط. أضف: قيمة Odoo (Source أو Source / Medium) ← قيمة Dropdown في Google Sheet.</p>
+    <div class="alert info"><b>المصدر يُقرأ من حقل UTM Source في Odoo.</b> عند مطابقة العميل يُكتب «مصدر العميل» في Google Sheet تلقائيًا حسب هذا الربط
+      (أو إذا كانت قيمة UTM Source مطابقة تمامًا لقيمة في قائمة الـSheet). لا يتم تخمين أي ربط.</div>
     <div class="form-grid">
-      <label class="field"><span>Odoo Value (مثال: Meta / Leads أو Twajd)</span><input type="text" id="src-odoo"></label>
+      <label class="field"><span>UTM Source في Odoo (مثال: Rassd Landing أو Meta)</span><input type="text" id="src-odoo"></label>
       <label class="field"><span>Google Sheet Value</span><input type="text" id="src-sheet" list="source-options"><datalist id="source-options"></datalist></label>
     </div>
     <div class="actions" style="margin-bottom:14px"><button class="btn primary" id="btn-add-source">إضافة / تحديث</button></div>
-    <table class="table"><thead><tr><th>Odoo Value</th><th>Google Sheet Value</th><th></th></tr></thead><tbody id="source-rows"></tbody></table>
+    <table class="table"><thead><tr><th>UTM Source (Odoo)</th><th>مصدر العميل (Google Sheet)</th><th></th></tr></thead><tbody id="source-rows"></tbody></table>
   </section>
 
   <section class="tab-panel" data-panel="automation">
@@ -112,7 +121,9 @@
     <div class="form-grid">
       <label class="check"><input type="checkbox" data-key="dry_run"> Dry Run Mode</label>
       <label class="check"><input type="checkbox" data-key="auto_load_next"> Auto Load Next Lead</label>
-      <label class="check"><input type="checkbox" data-key="auto_sync_source"> Auto Sync Source (اقتراح المصدر من الربط)</label>
+      <label class="check"><input type="checkbox" data-key="auto_sync_source"> Auto Sync Source (اقتراح المصدر من UTM Source عند تسجيل النتيجة)</label>
+      <label class="check"><input type="checkbox" data-key="auto_write_source"> تحديث «مصدر العميل» في Sheet تلقائيًا عند المطابقة (من UTM Source)</label>
+      <label class="field"><span>حقل UTM Source في Odoo (اتركه فارغًا للاكتشاف التلقائي)</span><input type="text" class="ltr" data-key="odoo_utm_source_field" placeholder="مثال: x_studio_utm_source"></label>
       <label class="check"><input type="checkbox" data-key="auto_open_odoo_lead"> Auto Open Odoo Lead</label>
       <label class="field"><span>Next Lead Delay (ثوانٍ)</span><input type="number" min="0" max="60" data-key="next_lead_delay_seconds"></label>
       <label class="field"><span>ترتيب العملاء</span><select data-key="lead_ordering">
@@ -136,6 +147,7 @@
   <section class="tab-panel" data-panel="followup">
     <h3>قوالب رسائل واتساب</h3>
     <p class="muted small">المتغيرات: <span class="ltr">{company}</span> اسم المنشأة · <span class="ltr">{owner}</span> اسمك · <span class="ltr">{contact}</span> جهة الاتصال في Odoo · <span class="ltr">{date}</span> تاريخ اليوم.</p>
+    <p class="muted small">📎 يمكنك إرفاق صورة (مثل بوستر العرض) أو ملف PDF بأي قالب (حتى 16 ميجابايت). عند فتح واتساب ينسخ الـAgent الملف، فتضغط <span class="ltr">Ctrl+V</span> داخل المحادثة ثم «إرسال».</p>
     <div data-key="whatsapp_templates" data-type="templates" class="tpl-editor"></div>
     <div class="actions" style="margin:8px 0 16px"><button class="btn sm" type="button" id="btn-add-tpl">+ إضافة قالب</button></div>
     <div class="form-grid">
@@ -145,11 +157,17 @@
     <div class="form-grid">
       <label class="check"><input type="checkbox" data-key="followups_first"> متابعات اليوم والمتأخرة تظهر أولًا في القائمة</label>
       <label class="check"><input type="checkbox" data-key="hide_future_followups"> إخفاء العميل حتى يحين موعد متابعته</label>
+      <label class="field"><span>تذكير قبل موعد المتابعة بـ (دقائق) — 0 = إيقاف</span><input type="number" min="0" max="240" data-key="followup_reminder_minutes"></label>
+      <label class="check"><input type="checkbox" data-key="followup_reminder_sound"> صوت خفيف مع التذكير</label>
+      <div class="actions"><button class="btn sm" type="button" id="btn-notify-perm">🔔 تفعيل إشعارات سطح المكتب</button>
+        <span class="small muted" id="notify-state"></span></div>
     </div>
     <h3 style="margin-top:18px">لم يتم الرد</h3>
     <div class="form-grid">
       <label class="field"><span>يرجع العميل للقائمة بعد (ساعات) — 0 = لا يرجع في نفس الجلسة</span><input type="number" min="0" max="168" data-key="no_answer_retry_hours"></label>
       <label class="field"><span>بعد كم محاولة بدون رد أقترح واتساب / رقم غير صحيح (0 = أبدًا)</span><input type="number" min="0" max="20" data-key="no_answer_max_attempts"></label>
+      <label class="check"><input type="checkbox" data-key="sheet_history_enabled"> احسب المحاولات القديمة من عمود «الملاحظات» في Google Sheet</label>
+      <label class="field"><span>كلمات تعني «لم يتم الرد» في الملاحظات (كلمة في كل سطر)</span><textarea rows="4" data-key="no_answer_keywords" data-type="lines"></textarea></label>
     </div>
     <h3 style="margin-top:18px">الهدف اليومي والعملاء الجدد</h3>
     <div class="form-grid">
@@ -157,6 +175,30 @@
       <label class="field"><span>فحص Google Sheet للعملاء الجدد كل (دقائق) — 0 = إيقاف</span><input type="number" min="0" max="120" data-key="sheet_poll_minutes"></label>
     </div>
     <div class="actions"><button class="btn primary" data-save="followup">حفظ</button></div>
+  </section>
+
+  <section class="tab-panel" data-panel="security">
+    <h3>تسجيل الدخول</h3>
+    <p class="muted small">عند تفعيله يطلب الـAgent اسم المستخدم وكلمة المرور على هذا الكمبيوتر ومن الجوال (Tailscale). كلمة المرور لا تُحفظ نصًا، بل بصيغة مشفّرة (scrypt) في <span class="ltr">data\login.json</span>. نسيتها؟ شغّل <span class="ltr">06_reset_login.bat</span> على هذا الكمبيوتر.</p>
+    <div id="auth-state"></div>
+    <form id="auth-form" class="form-grid" autocomplete="off">
+      <label class="field"><span>اسم المستخدم</span><input type="text" id="auth-user" autocomplete="username" maxlength="40" required></label>
+      <label class="field auth-on"><span>كلمة المرور الحالية</span><input type="password" id="auth-current" autocomplete="current-password"></label>
+      <label class="field"><span id="auth-new-label">كلمة المرور (8 أحرف على الأقل)</span><input type="password" id="auth-pass" autocomplete="new-password" minlength="8" required></label>
+      <label class="field"><span>تأكيد كلمة المرور</span><input type="password" id="auth-pass2" autocomplete="new-password" minlength="8" required></label>
+      <div class="actions" style="grid-column:1/-1"><button class="btn primary" type="submit" id="auth-save">تفعيل تسجيل الدخول</button></div>
+    </form>
+    <div class="auth-on" style="margin-top:14px">
+      <h3>تسجيل الخروج التلقائي</h3>
+      <div class="row" style="gap:8px;align-items:end;flex-wrap:wrap">
+        <label class="field" style="margin:0"><span>بعد كم دقيقة بدون نشاط؟ (0 = إيقاف)</span><input type="number" id="auth-idle" min="0" max="240" style="max-width:140px"></label>
+        <button class="btn" type="button" id="auth-idle-save">حفظ</button></div>
+      <p class="muted small">النشاط = تحريك الماوس أو الكتابة أو اللمس في أي صفحة من الـAgent. التحديثات التلقائية في الخلفية لا تُحسب. قبل الخروج بدقيقة يظهر تنبيه.</p>
+    </div>
+    <div class="actions auth-on" style="margin-top:6px">
+      <button class="btn" type="button" id="auth-signout-all">تسجيل الخروج من كل الأجهزة الأخرى</button>
+      <button class="btn danger" type="button" id="auth-disable">إيقاف تسجيل الدخول</button>
+    </div>
   </section>
 
   <section class="tab-panel" data-panel="advanced">

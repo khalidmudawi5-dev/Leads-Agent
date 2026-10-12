@@ -46,8 +46,12 @@ def test_full_workflow_real_browser(env):
 
             s = client.post(f"/api/lead/{lead['fingerprint']}/search", json={"query": ""}, headers=H).json()
             assert s["match"]["status"] == "matched" and s["lead"]["odoo"]["source"] == "Meta"
+            # The source comes from the Studio field labelled "UTM Source", not from Source (source_id).
+            assert s["lead"]["odoo"]["utm_source"] == "Meta / Leads"
             assert s["lead"]["source"]["odoo_value"] == "Meta / Leads" and s["lead"]["source"]["mapped"]
             assert s["lead"]["source"]["prefill"] == "Meta || Leads"  # identical sheet dropdown value
+            # …and «مصدر العميل» is written to the sheet as soon as the lead is matched.
+            assert sheet.sheets["Leads"][1][5] == "Meta || Leads" and s["notices"]
 
             call = client.post(f"/api/lead/{lead['fingerprint']}/call", headers=H).json()
             assert call["phone_field"] == "phone"

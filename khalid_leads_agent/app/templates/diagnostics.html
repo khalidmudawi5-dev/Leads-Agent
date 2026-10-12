@@ -37,6 +37,9 @@ async function runDiag(btn) {
       }).join("")}
       <tr><td>Phone / Mobile</td><td class="ltr">${esc(d.phone_value || "")} ${esc(d.mobile_value || "")}</td></tr>
       <tr><td>Source value</td><td>${esc(d.source_value || "")}</td></tr>
+      <tr><td><b>UTM Source field (المعتمد للمصدر)</b></td><td class="ltr small">${esc(d.utm_source_field || "—")}</td></tr>
+      <tr><td>UTM Source value</td><td>${esc(d.utm_source_value || "")}</td></tr>
+      <tr><td>UTM fields on crm.lead</td><td class="ltr small">${esc(d.utm_fields_found || "")}</td></tr>
       <tr><td>Call selector</td><td class="ltr small">${esc(d.call_selector || "")}</td></tr>
       <tr><td>Log note selector</td><td class="ltr small">${esc(d.log_note_selector || "")}</td></tr>
       <tr><td>Activity selector</td><td class="ltr small">${esc(d.activity_selector || "")}</td></tr></tbody></table>`;

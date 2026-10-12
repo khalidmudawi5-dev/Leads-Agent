@@ -3,7 +3,7 @@
 <div class="card">
   <div class="page-intro"><span class="pi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
     <div><h2>التقارير</h2><p>أداؤك حسب الفترة: المكالمات المسجلة، نسبة الرد، الاهتمام، الاشتراكات، واتساب، والنتائج حسب المصدر. لا تُحتسب نتائج Dry Run.</p></div>
-    <div class="pi-actions"><a class="btn primary" id="btn-export" href="#">تصدير Excel</a></div></div>
+    <div class="pi-actions"><button class="btn" type="button" onclick="showDaySummary()">ملخص اليوم</button><a class="btn primary" id="btn-export" href="#">تصدير Excel</a></div></div>
   <form class="rep-filters" id="rep-filters">
     <div class="seg" id="rep-period">
       <button type="button" data-p="today">اليوم</button><button type="button" data-p="week" class="on">هذا الأسبوع</button>

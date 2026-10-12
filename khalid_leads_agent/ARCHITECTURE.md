@@ -66,6 +66,9 @@ The workflow is deterministic end to end. No LLM decides customer identity, row 
 - **Activity:** created with `activity_schedule`. A failure only produces a warning; the note and the sheet update still complete.
 - There are screenshots on automation errors, limited retries, configurable timeouts, and one relaunch if the user closed the browser window.
 
+### Source = Odoo UTM Source
+The sheet's «مصدر العميل» is derived from the lead's **UTM Source** only (`odoo_source_labels`). `find_utm_field()` picks the field once per Odoo `fields_get`: the `odoo_utm_source_field` setting, else a many2one/char/selection field labelled "UTM Source", else a name like `x_utm_source` / `x_studio_utm_source`, else the standard `source_id` (shown on the diagnostics page). Resolution stays deterministic: saved Source Mapping (UTM Source → sheet value) first, then a single identical sheet dropdown value. With `auto_write_source` the workflow writes that one cell as soon as a lead is matched (search, candidate choice, refresh, create, manual link, live-sync change) through the usual safe path (fresh read, row located by company + phone, owner re-check, sync log); Dry Run writes nothing and each (lead, value) is tried once per run.
+
 ### Chatter history & live sync
 - `get_lead` also returns `chatter` (newest first, up to `chatter_history_limit`): notes, messages, emails and field tracking (`mail.tracking.value`, read best-effort because it is often admin-only), plus planned `activities`. Fields are requested only if `fields_get` reports them, so Odoo 17/18/19 all work. A DOM fallback reads `.o-mail-Message` items when JSON-RPC is unavailable.
 - `lead_signature(lead_id)` is a cheap fingerprint: lead `write_date` + message count + latest message `write_date` + activity ids/`write_date`. It returns `None` when the browser has not been started, so polling never launches a browser.

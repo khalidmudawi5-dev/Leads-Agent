@@ -222,7 +222,8 @@ class SheetService:
             elif status == 401 or "invalid_grant" in text:
                 self.reset_client()
                 self.last_error = "انتهت صلاحية ربط Google."
-                raise GoogleNotConnected("انتهت صلاحية ربط Google. اضغط Connect Google مرة أخرى.") from exc
+                raise GoogleNotConnected("انتهت صلاحية ربط Google. اضغط «إعادة ربط Google» وسجّل الدخول بحسابك "
+                                         "(دقيقة واحدة).") from exc
             elif status == 429:
                 msg = "تم تجاوز حد طلبات Google مؤقتًا. انتظر دقيقة ثم أعد المحاولة."
             else:

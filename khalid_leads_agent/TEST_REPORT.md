@@ -1,5 +1,15 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 2.2.0 (2026-10-04): source from Odoo UTM Source, written to the sheet automatically
+
+**Result:** ✅ **165 passed, 2 skipped** (display-only browser test; same as before).
+
+- `test_browser_adapter.py::test_utm_source_field_detection`: label "UTM Source" (any spacing), `x_utm_source_id`-style names, the setting override, and fallback to `source_id`; html fields ignored.
+- `test_browser_adapter.py::test_lead_reads_utm_source_field`: the fake Odoo has a Studio field "UTM Source" (`Meta / Leads`) that differs from Source (`Meta`); the lead's `utm_source` comes from it. Creating a lead also fills it.
+- `test_mappings.py`: mapping uses UTM Source only; Source alone never matches.
+- `test_results.py::test_auto_source_*`: the source cell (one cell) is written on match; not again when already equal; nothing in Dry Run or for an unmapped value; owner changed → blocked with a warning.
+- e2e (real Chromium + fake Odoo): after the search the sheet's «مصدر العميل» already holds `Meta || Leads` and a notice is returned.
+
 ## Update 1.3.0 (2026-09-29): fast, smart call button
 
 **Result:** ✅ **108 passed, 0 failed**.

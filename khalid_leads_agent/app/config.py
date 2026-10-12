@@ -141,6 +141,9 @@ class AppSettings(BaseModel):
     # Customers missing from Odoo are added from the agent as a Lead (CRM > Leads, like the other
     # customers) or as an Opportunity (CRM > Pipeline).
     odoo_new_record_type: Literal["lead", "opportunity"] = "lead"
+    # Technical name of the lead's «UTM Source» field; empty = detect it (a field labelled
+    # "UTM Source", e.g. x_studio_utm_source, otherwise Odoo's standard source_id).
+    odoo_utm_source_field: str = ""
     # fast: hand the Odoo number straight to Windows/Phone Link (instant, no browser);
     # odoo_click: open the lead and click Odoo's own Call link; windows_handler: read that link, then Windows.
     call_launch_mode: Literal["fast", "odoo_click", "windows_handler"] = "fast"
@@ -150,6 +153,9 @@ class AppSettings(BaseModel):
     # Automation
     auto_load_next: bool = True
     auto_sync_source: bool = True
+    # Write the sheet's «مصدر العميل» as soon as the lead is matched (from its Odoo UTM Source via
+    # Source Mapping), not only when a call result is saved. Dry Run writes nothing.
+    auto_write_source: bool = True
     auto_open_odoo_lead: bool = True
     next_lead_delay_seconds: int = Field(default=3, ge=0, le=60)
     dry_run: bool = True
@@ -165,10 +171,22 @@ class AppSettings(BaseModel):
     # Follow-ups: due ones first in the queue; future ones wait until their date.
     followups_first: bool = True
     hide_future_followups: bool = True
+    # Remind N minutes before a follow-up that has a time (0 = off), with a soft sound.
+    followup_reminder_minutes: int = Field(default=30, ge=0, le=240)
+    followup_reminder_sound: bool = True
+    # Move the Odoo lead to a stage when a result is saved: {result code: Odoo stage name} (empty = off).
+    # A lead is never moved back to an earlier stage (unless turned off) and never out of a Won stage.
+    odoo_stage_by_result: dict[str, str] = Field(default_factory=dict)
+    odoo_stage_no_back: bool = True
     # No answer: back in the queue after N hours (0 = off: stays done for the session); after M attempts
     # suggest WhatsApp / invalid number (0 = never).
     no_answer_retry_hours: int = Field(default=4, ge=0, le=168)
     no_answer_max_attempts: int = Field(default=3, ge=0, le=20)
+    # Count earlier attempts from the sheet's notes cell (entries with these words = no answer).
+    sheet_history_enabled: bool = True
+    no_answer_keywords: list[str] = Field(default_factory=lambda: [
+        "لم يتم الرد", "لم يرد", "لا يرد", "ما رد", "مارد", "ماترد", "لا يوجد رد", "بدون رد", "مغلق", "مقفل",
+        "خارج التغطية", "خارج الخدمة", "no answer"])
     # Daily goal (results recorded today); 0 = hidden.
     daily_call_goal: int = Field(default=40, ge=0, le=1000)
     # Check the sheet for new customers every N minutes while the dashboard is open (0 = off).

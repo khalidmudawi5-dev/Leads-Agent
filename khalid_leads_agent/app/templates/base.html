@@ -11,7 +11,7 @@
   <link rel="preload" href="/static/fonts/tajawal-arabic-700.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
 </head>
-<body>
+<body data-idle="{{ idle_minutes() }}">
 <div class="layout">
   <aside class="sidebar">
     <div class="brand">
@@ -43,8 +43,9 @@
         <button type="button" class="swatch" data-p="blue" title="أزرق وأبيض"></button>
         <button type="button" class="swatch" data-p="stc" title="مستوحى من stc (بنفسجي ومرجاني)"></button></div>
       <button type="button" class="side-btn" id="btn-theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span id="theme-label">الوضع الداكن</span><kbd>Alt D</kbd></button>
+      {% if login_enabled() %}<form method="post" action="/logout" style="margin:0"><button type="submit" class="side-btn" id="btn-logout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>تسجيل الخروج</button></form>{% endif %}
       {% if phone_urls %}<div class="ver">من الجوال (Tailscale): {% for u in phone_urls %}<span class="ltr">{{ u }}</span> {% endfor %}</div>{% endif %}
-      <div class="ver">الإصدار {{ version }} · {% if phone_urls %}متاح لأجهزتك عبر Tailscale برمز PIN{% else %}يعمل محليًا فقط{% endif %}</div>
+      <div class="ver">الإصدار {{ version }} · {% if phone_urls %}متاح لأجهزتك عبر Tailscale {{ 'بتسجيل الدخول' if login_enabled() else 'برمز PIN' }}{% else %}يعمل محليًا فقط{% endif %}</div>
     </div>
   </aside>
   <div class="main">

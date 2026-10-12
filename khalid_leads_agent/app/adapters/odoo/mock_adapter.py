@@ -24,6 +24,12 @@ class MockOdooAdapter(OdooAdapter):
         self.fail_call = False
         self.versions: dict[int, int] = {}
         self.created: list[dict[str, Any]] = []
+        self.phone_writes: list[dict[str, Any]] = []
+        self.stages = [{"id": 1, "name": "جديد", "sequence": 1, "is_won": False},
+                       {"id": 2, "name": "Qualified", "sequence": 2, "is_won": False},
+                       {"id": 3, "name": "Proposition", "sequence": 3, "is_won": False},
+                       {"id": 4, "name": "Won", "sequence": 70, "is_won": True}]
+        self.stage_writes: list[dict[str, Any]] = []
         self.fail_create = False
         self.utm_sources = {"meta", "google", "twajd", "power bi"}
         self.utm_mediums = {"leads", "cpc"}
@@ -124,6 +130,27 @@ class MockOdooAdapter(OdooAdapter):
             lead.medium = lead.utm_medium = med
         self.leads[new_id] = lead
         return self._with_history(lead)
+
+    async def set_lead_phone(self, lead_id: int, field: str, value: str) -> OdooLead:
+        self._check()
+        assert field in ("phone", "mobile")
+        setattr(self.leads[lead_id], field, value)
+        self.phone_writes.append({"id": lead_id, field: value})
+        return self._with_history(self.leads[lead_id])
+
+    async def list_stages(self) -> list[dict[str, Any]]:
+        self._check()
+        return [dict(s) for s in self.stages]
+
+    async def lead_stage_id(self, lead_id: int) -> int | None:
+        self._check()
+        name = self.leads[lead_id].stage
+        return next((s["id"] for s in self.stages if s["name"] == name), None)
+
+    async def set_lead_stage(self, lead_id: int, stage_id: int) -> None:
+        self._check()
+        self.leads[lead_id].stage = next(s["name"] for s in self.stages if s["id"] == stage_id)
+        self.stage_writes.append({"id": lead_id, "stage_id": stage_id})
 
     async def lead_signature(self, lead_id: int) -> str | None:
         self._check()

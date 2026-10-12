@@ -17,12 +17,13 @@ from app.models import LeadCache, OutreachMessage
 from app.repositories.lead_repo import LeadCacheRepository, SkipRepository
 from app.repositories.log_repo import LogRepository
 from app.repositories.result_repo import CallResultRepository
-from app.services.google_sheets_service import SheetService
+from app.services.google_sheets_service import LeadRef, SheetService
 from app.services.lead_queue_service import LeadQueueService
 from app.services.mapping_service import _SEP, MappingService
 from app.services.odoo_service import MatchResult, OdooService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
+from app.services.sheet_history import combined_streak, drop_saved, history_view, parse_notes
 from app.utils.phone import check_phone, format_phone, normalize_phone, phones_match, to_ascii_digits
 from app.utils.text import normalize_company, normalize_text
 from app.utils.timeutils import end_of_local_day_utc, fmt_local, localnow, start_of_local_day_utc, utcnow
@@ -84,6 +85,8 @@ class LeadWorkflowService:
         self.odoo = odoo
         self.mappings = mappings
         self._create_locks: dict[str, asyncio.Lock] = {}
+        # (fingerprint, value) pairs already tried by the automatic source update: no repeated warnings.
+        self._source_tried: set[tuple[str, str]] = set()
 
     # ------------------------------------------------------------ helpers
     def _cache(self, fingerprint: str) -> LeadCache:
@@ -120,19 +123,37 @@ class LeadWorkflowService:
             "duplicates": self._duplicates(c.phone_norm, c.sheet_row),
         }
 
+    def no_answer_streak(self, fingerprint: str, notes: str, db_streak: int) -> tuple[int, dict | None]:
+        """No-answer attempts in a row, including earlier ones written in the sheet's notes cell."""
+        s = self.settings.get()
+        fu = self.queue.followups
+        if not s.sheet_history_enabled or not (notes or "").strip() or fu is None:
+            return db_streak, None
+        results = fu.results(fingerprint)
+        entries = drop_saved(parse_notes(notes, s.no_answer_keywords), [at for at, _ in results])
+        if not entries:
+            return db_streak, None
+        return combined_streak(entries, results), history_view(entries)
+
     def _outcome_view(self, fingerprint: str) -> dict | None:
-        """Follow-up date and no-answer attempts from the results saved for this customer."""
+        """Follow-up date and no-answer attempts from the results saved for this customer (+ the sheet notes)."""
         fu = self.queue.followups
         o = fu.outcomes().get(fingerprint) if fu else None
-        if o is None:
+        c = self._cache(fingerprint)
+        streak, history = self.no_answer_streak(fingerprint, c.notes, o.no_answer_streak if o else 0)
+        if o is None and history is None:
             return None
         s = self.settings.get()
-        return {"last_code": o.last_code, "last_at": fmt_local(o.last_at), "no_answer_streak": o.no_answer_streak,
-                "max_attempts": s.no_answer_max_attempts,
-                "attempts_reached": bool(s.no_answer_max_attempts and o.no_answer_streak >= s.no_answer_max_attempts),
-                "followup_at": o.followup_at if o.last_code == "FOLLOW_UP" else "",
-                "followup_note": o.followup_note if o.last_code == "FOLLOW_UP" else "",
-                "followup_state": o.followup_state(localnow().date())}
+        reached = bool(s.no_answer_max_attempts and streak >= s.no_answer_max_attempts)
+        if o is None:  # only the sheet knows this customer
+            return {"last_code": "", "last_at": history["last_at"], "no_answer_streak": streak,
+                    "max_attempts": s.no_answer_max_attempts, "attempts_reached": reached, "followup_at": "",
+                    "followup_note": "", "followup_state": "", "sheet_history": history}
+        return {"last_code": o.last_code, "last_at": fmt_local(o.last_at), "no_answer_streak": streak,
+                "max_attempts": s.no_answer_max_attempts, "attempts_reached": reached,
+                "followup_at": o.followup_at,
+                "followup_note": o.followup_note if o.followup_at else "",
+                "followup_state": o.followup_state(localnow().date()), "sheet_history": history}
 
     def _duplicates(self, phone_norm: str, sheet_row: int) -> list[dict]:
         """Other sheet rows (any owner) with the same phone number."""
@@ -172,6 +193,18 @@ class LeadWorkflowService:
         order = {"overdue": 0, "due": 1, "upcoming": 2}
         items.sort(key=lambda i: (order[i["state"]], i["followup_at"]))
         return items
+
+    def followup_reminders(self) -> dict:
+        """Follow-ups with a time, today or tomorrow, for the page's reminder (never reads the sheet)."""
+        s = self.settings.get()
+        if not s.followup_reminder_minutes or not self.queue.loaded:
+            return {"minutes": s.followup_reminder_minutes, "sound": s.followup_reminder_sound, "items": []}
+        today = localnow().date()
+        days = {today.isoformat(), (today + timedelta(days=1)).isoformat()}
+        items = [{"fingerprint": i["fingerprint"], "company": i["company"], "phone": i["phone"],
+                  "at": i["followup_at"][:16], "note": i["note"]}
+                 for i in self.followup_items() if len(i["followup_at"]) >= 16 and i["followup_at"][:10] in days]
+        return {"minutes": s.followup_reminder_minutes, "sound": s.followup_reminder_sound, "items": items}
 
     def stats(self) -> dict:
         since = start_of_local_day_utc()
@@ -270,6 +303,51 @@ class LeadWorkflowService:
             self._update_cache(fingerprint, odoo_lead_id=None, odoo_data=None, match_status=match.status,
                                match_candidates=[c.to_dict() for c in match.candidates], match_strategy=match.strategy)
 
+    async def _auto_source(self, fingerprint: str) -> tuple[list[str], list[str]]:
+        """Write the sheet's «مصدر العميل» from the matched lead's Odoo **UTM Source**.
+
+        Deterministic: only a saved Source Mapping or an identical sheet dropdown value. Same safety
+        as every sheet write (fresh read, row located by company + phone, owner re-checked, one cell,
+        old value kept in the sync log). Dry Run writes nothing. Returns (notices, warnings).
+        """
+        s = self.settings.get()
+        c = self._cache(fingerprint)
+        if not (s.auto_write_source and s.auto_sync_source) or s.dry_run or not c.odoo_data:
+            return [], []
+        resolution = self.mappings.resolve_source(OdooLead.from_dict(c.odoo_data))
+        target = resolution.sheet_value.strip()
+        if not resolution.mapped or not target or c.sheet_source.strip() == target:
+            return [], []
+        if (fingerprint, target) in self._source_tried:
+            return [], []
+        self._source_tried.add((fingerprint, target))
+        ref = LeadRef(c.fingerprint, c.sheet_row, c.company_name, c.phone_norm)
+        action_id = uuid.uuid4().hex
+
+        def write() -> tuple[str, list[str], str]:
+            plan = self.sheets.plan_update(ref, {"source": target})
+            written = next((ch.new for ch in plan.changes if ch.key == "source"), "")
+            return self.sheets.apply(plan, dry_run=False, action_id=action_id), plan.warnings, written
+
+        try:
+            status, warnings, written = await asyncio.to_thread(write)
+        except AgentError as exc:
+            log.info("Automatic source update skipped for row %s: %s", c.sheet_row, exc.message_ar)
+            return [], [f"لم يتم تحديث «مصدر العميل» تلقائيًا: {exc.message_ar}"]
+        if status != "success":
+            return [], warnings
+        self._update_cache(fingerprint, sheet_source=written)
+        old = c.sheet_source.strip() or "فارغ"
+        log.info("Row %s source %r -> %r (UTM Source %r)", c.sheet_row, c.sheet_source, written, resolution.odoo_value)
+        return [f"تم تحديث «مصدر العميل» في Google Sheet تلقائيًا من UTM Source «{resolution.odoo_value}»: "
+                f"{old} ← {written}"], warnings
+
+    async def _with_source(self, fingerprint: str, payload_warnings: list[str]) -> dict:
+        notices, warnings = await self._auto_source(fingerprint)
+        payload = self._payload(fingerprint, payload_warnings + warnings)
+        payload["notices"] = notices
+        return payload
+
     async def _load_lead(self, lead: OdooLead, open_in_browser: bool) -> tuple[OdooLead, list[str]]:
         warnings: list[str] = []
         try:
@@ -299,7 +377,7 @@ class LeadWorkflowService:
         if match.status == "matched" and match.lead:
             lead, warnings = await self._load_lead(match.lead, self.settings.get().auto_open_odoo_lead)
         self._store_match(fingerprint, match, lead)
-        payload = self._payload(fingerprint, warnings)
+        payload = await self._with_source(fingerprint, warnings)
         payload["match"] = {"status": match.status, "strategy": match.strategy}
         return payload
 
@@ -312,7 +390,48 @@ class LeadWorkflowService:
             chosen = OdooLead(id=odoo_id, ui_index=ui_index, ui_query=ui_query)
         lead, warnings = await self._load_lead(chosen, True)
         self._store_match(fingerprint, MatchResult("matched", lead, [], "user_choice"), lead)
-        return self._payload(fingerprint, warnings)
+        return await self._with_source(fingerprint, warnings)
+
+    async def link_to_odoo(self, fingerprint: str, odoo_id: int | None, ui_index: int | None = None,
+                           ui_query: str = "", add_phone: bool = True) -> dict:
+        """«ربط بعميل في Odoo»: the user found the customer in Odoo (another name or number) and links it
+        to the sheet row in front of them.
+
+        With ``add_phone`` the sheet's number is written to the lead's **empty** Mobile (or Phone) field,
+        so the next search matches by phone on its own. A filled number is never overwritten. Dry Run
+        writes nothing.
+        """
+        c = self._cache(fingerprint)
+        lead, warnings = await self._load_lead(OdooLead(id=odoo_id, ui_index=ui_index, ui_query=ui_query), True)
+        notices: list[str] = []
+        sheet_phone = check_phone(c.phone_raw)
+        has_number = any(phones_match(n, c.phone_norm) for n in (lead.phone, lead.mobile) if n)
+        if add_phone and lead.id and c.phone_norm and not has_number:
+            field = "mobile" if not lead.mobile.strip() else "phone" if not lead.phone.strip() else ""
+            value = format_phone(sheet_phone["raw"] or c.phone_raw)
+            if not field:
+                warnings.append(f"العميل في Odoo عنده رقمان آخران، فلم يُضف رقم الشيت ({value}) حتى لا يُستبدل أي رقم.")
+            elif self.settings.get().dry_run:
+                notices.append(f"Dry Run: لم يُضف الرقم {value} إلى {field.capitalize()} في Odoo.")
+            else:
+                audit = {"action_id": uuid.uuid4().hex, "system": "ODOO", "action": "link_add_phone",
+                         "record": f"row {c.sheet_row} | {c.company_name} | lead {lead.id}",
+                         "before": {"phone": lead.phone, "mobile": lead.mobile}}
+                try:
+                    lead = await self.odoo.adapter.set_lead_phone(lead.id, field, value)
+                except AgentError as exc:
+                    if exc.code == "ODOO_LOGIN_REQUIRED":
+                        raise
+                    self._audit(**audit, after={field: value}, success=False, dry_run=False)
+                    warnings.append(exc.message_ar)
+                else:
+                    self._audit(**audit, after={field: value}, success=True, dry_run=False)
+                    notices.append(f"تمت إضافة رقم الشيت {value} إلى {field.capitalize()} في Odoo؛ سيتطابق تلقائيًا في المرات القادمة.")
+        self._store_match(fingerprint, MatchResult("matched", lead, [], "user_link"), lead)
+        log.info("Row %s linked by the user to Odoo lead %s", c.sheet_row, lead.id)
+        payload = await self._with_source(fingerprint, warnings)
+        payload["notices"] = notices + payload.get("notices", [])
+        return payload
 
     def odoo_source_for(self, sheet_value: str) -> tuple[str, str]:
         """Odoo (source, medium) names for a sheet source value.
@@ -376,12 +495,12 @@ class LeadWorkflowService:
             except AgentError as exc:
                 self._audit(**audit, after=values, success=False, error=exc.message_ar)
                 raise
-            self._audit(**audit, after={**values, "id": lead.id, "source": lead.source, "medium": lead.medium},
-                        success=True)
+            self._audit(**audit, after={**values, "id": lead.id, "utm_source": lead.utm_source or lead.source,
+                                        "medium": lead.medium}, success=True)
             log.info("Created Odoo %s %s for sheet row %s", s.odoo_new_record_type, lead.id, c.sheet_row)
             warnings: list[str] = []
-            if source_name and not lead.source:
-                warnings.append(f"المصدر «{source_name}» غير موجود في Odoo (Source)؛ أُضيف العميل بدون مصدر. "
+            if source_name and not (lead.utm_source or lead.source):
+                warnings.append(f"المصدر «{source_name}» غير موجود في Odoo (UTM Source)؛ أُضيف العميل بدون مصدر. "
                                 "أضفه في Odoo أو اربطه من الإعدادات > Source Mapping.")
             if medium_name and not lead.medium:
                 warnings.append(f"الـMedium «{medium_name}» غير موجود في Odoo؛ لم يُضف.")
@@ -389,7 +508,7 @@ class LeadWorkflowService:
                 lead, load_warnings = await self._load_lead(lead, True)
                 warnings += load_warnings
             self._store_match(fingerprint, MatchResult("matched", lead, [], "created"), lead)
-            payload = self._payload(fingerprint, warnings)
+            payload = await self._with_source(fingerprint, warnings)
             payload["create"] = {"status": "created", "id": lead.id, "type": s.odoo_new_record_type}
             return payload
 
@@ -537,7 +656,7 @@ class LeadWorkflowService:
                 if exc.code == "ODOO_LOGIN_REQUIRED":
                     raise
                 warnings.append(exc.message_ar)
-        return await self._with_refresh_info(self._payload(fingerprint, warnings), new)
+        return await self._with_refresh_info(await self._with_source(fingerprint, warnings), new)
 
     # ------------------------------------------------------ queue list
     async def queue_list(self, kind: str) -> dict:
@@ -667,7 +786,7 @@ class LeadWorkflowService:
             return base
         self._update_cache(fingerprint, odoo_data=lead.to_dict())
         log.info("Live sync: lead %s changed in Odoo; refreshed", c.odoo_lead_id)
-        return {**self._payload(fingerprint), **base, "changed": True}
+        return {**await self._with_source(fingerprint, []), **base, "changed": True}
 
     async def manual_live(self, odoo_id: int, since: str) -> dict:
         """Live sync for a lead opened from manual search (not linked to a sheet row)."""
@@ -727,6 +846,6 @@ class LeadWorkflowService:
                                match_candidates=None)
             c = self._cache(linked)
             self.sessions.set_current(linked, c.sheet_row)
-            return {"linked": True, **self._payload(linked, ["تم ربط العميل بصفه في Google Sheet عبر رقم الجوال."])}
+            return {"linked": True, **await self._with_source(linked, ["تم ربط العميل بصفه في Google Sheet عبر رقم الجوال."])}
         return {"linked": False, "odoo": lead.to_dict(),
                 "warnings": ["العميل غير مربوط بصف مؤكد في Google Sheet؛ سيتم تحديث Odoo فقط."]}

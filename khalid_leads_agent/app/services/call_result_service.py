@@ -76,7 +76,7 @@ class ResultService:
         return "KLA-" + "".join(ch for ch in key if ch.isalnum())[:10].upper()
 
     def _validate(self, inp: ResultIn) -> None:
-        if inp.result_code == "FOLLOW_UP" and not inp.followup_date:
+        if self._wants_followup(inp) and not inp.followup_date:
             raise AgentError("FOLLOWUP_DATE_REQUIRED", "حدد تاريخ المتابعة.")
         for value, label in ((inp.followup_date, "تاريخ المتابعة"), (inp.subscription_expiry, "تاريخ انتهاء الاشتراك")):
             if value:
@@ -84,6 +84,24 @@ class ResultService:
                     datetime.strptime(value, "%Y-%m-%d")
                 except ValueError as exc:
                     raise AgentError("BAD_DATE", f"صيغة {label} غير صحيحة.") from exc
+
+    @staticmethod
+    def _wants_followup(inp: ResultIn) -> bool:
+        return inp.result_code == "FOLLOW_UP" or inp.schedule_followup
+
+    def _status_value(self, code: str) -> str | None:
+        """Sheet value for the result. «متابعة لاحقًا» is an action: when it has no value in the sheet's
+        «حالة المتابعة» dropdown, the follow-up status is left unchanged (None)."""
+        if code != "FOLLOW_UP":
+            return self.mappings.status_sheet_value(code)
+        value = next((m["sheet_value"] for m in self.mappings.statuses() if m["code"] == code), "").strip()
+        if not value:
+            return None
+        try:
+            options = self.sync.sheets.dropdown_options("followup_status")
+        except Exception:  # noqa: BLE001 - cannot read the dropdown: keep the mapped value
+            return value
+        return value if not options or value in options else None
 
     def _response(self, row: CallResult, *, duplicate: bool = False) -> dict:
         s = self.settings.get()
@@ -120,7 +138,7 @@ class ResultService:
     async def _save_locked(self, inp: ResultIn) -> dict:
         s = self.settings.get()
         self._validate(inp)
-        status_value = self.mappings.status_sheet_value(inp.result_code)
+        status_value = self._status_value(inp.result_code)
         result_label = self.mappings.status_label(inp.result_code)
 
         with self.db.session() as db:
@@ -152,7 +170,7 @@ class ResultService:
 
         now = localnow()
         ref = self._ref_code(inp.idempotency_key)
-        followup_at = f"{inp.followup_date} {inp.followup_time}".strip() if inp.result_code == "FOLLOW_UP" else ""
+        followup_at = f"{inp.followup_date} {inp.followup_time}".strip() if self._wants_followup(inp) else ""
         note_text = inp.note.strip()
         if inp.result_code == "NOT_INTERESTED" and inp.not_subscribed_reason.strip():
             note_text = (note_text + "\n" if note_text else "") + f"سبب عدم الاشتراك: {inp.not_subscribed_reason.strip()}"
@@ -172,7 +190,7 @@ class ResultService:
             # No visible reference: the note's own lines (result + notes + date/time) identify it.
             ref = note_signature(odoo_body)
 
-        sheet_changes: dict[str, str] = {"followup_status": status_value}
+        sheet_changes: dict[str, str] = {"followup_status": status_value} if status_value else {}
         if source_value:
             sheet_changes["source"] = source_value
         if inp.not_subscribed_reason.strip():
@@ -185,7 +203,7 @@ class ResultService:
         note_entry = format_note_entry(entry_text, s.agent_owner, now, s.note_stamp_format)
 
         activity = None
-        if inp.result_code == "FOLLOW_UP" and inp.followup_date:
+        if self._wants_followup(inp) and inp.followup_date:
             activity = {"date_deadline": inp.followup_date,
                         "summary": f"متابعة {company}".strip() + (f" {inp.followup_time}" if inp.followup_time else ""),
                         "note": inp.followup_note or note_text}
@@ -223,6 +241,7 @@ class ResultService:
             if activity and odoo_id:
                 await self.sync.odoo_activity(odoo_id, activity["date_deadline"], activity["summary"],
                                               activity["note"], dry_run=True, action_id=inp.idempotency_key)
+            await self._stage_step(inp, odoo_id, preview, warnings, dry_run=True)
             row.odoo_note_status = "dry_run" if inp.add_odoo_note and odoo_id else "skipped"
             row.odoo_activity_status = "dry_run" if activity and odoo_id else "skipped"
             row.sheet_status = ("blocked" if preview["sheet_error"] else "dry_run") if update_sheet else "skipped"
@@ -248,6 +267,7 @@ class ResultService:
             row.odoo_activity_status = step.status
             if step.status == "failed":
                 warnings.append("تعذر إنشاء Activity في Odoo (Activity creation failed)؛ تم إكمال الملاحظة وتحديث Sheet.")
+        await self._stage_step(inp, odoo_id, preview, warnings, dry_run=False)
         if update_sheet and lead_ref:
             step = await asyncio.to_thread(self.sync.update_sheet, lead_ref, sheet_changes, note_entry,
                                            dry_run=False, action_id=inp.idempotency_key)
@@ -269,6 +289,19 @@ class ResultService:
         row.errors, row.warnings, row.preview = errors, warnings, preview
         self._maybe_save_mapping(inp)
         return self._finish(row, inp, company, status_value if row.sheet_status == "success" else None)
+
+    async def _stage_step(self, inp: ResultIn, odoo_id: int | None, preview: dict, warnings: list[str], *,
+                          dry_run: bool) -> None:
+        """Optional: move the Odoo lead to the stage mapped to this result (never blocks the save)."""
+        s = self.settings.get()
+        stage = (s.odoo_stage_by_result.get(inp.result_code) or "").strip()
+        if not stage or not odoo_id:
+            return
+        step = await self.sync.odoo_stage(odoo_id, stage, no_back=s.odoo_stage_no_back, dry_run=dry_run,
+                                          action_id=inp.idempotency_key)
+        preview["odoo_stage"] = {"status": step.status, "stage": stage, "message": step.message}
+        if step.status == "failed":
+            warnings.append(f"لم تتغير مرحلة العميل في Odoo: {step.message}")
 
     def _maybe_save_mapping(self, inp: ResultIn) -> None:
         if inp.save_source_mapping and inp.source_odoo_value.strip() and inp.source_value.strip():
@@ -321,7 +354,8 @@ class ResultService:
             if cache:
                 changes = {c["key"]: c["new"] for c in preview.get("sheet", []) if c["key"] != "notes"}
                 if not changes:
-                    changes = {"followup_status": self.mappings.status_sheet_value(row.result_code)}
+                    status = self._status_value(row.result_code)
+                    changes = {"followup_status": status} if status else {}
                     if row.source_value:
                         changes["source"] = row.source_value
                 entry = preview.get("note_entry") or format_note_entry(
