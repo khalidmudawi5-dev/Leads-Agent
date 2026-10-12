@@ -171,6 +171,9 @@ class AppSettings(BaseModel):
     # Follow-ups: due ones first in the queue; future ones wait until their date.
     followups_first: bool = True
     hide_future_followups: bool = True
+    # Remind N minutes before a follow-up that has a time (0 = off), with a soft sound.
+    followup_reminder_minutes: int = Field(default=30, ge=0, le=240)
+    followup_reminder_sound: bool = True
     # No answer: back in the queue after N hours (0 = off: stays done for the session); after M attempts
     # suggest WhatsApp / invalid number (0 = never).
     no_answer_retry_hours: int = Field(default=4, ge=0, le=168)

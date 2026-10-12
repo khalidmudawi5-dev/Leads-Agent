@@ -399,3 +399,75 @@ async function showDaySummary() {
     }),
   });
 }
+
+// ------------------------------------------------------------ follow-up reminders
+/** A card (+ soft sound, + desktop notification if allowed) N minutes before a timed follow-up, and at its time. */
+const Reminders = {
+  KEY: "kla-reminded",
+  seen() { try { return JSON.parse(localStorage.getItem(Reminders.KEY) || "{}"); } catch (e) { return {}; } },
+  remember(key) {
+    const s = Reminders.seen(); s[key] = Date.now();
+    for (const k of Object.keys(s)) if (Date.now() - s[k] > 3 * 86400000) delete s[k];
+    try { localStorage.setItem(Reminders.KEY, JSON.stringify(s)); } catch (e) { /* private mode */ }
+  },
+  beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [[660, 0], [880, 0.22]].forEach(([f, at]) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + at);
+        g.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + at + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 0.2);
+        o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + at); o.stop(ctx.currentTime + at + 0.22);
+      });
+      setTimeout(() => ctx.close(), 800);
+    } catch (e) { /* no audio */ }
+  },
+  show(item, mins, sound) {
+    let box = $("#reminders");
+    if (!box) { box = document.createElement("div"); box.id = "reminders"; box.setAttribute("aria-live", "assertive"); document.body.appendChild(box); }
+    const when = mins > 0 ? `بعد ${mins} دقيقة` : "الآن";
+    const el = document.createElement("div");
+    el.className = "reminder";
+    el.innerHTML = `<div class="rm-head">⏰ موعد متابعة ${when} · <span class="ltr">${esc(item.at.slice(11))}</span></div>
+      <div class="rm-name">${esc(item.company)}</div>
+      <div class="small muted"><span class="ltr">${esc(item.phone || "")}</span>${item.note ? " · " + esc(item.note) : ""}</div>
+      <div class="rm-actions"><button class="btn primary sm" type="button" data-open>فتح العميل</button><button class="btn sm" type="button" data-close>تمام</button></div>`;
+    $("[data-close]", el).onclick = () => el.remove();
+    $("[data-open]", el).onclick = async () => {
+      el.remove();
+      if (typeof render === "function" && document.getElementById("stats")) {
+        try { render(await api("POST", `/api/lead/${item.fingerprint}/goto`)); } catch (e) { toast(e.message, "error"); }
+      } else { window.location.href = `/?lead=${encodeURIComponent(item.fingerprint)}`; }
+    };
+    box.appendChild(el);
+    if (sound) Reminders.beep();
+    if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+      try { new Notification(`موعد متابعة ${when}: ${item.company}`, { body: `${item.at.slice(11)} ${item.note || ""}`.trim(), tag: item.fingerprint + item.at }); }
+      catch (e) { /* not supported */ }
+    }
+  },
+  async check() {
+    let r;
+    try { r = await api("GET", "/api/followups/reminders"); } catch (e) { return; }
+    if (!r.minutes) return;
+    const now = Date.now();
+    const seen = Reminders.seen();
+    for (const it of r.items || []) {
+      const at = new Date(it.at.replace(" ", "T") + ":00").getTime();
+      if (Number.isNaN(at)) continue;
+      const left = at - now;
+      const stage = left > 0 && left <= r.minutes * 60000 ? "before" : left <= 0 && left > -10 * 60000 ? "now" : "";
+      const key = `${it.fingerprint}|${it.at}|${stage}`;
+      if (!stage || seen[key]) continue;
+      Reminders.remember(key);
+      Reminders.show(it, stage === "before" ? Math.max(1, Math.round(left / 60000)) : 0, r.sound);
+    }
+  },
+  start() {
+    setTimeout(Reminders.check, 4000);
+    setInterval(Reminders.check, 60000);
+  },
+};
+document.addEventListener("DOMContentLoaded", () => Reminders.start());

@@ -117,6 +117,12 @@ async def lead_create_odoo(fingerprint: str, body: CreateLeadIn, c: AppContainer
                                            source=body.source)
 
 
+@router.get("/followups/reminders")
+def followup_reminders(c: AppContainer = Depends(container)) -> dict:
+    """Timed follow-ups (today/tomorrow) for the reminder; empty until the queue is loaded."""
+    return c.workflow.followup_reminders()
+
+
 @router.get("/lead/{fingerprint}/whatsapp")
 def lead_whatsapp_options(fingerprint: str, c: AppContainer = Depends(container)) -> dict:
     return c.whatsapp.options(fingerprint)

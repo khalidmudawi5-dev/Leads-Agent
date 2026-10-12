@@ -607,6 +607,12 @@ table.hist { table-layout: auto; }
 @media (max-width: 760px) { .tpl-row { grid-template-columns: 1fr auto; } .tpl-row .tpl-text { grid-column: 1 / -1; grid-row: 2; } .tpl-row .tpl-file { grid-column: 1 / -1; } }
 .rep-tiles.sum-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 760px) { .rep-tiles.sum-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+#reminders { position: fixed; inset-block-start: 76px; inset-inline-end: 24px; z-index: 60; display: flex; flex-direction: column; gap: 10px; width: min(340px, calc(100vw - 32px)); }
+.reminder { background: var(--surface); border: 1px solid var(--border); border-inline-start: 4px solid var(--primary); border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 30px rgba(15, 23, 42, .18); animation: rm-in .25s ease; }
+.reminder .rm-head { font-size: .82rem; font-weight: 700; color: var(--primary); }
+.reminder .rm-name { font-size: 1rem; font-weight: 800; margin: 2px 0; }
+.reminder .rm-actions { display: flex; gap: 8px; margin-top: 8px; }
+@keyframes rm-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 .sum-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
 @media (max-width: 760px) { .sum-grid { grid-template-columns: 1fr; } }
 .sum-sec { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--surface-2); }

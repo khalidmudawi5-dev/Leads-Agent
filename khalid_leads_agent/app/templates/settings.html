@@ -150,6 +150,10 @@
     <div class="form-grid">
       <label class="check"><input type="checkbox" data-key="followups_first"> متابعات اليوم والمتأخرة تظهر أولًا في القائمة</label>
       <label class="check"><input type="checkbox" data-key="hide_future_followups"> إخفاء العميل حتى يحين موعد متابعته</label>
+      <label class="field"><span>تذكير قبل موعد المتابعة بـ (دقائق) — 0 = إيقاف</span><input type="number" min="0" max="240" data-key="followup_reminder_minutes"></label>
+      <label class="check"><input type="checkbox" data-key="followup_reminder_sound"> صوت خفيف مع التذكير</label>
+      <div class="actions"><button class="btn sm" type="button" id="btn-notify-perm">🔔 تفعيل إشعارات سطح المكتب</button>
+        <span class="small muted" id="notify-state"></span></div>
     </div>
     <h3 style="margin-top:18px">لم يتم الرد</h3>
     <div class="form-grid">

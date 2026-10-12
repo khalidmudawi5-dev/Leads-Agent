@@ -75,6 +75,11 @@ async function init() {
       history.replaceState(null, "", "/");
       await openUpdate(updateId);
     }
+    const leadFp = new URLSearchParams(location.search).get("lead");  // «فتح العميل» from a reminder on another page
+    if (leadFp) {
+      history.replaceState(null, "", "/");
+      try { render(await api("POST", `/api/lead/${encodeURIComponent(leadFp)}/goto`)); } catch (e) { toast(e.message, "error"); }
+    }
   } catch (e) { showError(e, $("#lead-card"), { retry: init }); }
 }
 

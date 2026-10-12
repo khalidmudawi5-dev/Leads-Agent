@@ -175,6 +175,18 @@ class LeadWorkflowService:
         items.sort(key=lambda i: (order[i["state"]], i["followup_at"]))
         return items
 
+    def followup_reminders(self) -> dict:
+        """Follow-ups with a time, today or tomorrow, for the page's reminder (never reads the sheet)."""
+        s = self.settings.get()
+        if not s.followup_reminder_minutes or not self.queue.loaded:
+            return {"minutes": s.followup_reminder_minutes, "sound": s.followup_reminder_sound, "items": []}
+        today = localnow().date()
+        days = {today.isoformat(), (today + timedelta(days=1)).isoformat()}
+        items = [{"fingerprint": i["fingerprint"], "company": i["company"], "phone": i["phone"],
+                  "at": i["followup_at"][:16], "note": i["note"]}
+                 for i in self.followup_items() if len(i["followup_at"]) >= 16 and i["followup_at"][:10] in days]
+        return {"minutes": s.followup_reminder_minutes, "sound": s.followup_reminder_sound, "items": items}
+
     def stats(self) -> dict:
         since = start_of_local_day_utc()
         with self.db.session() as s:

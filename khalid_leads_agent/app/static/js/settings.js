@@ -452,3 +452,17 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   loadAuth();
 });
+
+// ------------------------------------------------------------------ desktop notifications (follow-up reminders)
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = $("#btn-notify-perm"), state = $("#notify-state");
+  if (!btn) return;
+  const show = () => {
+    if (!("Notification" in window)) { btn.disabled = true; state.textContent = "المتصفح لا يدعم الإشعارات."; return; }
+    const p = Notification.permission;
+    state.textContent = p === "granted" ? "مفعّلة ✔ (تظهر عندما تكون صفحة الـAgent في الخلفية)" : p === "denied" ? "مرفوضة من المتصفح؛ فعّلها من إعدادات الموقع 🔒 بجانب العنوان." : "";
+    btn.classList.toggle("hidden", p === "granted");
+  };
+  btn.onclick = async () => { try { await Notification.requestPermission(); } catch (e) { /* ignore */ } show(); };
+  show();
+});
