@@ -122,7 +122,18 @@ class LeadWorkflowService:
             "trial_registered": (c.row_values or {}).get("trial_registered", ""),
             "outcome": self._outcome_view(fingerprint),
             "duplicates": self._duplicates(c.phone_norm, c.sheet_row),
+            "whatsapp": self._whatsapp_info(fingerprint),
         }
+
+    def _whatsapp_info(self, fingerprint: str) -> dict | None:
+        """Last WhatsApp the agent opened for this customer (real sends only)."""
+        with self.db.session() as s:
+            rows = s.execute(select(OutreachMessage.created_at, OutreachMessage.template)
+                             .where(OutreachMessage.fingerprint == fingerprint, OutreachMessage.dry_run.is_(False))
+                             .order_by(OutreachMessage.id.desc())).all()
+        if not rows:
+            return None
+        return {"last_at": fmt_local(rows[0][0]), "template": rows[0][1] or "", "count": len(rows)}
 
     def _outcome_view(self, fingerprint: str) -> dict | None:
         """Follow-up date and no-answer attempts from the results saved for this customer."""
@@ -241,14 +252,76 @@ class LeadWorkflowService:
         if fingerprint in fps:
             index = fps.index(fingerprint)
             self._pos_hint = (fingerprint, index)
+            self._remember("last", queue[index], index + 1, len(fps))
             return {"index": index + 1, "total": len(fps), "in_queue": True}
         return {"index": 0, "total": len(fps), "in_queue": False}
+
+    # ------------------------------------------------------------ bookmarks
+    def _remember(self, kind: str, lead, index: int, total: int, note: str = "") -> None:
+        """Save where you are for the current status filter («last» automatic, «pin» by the button)."""
+        s = self.settings.get()
+        key = s.filter_key()
+        marks = {k: dict(v) for k, v in s.queue_bookmarks.items()}
+        cur = dict(marks.get(key, {}))
+        if kind == "last" and (cur.get("last") or {}).get("fingerprint") == lead.fingerprint:
+            return  # unchanged: no write
+        cur[kind] = {"fingerprint": lead.fingerprint, "company": lead.company_name, "row": lead.sheet_row,
+                     "index": index, "total": total, "at": localnow().strftime("%Y-%m-%d %H:%M"), "note": note[:200]}
+        marks[key] = cur
+        if len(marks) > 40:  # keep the newest filters only
+            newest = sorted(marks, key=lambda k: max((m or {}).get("at", "") for m in marks[k].values()))[-40:]
+            marks = {k: marks[k] for k in newest}
+        self.settings.update({"queue_bookmarks": marks})
+
+    def bookmarks(self) -> dict:
+        """The current filter's bookmarks with their live place in the queue."""
+        s = self.settings.get()
+        marks = s.queue_bookmarks.get(s.filter_key(), {})
+        fps = [lead.fingerprint for lead in self.queue.queue()] if self.queue.loaded else []
+        out = {}
+        for kind in ("pin", "last"):
+            m = marks.get(kind)
+            if m:
+                fp = m.get("fingerprint")
+                out[kind] = {**m, "in_queue": fp in fps, "now_index": fps.index(fp) + 1 if fp in fps else 0,
+                             "total_now": len(fps)}
+        return out
+
+    async def pin(self, fingerprint: str, note: str = "") -> dict:
+        """«📌 حفظ مكاني»: a manual bookmark on this customer for the selected statuses."""
+        lead = self.queue.find(fingerprint)
+        if lead is None:
+            raise AgentError("LEAD_NOT_IN_QUEUE", "العميل غير موجود في قائمة العمل. حدّث القائمة.", actions=["retry"])
+        fps = [x.fingerprint for x in self.queue.queue()]
+        self._remember("pin", lead, fps.index(fingerprint) + 1 if fingerprint in fps else 0, len(fps), note.strip())
+        return {"bookmarks": self.bookmarks()}
+
+    def unpin(self) -> dict:
+        s = self.settings.get()
+        marks = {k: dict(v) for k, v in s.queue_bookmarks.items()}
+        marks.get(s.filter_key(), {}).pop("pin", None)
+        self.settings.update({"queue_bookmarks": marks})
+        return {"bookmarks": self.bookmarks()}
+
+    async def go_bookmark(self, kind: str) -> dict:
+        """Open the pinned / last customer of the current filter."""
+        m = self.bookmarks().get(kind)
+        if not m:
+            raise AgentError("NO_BOOKMARK", "لا توجد علامة محفوظة لهذه الحالات.")
+        if self.queue.find(m["fingerprint"]) is None:
+            raise AgentError("LEAD_NOT_IN_QUEUE", f"العميل «{m['company']}» لم يعد ضمن عملائك في Google Sheet.")
+        payload = await self.goto(m["fingerprint"])
+        if not m["in_queue"]:
+            payload["warnings"] = payload.get("warnings", []) + [
+                f"«{m['company']}» لم يعد ضمن الحالات المختارة (تغيّرت حالته أو تم التواصل معه)."]
+        return payload
 
     def _payload(self, fingerprint: str | None, warnings: list[str] | None = None) -> dict:
         sess = self.sessions.ensure()
         return {
             "lead": self.lead_view(fingerprint) if fingerprint else None,
             "position": self._position(fingerprint),
+            "bookmarks": self.bookmarks(),
             "done": fingerprint is None,
             "stats": self.stats(),
             "session": self.sessions.to_dict(sess),
@@ -754,7 +827,8 @@ class LeadWorkflowService:
             seen.add(key)
             options.append({"value": v.strip(), "empty": key == "", "count": counts.get(key, 0),
                             "selected": key in selected})
-        return {"options": options, "loaded": self.queue.loaded, "warnings": warnings}
+        return {"options": options, "loaded": self.queue.loaded, "warnings": warnings,
+                "bookmarks": self.bookmarks(), "whatsapp_hide_days": s.whatsapp_hide_days}
 
     async def set_status_filter(self, values: list[str]) -> dict:
         """Save the statuses to look for; the queue is re-filtered at once (no sheet write)."""
@@ -766,13 +840,24 @@ class LeadWorkflowService:
         if not clean:
             raise AgentError("STATUS_FILTER_EMPTY", "اختر حالة متابعة واحدة على الأقل.")
         self.settings.update({"pending_status_values": clean})
-        self._pos_hint = None  # a new list starts from its first customer
+        self._pos_hint = None  # a new list starts from its first customer…
         sess = self.sessions.ensure()
         fp = sess.current_fingerprint
-        if fp and any(lead.fingerprint == fp for lead in self.queue.queue()):
+        queue_fps = [lead.fingerprint for lead in self.queue.queue()]
+        last = self.bookmarks().get("last")
+        resumed = None
+        if last and last["in_queue"] and last["fingerprint"] != fp:
+            # …unless you worked on this list before: continue where you stopped.
+            lead = self.queue.find(last["fingerprint"])
+            self.sessions.set_current(lead.fingerprint, lead.sheet_row)
+            payload = self._payload(lead.fingerprint)
+            resumed = {"company": last["company"], "at": last["at"], "index": payload["position"]["index"],
+                       "total": payload["position"]["total"]}
+        elif fp and fp in queue_fps:
             payload = self._payload(fp)
         else:
             payload = await self.next(refresh=False)
+        payload["resumed"] = resumed
         payload["filter"] = await self.status_filter()
         return payload
 

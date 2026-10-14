@@ -1,5 +1,13 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 2.8.0 (2026-10-14): where did I stop? — pin, per-filter resume, WhatsApp markers
+
+**Result:** ✅ **214 passed, 1 skipped**.
+
+- `test_queue_and_session.py::test_bookmarks_per_status_filter`: the last customer reached is remembered per status filter; a pin with a note; another filter has its own place; switching back resumes at the 3rd customer instead of the top; «اذهب للعلامة»; delete pin.
+- `test_queue_and_session.py::test_whatsapp_hide_days_and_card_marker`: the card shows the last WhatsApp (template, count); with «hide for 1 day» a customer messaged today leaves the queue; 0 shows everyone again.
+- UI (mocks, Chromium, desktop + 390px phone): «📌 حفظ مكاني» (button and `K`), the bookmark bar with «اذهب للعلامة» / ✕, the WhatsApp-hide select; 0 JS errors.
+
 ## Update 2.7.3 (2026-10-14): WhatsApp emojis arrive intact
 
 **Result:** ✅ **212 passed, 1 skipped**.

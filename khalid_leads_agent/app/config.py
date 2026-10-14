@@ -182,6 +182,11 @@ class AppSettings(BaseModel):
     whatsapp_log: bool = True
     # After a WhatsApp message from the queue, move on: the customer is skipped for today (see «المتخطَّون»).
     whatsapp_auto_next: bool = True
+    # Leave out of the queue customers who already got a WhatsApp from the agent in the last N days
+    # (0 = off, 1 = today). Lets a campaign be sent over several days without messaging anyone twice.
+    whatsapp_hide_days: int = Field(default=0, ge=0, le=90)
+    # Where you stopped, per status filter: {filter key: {"last": {...}, "pin": {...}}}.
+    queue_bookmarks: dict[str, dict] = Field(default_factory=dict)
     # Follow-ups: due ones first in the queue; future ones wait until their date.
     followups_first: bool = True
     hide_future_followups: bool = True
@@ -249,6 +254,10 @@ class AppSettings(BaseModel):
 
     def lead_url(self, lead_id: int) -> str:
         return self.odoo_lead_url_template.format(base=self.odoo_base_url, id=lead_id)
+
+    def filter_key(self) -> str:
+        """Stable key of the selected statuses (bookmarks are kept per filter)."""
+        return "|".join(sorted(self.pending_values_normalized())) or "-"
 
     def pending_values_normalized(self) -> set[str]:
         from app.utils.text import normalize_text

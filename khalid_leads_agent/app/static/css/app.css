@@ -781,3 +781,16 @@ td.ltr, th.ltr { display: table-cell; direction: ltr; text-align: right; }
 .ds-list li { padding: 7px 0; border-bottom: 1px solid var(--border); }
 #ds-text { font-size: .86rem; }
 @media (max-width: 700px) { .ds-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } #reminder-stack { top: auto; bottom: 86px; } }
+
+/* «أين وقفت»: bookmarks under the status filter */
+.fb-marks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.fb-marks .mark.wa-hide { margin-inline-start: auto; }
+.fb-marks:empty { display: none; }
+.fb-marks .mark { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface-2); font-size: .86rem; }
+.fb-marks .mark.pin { border-color: var(--primary); background: var(--primary-soft); }
+.fb-marks .mark .mk-ic { font-size: 1rem; }
+.fb-marks .mark label { display: inline; margin: 0; font-weight: 600; }
+.fb-marks .mark select { width: auto; min-width: 120px; font: inherit; font-size: .84rem; padding: 3px 8px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+.badge.wa-sent { background: #e7f8ee; color: #128c4b; border-color: #b7ebcd; }
+[data-theme="dark"] .badge.wa-sent { background: rgba(37, 211, 102, .15); color: #6ee7a8; border-color: rgba(37, 211, 102, .35); }

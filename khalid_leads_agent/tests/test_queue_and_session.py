@@ -113,3 +113,41 @@ def test_next_after_skip_continues_from_current_position(container):
     after = asyncio.run(wf.skip(fps[1], "today"))
     expected = fps[2] if len(fps) > 2 else fps[0]
     assert after["lead"]["fingerprint"] == expected  # not back to the top
+
+
+def test_bookmarks_per_status_filter(container):
+    wf = container.workflow
+    asyncio.run(wf.current())
+    fps = [lead.fingerprint for lead in container.queue.queue()]
+    assert len(fps) == 3
+    asyncio.run(wf.step(fps[0], 1))
+    asyncio.run(wf.step(fps[1], 1))  # working on the 3rd customer of the default filter
+    marks = wf.bookmarks()
+    assert marks["last"]["fingerprint"] == fps[2] and marks["last"]["now_index"] == 3
+    pinned = asyncio.run(wf.pin(fps[2], "وصلت هنا في التذكير"))["bookmarks"]["pin"]
+    assert pinned["note"] == "وصلت هنا في التذكير" and pinned["in_queue"]
+    # Another list has its own place (and no pin)…
+    other = asyncio.run(wf.set_status_filter(["لم يتم الرد"]))
+    assert other["lead"]["fingerprint"] != fps[2] and wf.bookmarks().get("pin") is None
+    # …and coming back continues where you stopped, not from the top.
+    back = asyncio.run(wf.set_status_filter(["", "لم يتم الرد", "متابعة"]))
+    assert back["lead"]["fingerprint"] == fps[2] and back["resumed"]["index"] == 3
+    assert back["bookmarks"]["pin"]["fingerprint"] == fps[2]
+    asyncio.run(wf.step(fps[2], 1))  # wraps to the 1st
+    go = asyncio.run(wf.go_bookmark("pin"))
+    assert go["lead"]["fingerprint"] == fps[2]
+    assert "pin" not in wf.unpin()["bookmarks"]
+
+
+def test_whatsapp_hide_days_and_card_marker(container, sheet, odoo):
+    from tests.test_results import prepare
+    lead = prepare(container)
+    asyncio.run(container.whatsapp.send(lead["fingerprint"], "0561234567", "تذكير", "تذكير"))
+    view = container.workflow.lead_view(lead["fingerprint"])
+    assert view["whatsapp"]["count"] == 1 and view["whatsapp"]["template"] == "تذكير"
+    fps = lambda: [x.fingerprint for x in container.queue.queue()]  # noqa: E731
+    assert lead["fingerprint"] in fps()
+    container.settings.update({"whatsapp_hide_days": 1})
+    assert lead["fingerprint"] not in fps()  # messaged today → hidden
+    container.settings.update({"whatsapp_hide_days": 0})
+    assert lead["fingerprint"] in fps()

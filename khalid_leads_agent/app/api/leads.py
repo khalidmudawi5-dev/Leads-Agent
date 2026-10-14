@@ -8,7 +8,7 @@ from app.container import AppContainer
 from app.errors import AgentError
 from app.remote_access import is_loopback
 from app.version import VERSION
-from app.schemas.api import CallIn, CreateLeadIn, LinkOdooIn, WhatsAppIn, ManualOpenIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
+from app.schemas.api import CallIn, CreateLeadIn, LinkOdooIn, WhatsAppIn, ManualOpenIn, PinIn, ResultIn, SearchIn, SelectCandidateIn, SessionStartIn, SkipIn, StatusFilterIn
 
 router = APIRouter(prefix="/api")
 
@@ -99,6 +99,24 @@ async def queue_filter(c: AppContainer = Depends(container)) -> dict:
 @router.put("/queue/filter")
 async def set_queue_filter(body: StatusFilterIn, c: AppContainer = Depends(container)) -> dict:
     return await c.workflow.set_status_filter(body.values)
+
+
+@router.post("/lead/{fingerprint}/pin")
+async def lead_pin(fingerprint: str, body: PinIn | None = None, c: AppContainer = Depends(container)) -> dict:
+    """«📌 حفظ مكاني» for the selected statuses."""
+    return await c.workflow.pin(fingerprint, (body or PinIn()).note)
+
+
+@router.delete("/queue/pin")
+def queue_unpin(c: AppContainer = Depends(container)) -> dict:
+    return c.workflow.unpin()
+
+
+@router.post("/queue/bookmark/{kind}")
+async def queue_bookmark_go(kind: str, c: AppContainer = Depends(container)) -> dict:
+    if kind not in ("pin", "last"):
+        raise AgentError("BAD_BOOKMARK", "علامة غير معروفة.")
+    return await c.workflow.go_bookmark(kind)
 
 
 @router.get("/stats")

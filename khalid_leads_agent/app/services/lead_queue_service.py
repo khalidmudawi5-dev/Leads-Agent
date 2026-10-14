@@ -3,17 +3,20 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from sqlalchemy import select
 
 from app.config import AppSettings
 from app.db import Database
+from app.models import OutreachMessage
 from app.repositories.lead_repo import LeadCacheRepository, SkipRepository
 from app.services.followup_service import FollowupService
 from app.services.google_sheets_service import SheetLead, SheetService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
 from app.utils.text import normalize_text
-from app.utils.timeutils import utcnow
+from app.utils.timeutils import start_of_local_day_utc, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -100,10 +103,11 @@ class LeadQueueService:
             skipped |= SkipRepository(s).active_fingerprints(sess.id)
         outcomes = self.followups.outcomes() if self.followups else {}
         now = utcnow()
+        messaged = self.whatsapp_since(self.settings.get().whatsapp_hide_days)
         out: list[SheetLead] = []
         for lead in self.pending():
             fp = lead.fingerprint
-            if fp in skipped:
+            if fp in skipped or fp in messaged:
                 continue
             o = outcomes.get(fp)
             if self.followups:
@@ -121,6 +125,17 @@ class LeadQueueService:
                 return (0, o.followup_at) if self.followups.is_due(o) else (1, "")
             out.sort(key=key)  # stable: the rest keeps the sheet order
         return out
+
+    def whatsapp_since(self, days: int) -> set[str]:
+        """Customers who got a (real, not Dry Run) WhatsApp from the agent in the last ``days`` days."""
+        if days <= 0:
+            return set()
+        since = start_of_local_day_utc() - timedelta(days=days - 1)
+        with self.db.session() as s:
+            rows = s.execute(select(OutreachMessage.fingerprint).where(
+                OutreachMessage.fingerprint.is_not(None), OutreachMessage.dry_run.is_(False),
+                OutreachMessage.created_at >= since)).all()
+        return {r[0] for r in rows}
 
     def find(self, fingerprint: str) -> SheetLead | None:
         return next((lead for lead in self.owner_leads if lead.fingerprint == fingerprint), None)

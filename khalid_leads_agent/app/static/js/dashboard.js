@@ -100,6 +100,7 @@ Shortcuts.register([
   { code: "KeyF", label: "F", title: "إعادة البحث في Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => searchOdoo() },
   { code: "KeyU", label: "U", title: "تحديث من Google Sheet (عملاء جدد + بيانات العميل)", group: "العميل الحالي", when: () => !S.manual && !resultOpen(),
     run: () => { if ($("#btn-refresh")) clickIf("#btn-refresh"); else clickIf("#btn-refresh-queue"); } },
+  { code: "KeyK", label: "K", title: "📌 حفظ مكاني (علامة توقف)", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !resultOpen(), run: askPin },
   { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
   { code: "KeyL", label: "L", title: "ربط العميل بعميل وجدته في Odoo (بحث بالاسم أو الرقم)", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-link"), run: () => clickIf("#btn-link") },
   { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
@@ -251,8 +252,77 @@ const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 S.filter = { options: [], busy: false };
 
 async function loadFilter() {
-  try { renderFilter((await api("GET", "/api/queue/filter")).options); }
+  try {
+    const r = await api("GET", "/api/queue/filter");
+    renderFilter(r.options);
+    S.filter.hideDays = r.whatsapp_hide_days || 0;
+    renderMarks(r.bookmarks);
+  }
   catch (e) { $("#fb-chips").innerHTML = `<span class="small muted">${esc(e.message)}</span>`; }
+}
+
+/** «أين وقفت»: the pinned customer and the last one reached for the selected statuses + WhatsApp hiding. */
+function renderMarks(marks) {
+  const box = $("#fb-marks");
+  if (!box) return;
+  if (marks) S.filter.marks = marks;
+  const m = S.filter.marks || {};
+  const cur = S.lead && S.lead.fingerprint;
+  const place = (x) => x.in_queue ? `${x.now_index} من ${x.total_now}` : "خارج الحالات المختارة الآن";
+  const when = (s) => esc(String(s || "").replace(/^(\d{4})-(\d{2})-(\d{2})/, "$3/$2/$1"));
+  const parts = [];
+  if (m.pin) parts.push(`<div class="mark pin"><span class="mk-ic">📌</span><span class="mk-t">علامة محفوظة: <b>${esc(m.pin.company)}</b>
+      <span class="muted">(${place(m.pin)} · ${when(m.pin.at)})</span>${m.pin.note ? ` — <i>${esc(m.pin.note)}</i>` : ""}</span>
+      ${m.pin.fingerprint !== cur ? '<button type="button" class="btn sm primary" data-mk="pin">اذهب للعلامة</button>' : '<span class="badge green">أنت عندها الآن</span>'}
+      <button type="button" class="btn sm ghost" data-mk="unpin" title="حذف العلامة">✕</button></div>`);
+  if (m.last && m.last.fingerprint !== cur && (!m.pin || m.pin.fingerprint !== m.last.fingerprint)) {
+    parts.push(`<div class="mark last"><span class="mk-ic">📍</span><span class="mk-t">آخر عميل وصلت له: <b>${esc(m.last.company)}</b>
+      <span class="muted">(${place(m.last)} · ${when(m.last.at)})</span></span>
+      <button type="button" class="btn sm" data-mk="last">استكمال من هنا</button></div>`);
+  }
+  const days = S.filter.hideDays || 0;
+  const opts = [[0, "لا"], [1, "اليوم"], [3, "آخر 3 أيام"], [7, "آخر 7 أيام"], [30, "آخر 30 يوم"]];
+  parts.push(`<div class="mark wa-hide"><span class="mk-ic">✉</span><label class="mk-t" for="wa-hide">إخفاء من أرسلت له واتساب:</label>
+      <select id="wa-hide">${opts.map(([v, l]) => `<option value="${v}" ${v === days ? "selected" : ""}>${l}</option>`).join("")}
+      ${opts.some(([v]) => v === days) ? "" : `<option value="${days}" selected>آخر ${days} يوم</option>`}</select></div>`);
+  box.innerHTML = parts.join("");
+  $$("[data-mk]", box).forEach((b) => b.onclick = () => withBusy(b, async () => {
+    try {
+      if (b.dataset.mk === "unpin") { renderMarks((await api("DELETE", "/api/queue/pin")).bookmarks); toast("تم حذف العلامة", "info"); return; }
+      const r = await api("POST", `/api/queue/bookmark/${b.dataset.mk}`);
+      S.manual = null; render(r);
+      (r.warnings || []).forEach((w) => toast(w, "warn", 6000));
+    } catch (e) { toast(e.message, "error"); }
+  }));
+  const sel = $("#wa-hide");
+  if (sel) sel.onchange = async () => {
+    try {
+      await api("PUT", "/api/settings", { whatsapp_hide_days: +sel.value });
+      S.filter.hideDays = +sel.value;
+      const r = await api("POST", "/api/lead/next");
+      render(r); loadFilter();
+      toast(+sel.value ? `لن يظهر في القائمة من أرسلت له واتساب ${sel.options[sel.selectedIndex].text}.` : "يظهر الجميع في القائمة.", "info", 4000);
+    } catch (e) { toast(e.message, "error"); }
+  };
+}
+
+/** «📌 حفظ مكاني»: a bookmark on this customer for the selected statuses (with an optional note). */
+function askPin() {
+  if (!S.lead || S.manual) return;
+  const lead = S.lead;
+  Modal.open({
+    title: "📌 حفظ مكاني",
+    html: `<p>تُحفظ علامة على <b>${esc(lead.company_name)}</b> لهذه الحالات، وتظهر أعلى الصفحة لترجع لها بضغطة (حتى بعد إغلاق الـAgent).</p>
+      <label class="field"><span>ملاحظة (اختياري)</span><input type="text" id="pin-note" maxlength="200" placeholder="مثال: وصلت هنا في رسائل التذكير"></label>`,
+    buttons: [{ label: "حفظ العلامة", cls: "primary", onClick: async (btn) => {
+      btn.disabled = true;
+      try {
+        const r = await api("POST", `/api/lead/${lead.fingerprint}/pin`, { note: $("#pin-note").value });
+        Modal.close(); renderMarks(r.bookmarks); toast("تم حفظ مكانك 📌", "success");
+      } catch (e) { btn.disabled = false; toast(e.message, "error"); }
+    } }, { label: "إلغاء" }],
+    onOpen: (m) => setTimeout(() => $("#pin-note", m).focus(), 50),
+  });
 }
 
 function renderFilter(options) {
@@ -632,6 +702,7 @@ async function toggleFilter(i) {
     if (sameLead && (resultOpen() || S.call.startedAt)) renderStats(payload.stats);  // keep the open result panel
     else if (!S.manual) render(payload);
     else renderStats(payload.stats);
+    if (payload.resumed) toast(`رجعناك لآخر عميل وصلت له في هذه الحالات: ${payload.resumed.company} (${payload.resumed.index} من ${payload.resumed.total})`, "info", 6000);
     toast(`سيتم البحث عن: ${opts.filter((o) => o.selected).map((o) => o.empty ? "فارغة" : o.value).join("، ")} (${payload.stats.pending} عميل)`, "info", 3500);
   } catch (e) {
     toast(e.message, "error");
@@ -648,9 +719,11 @@ function render(payload) {
   S.payload = payload;
   S.lead = payload.lead;
   S.position = payload.position || S.position || null;
+  if (payload.bookmarks) S.filter.marks = payload.bookmarks;
   renderStats(payload.stats);
   renderBanner(payload.stats);
   renderSession(payload.session);
+  renderMarks();
   $("#global-msg").innerHTML = (payload.warnings || []).map((w) => `<div class="alert warn">${esc(w)}</div>`).join("");
   (payload.notices || []).forEach((n) => toast(n, "success", 7000));
   $("#result-card").classList.add("hidden");
@@ -712,7 +785,7 @@ function renderLead(lead) {
   $("#lead-card").innerHTML = `
     <div class="lead-hero"><div class="lead-head">
       <div class="lead-title"><div class="avatar">${initials(lead.company_name)}</div><div style="min-width:0">
-        <div class="row small" style="gap:6px">${posBadge()}<span class="badge blue">صف ${lead.sheet_row} (مرجع فقط)</span>${statusBadge(lead.followup_status)}
+        <div class="row small" style="gap:6px">${posBadge()}${lead.whatsapp ? `<span class="badge wa-sent" title="آخر رسالة واتساب من الـAgent${lead.whatsapp.template ? " — قالب: " + esc(lead.whatsapp.template) : ""} (${lead.whatsapp.count} رسالة)">✉ واتساب ${esc(lead.whatsapp.last_at)}</span>` : ""}<span class="badge blue">صف ${lead.sheet_row} (مرجع فقط)</span>${statusBadge(lead.followup_status)}
           ${o.stage ? `<span class="badge indigo">${esc(o.stage)}</span>` : ""}</div>
         <h2 class="lead-name">${esc(lead.company_name || "(بدون اسم)")}</h2>
         <div class="lead-phone">${(() => {
@@ -747,6 +820,7 @@ function renderLead(lead) {
       <button class="btn" id="btn-refresh">${ICON.refresh} تحديث <kbd>U</kbd></button>
       <span class="spacer"></span>
       <button class="btn ghost" id="btn-skip">${ICON.skip} تخطي مؤقتًا <kbd>S</kbd></button>
+      <button class="btn ghost" id="btn-pin" title="حفظ مكانك في هذه الحالات للرجوع له لاحقًا (K)">📌 حفظ مكاني <kbd>K</kbd></button>
       <span class="step-nav">
         <button class="btn" id="btn-step-prev" title="العميل السابق بالحالات المختارة (B)">‹ السابق <kbd>B</kbd></button>
         <button class="btn primary" id="btn-step-next" title="العميل التالي بالحالات المختارة — لا يُسجَّل شيء (N)">التالي › <kbd>N</kbd></button></span>
@@ -762,6 +836,7 @@ function renderLead(lead) {
   $("#btn-research").onclick = () => searchOdoo();
   $("#btn-refresh").onclick = (ev) => withBusy(ev.currentTarget, () => refreshAll(fp));
   $("#btn-skip").onclick = () => askSkip(fp);
+  $("#btn-pin").onclick = askPin;
   $("#btn-step-next").onclick = (ev) => stepLead(1, ev.currentTarget);
   $("#btn-step-prev").onclick = (ev) => stepLead(-1, ev.currentTarget);
   $("#btn-result").onclick = () => openResultPanel();

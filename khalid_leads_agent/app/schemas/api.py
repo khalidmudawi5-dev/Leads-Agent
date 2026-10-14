@@ -106,6 +106,10 @@ class StatusMappingIn(BaseModel):
     items: list[StatusMappingItem]
 
 
+class PinIn(BaseModel):
+    note: str = Field(default="", max_length=200)
+
+
 class StatusFilterIn(BaseModel):
     """Follow-up statuses the queue should look for ("" = empty cell)."""
 
