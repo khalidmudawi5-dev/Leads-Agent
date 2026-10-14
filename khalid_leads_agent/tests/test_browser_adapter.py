@@ -370,3 +370,10 @@ def test_stages_via_rpc(adapter, fake_odoo):
     run(adapter, adapter.set_lead_stage(lead.id, 2))
     assert run(adapter, adapter.lead_stage_id(lead.id)) == 2
     assert run(adapter, adapter.get_lead(lead.id)).stage == "Qualified"
+
+
+def test_search_results_carry_medium(adapter, fake_odoo):
+    """«نوع النظام» (Medium) is shown in the search / link / choose windows."""
+    login(adapter, fake_odoo)
+    found = run(adapter, adapter.search_by_phone("966561234567"))
+    assert found and found[0].medium == "Leads" and found[0].utm_medium == "Leads"

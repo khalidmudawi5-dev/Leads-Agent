@@ -298,3 +298,9 @@ def test_expired_google_token_offers_reconnect(env, sheet, odoo):
         err = r.json()["error"]
         assert r.status_code == 409 and err["code"] == "GOOGLE_NOT_CONNECTED"
         assert err["actions"][0] == "reconnect_google" and "إعادة ربط Google" in err["message"]
+
+
+def test_manual_search_returns_medium(container, odoo):
+    import asyncio
+    found = asyncio.run(container.workflow.manual_search("0561234567"))["candidates"]
+    assert found and found[0]["medium"] == "Leads"

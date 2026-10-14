@@ -808,7 +808,7 @@ function renderLead(lead) {
     <div class="info-grid">
       <div class="info"><div class="k">المصدر في Google Sheet</div><div class="v">${orDash(lead.sheet_source)}</div></div>
       <div class="info"><div class="k">UTM Source من Odoo</div><div class="v">${orDash(o.utm_source)}</div></div>
-      <div class="info"><div class="k">UTM Medium</div><div class="v">${orDash(o.utm_medium || o.medium)}</div></div>
+      <div class="info"><div class="k">Medium (نوع النظام)</div><div class="v">${orDash(o.utm_medium || o.medium)}</div></div>
       <div class="info"><div class="k">UTM Campaign</div><div class="v">${orDash(o.utm_campaign || o.campaign)}</div></div>
       <div class="info"><div class="k">حالة المتابعة الحالية</div><div class="v">${orDash(lead.followup_status)}</div></div>
       <div class="info"><div class="k">ربط المصدر</div><div class="v">${sourceBadge(lead)}</div></div>
@@ -1070,9 +1070,10 @@ async function openCrm() {
 
 function candidateTable(cands, btnLabel) {
   return `<div class="table-wrap"><table class="table"><thead><tr><th>Company</th><th>Phone</th><th>Mobile</th>
-    <th>Salesperson</th><th>UTM Source</th><th>Lead Status</th><th></th></tr></thead><tbody>
+    <th>Salesperson</th><th>Medium (نوع النظام)</th><th>UTM Source</th><th>Lead Status</th><th></th></tr></thead><tbody>
     ${cands.map((c, i) => `<tr><td><b>${esc(c.company_name || c.name)}</b>${c.company_name && c.name && c.name !== c.company_name ? `<div class="small muted">${esc(c.name)}</div>` : ""}</td>
       <td class="ltr">${orDash(c.phone)}</td><td class="ltr">${orDash(c.mobile)}</td><td>${orDash(c.salesperson)}</td>
+      <td>${(c.utm_medium || c.medium) ? `<span class="badge indigo">${esc(c.utm_medium || c.medium)}</span>` : '<span class="muted">—</span>'}</td>
       <td>${orDash(c.utm_source || c.source)}</td><td>${orDash(c.stage)}${c.active === false ? ' <span class="badge red">مؤرشف</span>' : ""}</td>
       <td><button class="btn primary sm" data-i="${i}">${btnLabel}${i < 9 ? ` <kbd>${i + 1}</kbd>` : ""}</button></td></tr>`).join("")}
     </tbody></table></div>`;
@@ -1777,7 +1778,7 @@ function renderManual(o, warnings) {
     ${warnings.map((w) => `<div class="alert warn">${esc(w)}</div>`).join("")}
     <div class="info-grid">
       <div class="info"><div class="k">UTM Source</div><div class="v">${orDash(o.utm_source)}</div></div>
-      <div class="info"><div class="k">UTM Medium</div><div class="v">${orDash(o.utm_medium || o.medium)}</div></div>
+      <div class="info"><div class="k">Medium (نوع النظام)</div><div class="v">${orDash(o.utm_medium || o.medium)}</div></div>
       <div class="info"><div class="k">UTM Campaign</div><div class="v">${orDash(o.utm_campaign || o.campaign)}</div></div>
       <div class="info wide"><div class="k">آخر ملاحظة في Odoo Chatter</div><div class="v note-box">${orDash(latestOdooNote(o))}</div></div>
     </div><div id="lead-msg"></div></div>

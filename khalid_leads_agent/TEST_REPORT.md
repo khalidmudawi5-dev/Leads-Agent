@@ -1,5 +1,9 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 2.9.1 (2026-10-14): «نوع النظام» (Medium) in search / link / choose windows
+
+- The shared candidates table (manual Odoo search, several matches, «ربط العميل», duplicates before adding) has a «Medium (نوع النظام)» column; the lead card label reads «Medium (نوع النظام)». Tests: `test_search_results_carry_medium` (real Chromium + fake Odoo), `test_manual_search_returns_medium`. UI checked in Chromium; 0 JS errors.
+
 ## Update 2.9.0 (2026-10-14): one line again — merged the other session's 2.7.x with 2.8.0
 
 **Result:** ✅ **229 passed, 1 skipped**.
