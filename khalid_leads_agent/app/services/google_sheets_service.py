@@ -18,6 +18,7 @@ import threading
 import unicodedata
 import time
 import uuid
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -163,6 +164,7 @@ class SheetService:
         self.header_row_used: int | None = None
         self.last_error: str = ""
         self._titles: dict[tuple[str, str], str] = {}
+        self._normal_height: tuple[tuple[str, str], float, int] | None = None  # (sheet key, time, px)
 
     # ------------------------------------------------------------ client
     def client(self) -> SheetsClient:
@@ -530,6 +532,44 @@ class SheetService:
             ))
         return plan
 
+    # ------------------------------------------------------------ row height
+    def normal_row_height(self, fresh: bool = False) -> int:
+        """The tab's usual row height: the setting, else the most common height of the data rows (cached)."""
+        s = self.settings.get()
+        if s.sheet_row_height_px:
+            return s.sheet_row_height_px
+        key = (s.spreadsheet_id, s.sheet_name)
+        if not fresh and self._normal_height and self._normal_height[0] == key and time.monotonic() - self._normal_height[1] < 900:
+            return self._normal_height[2]
+        heights = self.client().row_heights(s.spreadsheet_id, self.tab_title())[s.header_row:]
+        px = Counter(h for h in heights if h > 0).most_common(1)[0][0] if heights else 21
+        self._normal_height = (key, time.monotonic(), px)
+        return px
+
+    def keep_row_height(self, row: int) -> None:
+        """After a write: put the row back to the normal height (never fails the save)."""
+        try:
+            self.client().set_row_heights(self.settings.get().spreadsheet_id, self.tab_title(), [row],
+                                          self.normal_row_height())
+        except Exception:  # noqa: BLE001 - cosmetic only
+            log.warning("Could not keep the height of row %s", row, exc_info=True)
+
+    def fix_owner_row_heights(self, rows: list[int], dry_run: bool) -> dict:
+        """Bring the owner's rows that grew back to the normal height (other people's rows are never touched)."""
+        s = self.settings.get()
+        tab = self.tab_title()
+        normal = self.normal_row_height(fresh=True)
+        heights = self._call(self.client().row_heights, s.spreadsheet_id, tab)
+        tall = sorted(r for r in set(rows) if 0 < r <= len(heights) and heights[r - 1] != normal)
+        if tall and not dry_run:
+            self._call(self.client().set_row_heights, s.spreadsheet_id, tab, tall, normal)
+        with self.db.session() as db:
+            LogRepository(db).add_audit(
+                action_id=uuid.uuid4().hex, system="GOOGLE_SHEETS", action="row_height",
+                record=f"{len(tall)} rows", before=None, after={"rows": tall[:200], "pixels": normal},
+                success=True, dry_run=dry_run, error="")
+        return {"normal": normal, "rows": tall, "count": len(tall), "dry_run": dry_run}
+
     def apply(self, plan: UpdatePlan, *, dry_run: bool, action_id: str | None = None) -> str:
         """Write the plan (or only log it in dry run). Returns 'success' | 'dry_run' | 'nochange'."""
         s = self.settings.get()
@@ -545,6 +585,8 @@ class SheetService:
                            [CellUpdate(c.cell, c.new, c.user_entered) for c in plan.changes])
             except AgentError as exc:
                 status, error = "failed", exc.message_ar
+            if status == "success" and s.sheet_keep_row_height:
+                self.keep_row_height(lead.sheet_row)
         with self.db.session() as db:
             logs = LogRepository(db)
             for c in plan.changes:

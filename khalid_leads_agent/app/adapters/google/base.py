@@ -29,6 +29,14 @@ class SheetsClient(ABC):
     def update_cells(self, spreadsheet_id: str, updates: list[CellUpdate]) -> None:
         """Write single cells through the Values API (batchUpdate)."""
 
+    def row_heights(self, spreadsheet_id: str, sheet_name: str) -> list[int]:
+        """Pixel height of every row of the tab (index 0 = row 1); [] when unknown."""
+        return []
+
+    def set_row_heights(self, spreadsheet_id: str, sheet_name: str, rows: list[int], pixels: int) -> None:
+        """Fix the height of the given 1-based rows (the only formatting call the agent makes:
+        it keeps the owner's rows from growing when a note is written)."""
+
     @abstractmethod
     def dropdown_options(self, spreadsheet_id: str, sheet_name: str, col_index: int, header_row: int) -> list[str]:
         """Values allowed by the column's Data Validation (ONE_OF_LIST / ONE_OF_RANGE); [] if none."""

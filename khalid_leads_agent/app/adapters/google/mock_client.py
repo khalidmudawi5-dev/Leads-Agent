@@ -29,6 +29,8 @@ class InMemorySheetsClient(SheetsClient):
         self.write_calls: list[list[CellUpdate]] = []
         self.forbidden_calls: list[str] = []  # would record clear/format calls (never used)
         self.fail_next_write: Exception | None = None
+        self.heights: dict[tuple[str, int], int] = {}  # (tab, 1-based row) → px; default 21
+        self.height_calls: list[tuple[str, list[int], int]] = []
 
     def spreadsheet_info(self, spreadsheet_id: str) -> dict:
         return {"title": self.title, "sheets": list(self.sheets)}
@@ -67,6 +69,14 @@ class InMemorySheetsClient(SheetsClient):
             while len(rows[row_i]) <= col_i:
                 rows[row_i].append("")
             rows[row_i][col_i] = u.value
+
+    def row_heights(self, spreadsheet_id: str, sheet_name: str) -> list[int]:
+        return [self.heights.get((sheet_name, i + 1), 21) for i in range(len(self.sheets.get(sheet_name, [])))]
+
+    def set_row_heights(self, spreadsheet_id: str, sheet_name: str, rows: list[int], pixels: int) -> None:
+        self.height_calls.append((sheet_name, sorted(rows), pixels))
+        for r in rows:
+            self.heights[(sheet_name, r)] = pixels
 
     def dropdown_options(self, spreadsheet_id: str, sheet_name: str, col_index: int, header_row: int) -> list[str]:
         return list(self.validations.get((sheet_name, col_index), []))

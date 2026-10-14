@@ -229,3 +229,43 @@ def test_unknown_source_never_blocks_status_and_notes(container, sheet):
     assert {c.key for c in plan.changes} == {"followup_status", "notes"}
     assert any("مصدر العميل" in w and "Snapchat" in w for w in plan.warnings)
     assert container.sheets.apply(plan, dry_run=False) == "success"
+
+
+def test_row_keeps_normal_height_after_write(container, sheet):
+    from tests.test_results import prepare, save
+    container.settings.update({"sheet_keep_row_height": True})
+    sheet.heights[("Leads", 3)] = 21  # most rows: 21 px
+    lead = prepare(container)
+    sheet.heights[("Leads", lead["sheet_row"])] = 63  # Google enlarged it after an earlier long note
+    res = save(container, idempotency_key="key-height-01", fingerprint=lead["fingerprint"], result_code="NO_ANSWER",
+               note="سطر طويل جدًا " * 20)
+    assert res["sheet_status"] == "success"
+    assert sheet.height_calls[-1] == ("Leads", [lead["sheet_row"]], 21)
+    container.settings.update({"sheet_row_height_px": 30})
+    save(container, idempotency_key="key-height-02", fingerprint=lead["fingerprint"], result_code="INTERESTED")
+    assert sheet.height_calls[-1][2] == 30
+
+
+def test_fix_owner_row_heights_touches_only_owner_rows(container, sheet):
+    import asyncio
+    asyncio.run(container.workflow.current())
+    owner_rows = [lead.sheet_row for lead in container.queue.owner_leads]
+    other_row = 3  # «سارة»
+    for r in (owner_rows[0], other_row):
+        sheet.heights[("Leads", r)] = 80
+    container.settings.update({"dry_run": True})
+    preview = container.sheets.fix_owner_row_heights(owner_rows, dry_run=True)
+    assert preview["count"] == 1 and sheet.height_calls == []
+    done = container.sheets.fix_owner_row_heights(owner_rows, dry_run=False)
+    assert done["rows"] == [owner_rows[0]] and sheet.heights[("Leads", other_row)] == 80
+
+
+def test_height_failure_never_breaks_the_save(container, sheet):
+    from tests.test_results import prepare, save
+
+    def boom(*a, **k):
+        raise RuntimeError("no permission")
+    sheet.set_row_heights = boom
+    lead = prepare(container)
+    res = save(container, idempotency_key="key-height-03", fingerprint=lead["fingerprint"], result_code="NO_ANSWER")
+    assert res["sheet_status"] == "success"

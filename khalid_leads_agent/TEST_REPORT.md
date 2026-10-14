@@ -1,5 +1,12 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 2.7.1 (2026-10-14): rows no longer grow in Google Sheets
+
+**Result:** ✅ **211 passed, 1 skipped**.
+
+- Field report: after saving a note the row became taller than the others (Google auto-fits rows without a fixed height). After every real write the row is set to the tab's normal height (most common row height, or the configured pixels).
+- `test_sheet_safety.py::test_row_keeps_normal_height_after_write`, `test_fix_owner_row_heights_touches_only_owner_rows` (other people's rows untouched, Dry Run counts only), `test_height_failure_never_breaks_the_save`.
+
 ## Update 2.7.0 (2026-10-11): merged with 2.6.0 (other session) + quick notes, Odoo stage per result, follow-up reminders, report → queue, day summary
 
 **Result:** ✅ **208 passed, 1 skipped** (after merging 2.6.0: login, WhatsApp attachments, follow-up as an action, link to another lead).

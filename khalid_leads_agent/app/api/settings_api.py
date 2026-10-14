@@ -82,6 +82,14 @@ async def sheet_tabs(c: AppContainer = Depends(container)) -> dict:
     return await asyncio.to_thread(c.sheets.spreadsheet_info)
 
 
+@router.post("/sheet/fix-row-heights")
+async def fix_row_heights(c: AppContainer = Depends(container)) -> dict:
+    """Bring the owner's rows that grew (wrapped notes) back to the tab's normal height. Dry Run: count only."""
+    await asyncio.to_thread(c.queue.refresh)
+    rows = [lead.sheet_row for lead in c.queue.owner_leads]
+    return await asyncio.to_thread(c.sheets.fix_owner_row_heights, rows, c.settings.get().dry_run)
+
+
 @router.get("/sheet/headers")
 async def sheet_headers(c: AppContainer = Depends(container)) -> dict:
     header = await asyncio.to_thread(c.sheets.headers)

@@ -134,6 +134,10 @@ class AppSettings(BaseModel):
     column_mapping: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_COLUMN_MAPPING))
     pending_status_values: list[str] = Field(default_factory=lambda: ["", "لم يتم الرد", "متابعة"])
     append_notes: bool = True
+    # Keep the owner's rows at the sheet's normal height after a write (Google enlarges a row when a
+    # wrapped note is written); 0 = the most common row height of the tab.
+    sheet_keep_row_height: bool = True
+    sheet_row_height_px: int = Field(default=0, ge=0, le=400)
     # Optional prefix of each sheet note, e.g. "[{date} - {owner}]"; empty = the note only (no name/time).
     note_stamp_format: str = ""
     # Each sheet note on one line; several notes in the cell are separated by " | ".

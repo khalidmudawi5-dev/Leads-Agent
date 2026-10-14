@@ -14,6 +14,7 @@ class GoogleSheetsApiClient(SheetsClient):
         from googleapiclient.discovery import build
 
         self._svc = build("sheets", "v4", credentials=credentials, cache_discovery=False)
+        self._sheet_ids: dict[tuple[str, str], int] = {}
 
     def spreadsheet_info(self, spreadsheet_id: str) -> dict:
         meta = self._svc.spreadsheets().get(
@@ -41,6 +42,44 @@ class GoogleSheetsApiClient(SheetsClient):
                 spreadsheetId=spreadsheet_id,
                 body={"valueInputOption": "USER_ENTERED" if user_entered else "RAW", "data": data},
             ).execute()
+
+    def row_heights(self, spreadsheet_id: str, sheet_name: str) -> list[int]:
+        meta = self._svc.spreadsheets().get(
+            spreadsheetId=spreadsheet_id, ranges=[f"{quote_sheet(sheet_name)}!A:A"], includeGridData=False,
+            fields="sheets(properties(sheetId,title),data(startRow,rowMetadata(pixelSize)))",
+        ).execute()
+        for sheet in meta.get("sheets", []):
+            props = sheet.get("properties", {})
+            self._sheet_ids[(spreadsheet_id, props.get("title", ""))] = props.get("sheetId", 0)
+            for data in sheet.get("data", []):
+                return [int(m.get("pixelSize", 21)) for m in data.get("rowMetadata", [])]
+        return []
+
+    def _sheet_id(self, spreadsheet_id: str, sheet_name: str) -> int:
+        key = (spreadsheet_id, sheet_name)
+        if key not in self._sheet_ids:
+            meta = self._svc.spreadsheets().get(spreadsheetId=spreadsheet_id,
+                                                fields="sheets.properties(sheetId,title)").execute()
+            for s in meta.get("sheets", []):
+                self._sheet_ids[(spreadsheet_id, s["properties"]["title"])] = s["properties"]["sheetId"]
+        return self._sheet_ids[key]
+
+    def set_row_heights(self, spreadsheet_id: str, sheet_name: str, rows: list[int], pixels: int) -> None:
+        if not rows:
+            return
+        sheet_id = self._sheet_id(spreadsheet_id, sheet_name)
+        spans: list[list[int]] = []
+        for r in sorted(set(rows)):  # contiguous rows → one request
+            if spans and r == spans[-1][1] + 1:
+                spans[-1][1] = r
+            else:
+                spans.append([r, r])
+        requests = [{"updateDimensionProperties": {
+            "range": {"sheetId": sheet_id, "dimension": "ROWS", "startIndex": a - 1, "endIndex": b},
+            "properties": {"pixelSize": int(pixels)}, "fields": "pixelSize"}} for a, b in spans]
+        for i in range(0, len(requests), 500):
+            self._svc.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id,
+                                                 body={"requests": requests[i:i + 500]}).execute()
 
     def dropdown_options(self, spreadsheet_id: str, sheet_name: str, col_index: int, header_row: int) -> list[str]:
         col = col_letter(col_index)

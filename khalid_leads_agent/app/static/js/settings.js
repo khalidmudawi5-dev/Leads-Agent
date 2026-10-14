@@ -399,6 +399,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("#btn-load-headers").onclick = (ev) => loadHeaders(ev.currentTarget);
   $("#btn-save-columns").onclick = saveColumns;
   $("#btn-save-status").onclick = saveStatus;
+  $("#btn-fix-heights").onclick = (ev) => withBusy(ev.currentTarget, async () => {
+    try {
+      const r = await api("POST", "/api/sheet/fix-row-heights");
+      toast(r.dry_run ? `Dry Run: ${r.count} صف من صفوفك سيرجع لارتفاع ${r.normal}px (لم يتغير شيء)` :
+        r.count ? `تم إرجاع ${r.count} صف من صفوفك لارتفاع ${r.normal}px ✓` : "كل صفوفك بالارتفاع الطبيعي ✓", r.dry_run ? "warn" : "success", 7000);
+    } catch (e) { toast(e.message, "error", 8000); }
+  });
   $("#btn-add-source").onclick = addSource;
   $("#btn-odoo-login").onclick = odooLogin;
   $("#btn-odoo-test").onclick = (ev) => odooTest(ev.currentTarget);

@@ -50,6 +50,9 @@
       <label class="field full"><span>أو اكتبها يدويًا (قيمة في كل سطر، واكتب <b>(فارغ)</b> للخلية الفارغة)</span>
         <textarea data-key="pending_status_values" data-type="lines" rows="3"></textarea></label>
       <label class="check"><input type="checkbox" data-key="append_notes"> Append Notes (عدم مسح الملاحظات القديمة)</label>
+      <label class="check"><input type="checkbox" data-key="sheet_keep_row_height"> تثبيت ارتفاع الصف بعد الكتابة (لا يتمدد الصف عند كتابة الملاحظة)</label>
+      <label class="field"><span>ارتفاع الصف بالبكسل (0 = نفس ارتفاع أغلب صفوف الـSheet)</span><input type="number" min="0" max="400" data-key="sheet_row_height_px"></label>
+      <div class="field"><span>صفوفك اللي تمددت سابقًا</span><button type="button" class="btn" id="btn-fix-heights">إرجاع صفوفي المتمددة للارتفاع الطبيعي</button></div>
       <label class="check"><input type="checkbox" data-key="validate_dropdown_values"> التحقق من أن القيم موجودة في Dropdown قبل الكتابة</label>
     </div>
     <div class="actions" style="margin-top:14px"><button class="btn primary" data-save="google">حفظ</button>
