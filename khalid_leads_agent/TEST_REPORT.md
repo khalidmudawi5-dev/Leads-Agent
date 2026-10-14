@@ -1,5 +1,11 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 2.7.3 (2026-10-14): WhatsApp emojis arrive intact
+
+**Result:** ✅ **212 passed, 1 skipped**.
+
+- Field report: template emojis looked right in the agent but arrived in WhatsApp as «�». The `wa.me` short link loses 4-byte emojis in its redirect; the agent now opens `https://api.whatsapp.com/send?phone=…&text=…` (also for the day summary). `test_outreach.py::test_whatsapp_link_keeps_emojis` checks an exact round trip of Arabic text, `*bold*`, `&`, `%` and 🌷👋✅.
+
 ## Update 2.7.2 (2026-10-14): customer card shows the Odoo number when the sheet cell is empty
 
 - Field report: the card showed no number for a customer whose «رقم الجوال» cell is empty in the sheet although Odoo has a valid Mobile. The card (and «نسخ الرقم») now falls back to the number the call uses (phone check target, else Odoo mobile/phone) with a «من Odoo · فارغ في الـSheet» tag; nothing is written to the sheet. Checked the fallback order with node; 211 tests still pass.

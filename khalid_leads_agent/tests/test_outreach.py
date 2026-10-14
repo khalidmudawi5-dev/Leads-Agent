@@ -32,7 +32,7 @@ def test_whatsapp_options_fill_templates_and_numbers(container):
 def test_whatsapp_send_logs_to_odoo_and_sheet(container, sheet, odoo):
     lead = prepare(container)
     res = asyncio.run(container.whatsapp.send(lead["fingerprint"], "0561234567", "السلام عليكم\nمعك خالد", "متابعة"))
-    assert res["url"].startswith("https://wa.me/966561234567?text=")
+    assert res["url"].startswith("https://api.whatsapp.com/send?phone=966561234567&text=")
     assert "%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85" in res["url"]  # Arabic text is URL-encoded
     assert res["odoo_status"] == "success" and res["sheet_status"] == "success"
     assert "واتساب" in odoo.notes[0]["body"] and "معك خالد" in odoo.notes[0]["body"]
@@ -164,7 +164,7 @@ def test_whatsapp_moves_to_next_customer(container, sheet, odoo):
     with TestClient(create_app(container, allowed_hosts=["testserver"])) as tc:
         res = tc.post(f"/api/lead/{lead['fingerprint']}/whatsapp", headers={"X-KLA": "1"},
                       json={"tel": "0561234567", "text": "تذكير", "template": "تذكير"}).json()
-        assert res["url"].startswith("https://wa.me/")
+        assert res["url"].startswith("https://api.whatsapp.com/send?phone=")
         assert res["next"]["lead"]["fingerprint"] != lead["fingerprint"]  # moved on
         skipped = tc.get("/api/skipped").json()
         assert any("واتساب" in (s["reason"] or "") and s["active"] for s in skipped["items"])
@@ -305,3 +305,14 @@ def test_clipboard_copy_on_windows_passes_the_path_safely(container, monkeypatch
     att.copy_to_clipboard(pdf)
     assert seen["env"]["KLA_CLIP_KIND"] == "pdf"
     assert att.copy_to_clipboard("../../agent.db") is False
+
+
+def test_whatsapp_link_keeps_emojis():
+    from urllib.parse import parse_qs, urlsplit
+
+    from app.services.whatsapp_service import wa_url
+    text = "السلام عليكم ورحمة الله وبركاته 🌷👋\n*رصد التواجد* ✅ & 100%"
+    url = wa_url("+966 56 123 4567", text)
+    assert url.startswith("https://api.whatsapp.com/send?phone=966561234567&text=")
+    assert parse_qs(urlsplit(url).query)["text"] == [text]  # exact round trip, 4-byte emojis included
+    assert "%F0%9F%8C%B7" in url  # 🌷 as UTF-8 bytes

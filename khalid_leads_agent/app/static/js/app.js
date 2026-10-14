@@ -411,7 +411,7 @@ const DaySummary = {
           try { await navigator.clipboard.writeText(d.text); toast("تم نسخ الملخص", "success"); }
           catch (e) { $("#ds-text").select(); document.execCommand("copy"); toast("تم نسخ الملخص", "success"); }
         } },
-        { label: "إرسال واتساب", cls: "wa", onClick: () => window.open(`https://wa.me/?text=${encodeURIComponent(d.text)}`, "_blank", "noopener") },
+        { label: "إرسال واتساب", cls: "wa", onClick: () => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(d.text)}`, "_blank", "noopener") },
         { label: "تنزيل Excel", onClick: () => { location.href = "/api/reports/export?period=today"; } },
         { label: "إغلاق" },
       ],

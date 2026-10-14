@@ -36,8 +36,10 @@ def render_template(text: str, **values: str) -> str:
 
 
 def wa_url(tel: str, text: str) -> str:
+    """WhatsApp click-to-chat link. ``api.whatsapp.com/send`` keeps emojis intact; the short ``wa.me``
+    link loses 4-byte emojis (🌷, 👋…) in its redirect and WhatsApp shows them as «�»."""
     digits = re.sub(r"\D", "", tel)
-    return f"https://wa.me/{digits}?text={quote(text)}"
+    return f"https://api.whatsapp.com/send?phone={digits}&text={quote(text, safe='')}"
 
 
 class WhatsAppService:
