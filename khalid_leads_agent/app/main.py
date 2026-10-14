@@ -59,6 +59,8 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
     login = LoginService(env.data_path)
     app.state.login = login
     app.state.templates.env.globals["login_enabled"] = lambda: login.enabled
+    app.state.templates.env.globals["idle_minutes"] = lambda: login.idle_minutes
+    app.state.templates.env.globals["summary_time"] = lambda: c.settings.get().day_summary_time
     remote = None
     if env.remote_access:
         if valid_pin(env.access_pin) or login.enabled:
@@ -72,11 +74,12 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
     hosts = allowed_hosts or (["*"] if remote else ["127.0.0.1", "localhost"])
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
-    def _need_login(path: str, message: str):
+    def _need_login(path: str, message: str, error: str = ""):
         if path.startswith("/api/"):
-            return JSONResponse({"error": {"code": "LOGIN_REQUIRED", "message": message, "actions": []}}, status_code=401)
+            return JSONResponse({"error": {"code": "LOGIN_REQUIRED", "message": message, "actions": [],
+                                           "details": {"reason": error}}}, status_code=401)
         nxt = path if path.startswith("/") and not path.startswith("//") else "/"
-        return RedirectResponse(f"/login?next={quote(nxt)}", status_code=303)
+        return RedirectResponse(f"/login?{'error=' + error + '&' if error else ''}next={quote(nxt)}", status_code=303)
 
     @app.middleware("http")
     async def access_guard(request: Request, call_next):
@@ -102,7 +105,13 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
         if path.startswith(PUBLIC_PATHS) or (local and path.startswith(LOCAL_OPEN_PATHS)):
             return await call_next(request)
         if login.enabled:
-            if login.authenticated(request.cookies.get(LOGIN_COOKIE)):
+            cookie = request.cookies.get(LOGIN_COOKIE) or ""
+            if login.authenticated(cookie):
+                if login.idle_expired(cookie):
+                    login.forget(cookie)
+                    return _need_login(path, f"تم تسجيل الخروج تلقائيًا بعد {login.idle_minutes} دقائق بدون نشاط.", "idle")
+                if not path.startswith("/api/") or request.method not in ("GET", "HEAD"):
+                    login.touch(cookie)  # opening a page or acting is activity; background checks (GET) are not
                 return await call_next(request)
             return _need_login(path, "سجّل الدخول أولًا.")
         if local or remote.authenticated(request.cookies.get(COOKIE)):
@@ -119,6 +128,7 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
             return RedirectResponse("/", status_code=303)
         return app.state.templates.TemplateResponse(
             request, "login.html", {"error": error, "version": VERSION, "mode": mode, "next": _safe_next(next),
+                                    "idle": login.idle_minutes,
                                     "username": login.username if is_loopback(request.client.host if request.client else "") else ""})
 
     @app.post("/login", include_in_schema=False)
@@ -151,8 +161,9 @@ def create_app(container: AppContainer | None = None, *, allowed_hosts: list[str
         return resp
 
     @app.post("/logout", include_in_schema=False)
-    async def logout():
-        resp = RedirectResponse("/login", status_code=303)
+    async def logout(request: Request, reason: str = ""):
+        login.forget(request.cookies.get(LOGIN_COOKIE))
+        resp = RedirectResponse("/login?error=idle" if reason == "idle" else "/login", status_code=303)
         resp.delete_cookie(LOGIN_COOKIE)
         return resp
 

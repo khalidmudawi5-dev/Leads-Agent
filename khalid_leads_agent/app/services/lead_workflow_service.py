@@ -5,7 +5,7 @@ import asyncio
 import logging
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy import func, select
 
@@ -23,6 +23,7 @@ from app.services.mapping_service import _SEP, MappingService
 from app.services.odoo_service import MatchResult, OdooService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
+from app.services.sheet_history import combined_streak, drop_saved, history_view, parse_notes
 from app.utils.phone import check_phone, format_phone, normalize_phone, phones_match, to_ascii_digits
 from app.utils.text import normalize_company, normalize_text
 from app.utils.timeutils import end_of_local_day_utc, fmt_local, localnow, start_of_local_day_utc, utcnow
@@ -135,19 +136,37 @@ class LeadWorkflowService:
             return None
         return {"last_at": fmt_local(rows[0][0]), "template": rows[0][1] or "", "count": len(rows)}
 
+    def no_answer_streak(self, fingerprint: str, notes: str, db_streak: int) -> tuple[int, dict | None]:
+        """No-answer attempts in a row, including earlier ones written in the sheet's notes cell."""
+        s = self.settings.get()
+        fu = self.queue.followups
+        if not s.sheet_history_enabled or not (notes or "").strip() or fu is None:
+            return db_streak, None
+        results = fu.results(fingerprint)
+        entries = drop_saved(parse_notes(notes, s.no_answer_keywords), [at for at, _ in results])
+        if not entries:
+            return db_streak, None
+        return combined_streak(entries, results), history_view(entries)
+
     def _outcome_view(self, fingerprint: str) -> dict | None:
-        """Follow-up date and no-answer attempts from the results saved for this customer."""
+        """Follow-up date and no-answer attempts from the results saved for this customer (+ the sheet notes)."""
         fu = self.queue.followups
         o = fu.outcomes().get(fingerprint) if fu else None
-        if o is None:
+        c = self._cache(fingerprint)
+        streak, history = self.no_answer_streak(fingerprint, c.notes, o.no_answer_streak if o else 0)
+        if o is None and history is None:
             return None
         s = self.settings.get()
-        return {"last_code": o.last_code, "last_at": fmt_local(o.last_at), "no_answer_streak": o.no_answer_streak,
-                "max_attempts": s.no_answer_max_attempts,
-                "attempts_reached": bool(s.no_answer_max_attempts and o.no_answer_streak >= s.no_answer_max_attempts),
+        reached = bool(s.no_answer_max_attempts and streak >= s.no_answer_max_attempts)
+        if o is None:  # only the sheet knows this customer
+            return {"last_code": "", "last_at": history["last_at"], "no_answer_streak": streak,
+                    "max_attempts": s.no_answer_max_attempts, "attempts_reached": reached, "followup_at": "",
+                    "followup_note": "", "followup_state": "", "sheet_history": history}
+        return {"last_code": o.last_code, "last_at": fmt_local(o.last_at), "no_answer_streak": streak,
+                "max_attempts": s.no_answer_max_attempts, "attempts_reached": reached,
                 "followup_at": o.followup_at,
                 "followup_note": o.followup_note if o.followup_at else "",
-                "followup_state": o.followup_state(localnow().date())}
+                "followup_state": o.followup_state(localnow().date()), "sheet_history": history}
 
     def _duplicates(self, phone_norm: str, sheet_row: int) -> list[dict]:
         """Other sheet rows (any owner) with the same phone number."""
@@ -188,31 +207,17 @@ class LeadWorkflowService:
         items.sort(key=lambda i: (order[i["state"]], i["followup_at"]))
         return items
 
-    def reminders(self) -> dict:
-        """Follow-ups to remind now: today's whose time (minus the lead time) has come, and overdue ones.
-
-        Follow-ups saved with a date only use «followup_default_time». The page shows each key once.
-        """
+    def followup_reminders(self) -> dict:
+        """Follow-ups with a time, today or tomorrow, for the page's reminder (never reads the sheet)."""
         s = self.settings.get()
-        now = localnow().replace(tzinfo=None)
-        base = {"enabled": s.followup_reminders, "now": now.strftime("%Y-%m-%d %H:%M"),
-                "day_summary_time": s.day_summary_time, "items": []}
-        if not s.followup_reminders:
-            return base
-        lead = timedelta(minutes=s.followup_remind_minutes)
-        for item in self.followup_items():
-            if item["state"] == "upcoming":
-                continue
-            raw = item["followup_at"].strip()
-            text = raw if len(raw) > 10 else f"{raw[:10]} {s.followup_default_time or '09:00'}"
-            try:
-                at = datetime.strptime(text[:16], "%Y-%m-%d %H:%M")
-            except ValueError:
-                continue
-            if item["state"] == "overdue" or at - lead <= now:
-                base["items"].append({**item, "key": f"{item['fingerprint']}|{raw}", "at": at.strftime("%H:%M"),
-                                      "date": at.strftime("%Y-%m-%d"), "late": at < now})
-        return base
+        if not s.followup_reminder_minutes or not self.queue.loaded:
+            return {"minutes": s.followup_reminder_minutes, "sound": s.followup_reminder_sound, "items": []}
+        today = localnow().date()
+        days = {today.isoformat(), (today + timedelta(days=1)).isoformat()}
+        items = [{"fingerprint": i["fingerprint"], "company": i["company"], "phone": i["phone"],
+                  "at": i["followup_at"][:16], "note": i["note"]}
+                 for i in self.followup_items() if len(i["followup_at"]) >= 16 and i["followup_at"][:10] in days]
+        return {"minutes": s.followup_reminder_minutes, "sound": s.followup_reminder_sound, "items": items}
 
     def stats(self) -> dict:
         since = start_of_local_day_utc()

@@ -72,7 +72,6 @@ class FakeOdooState:
                               "author_id": [2, author], "date": ts, "write_date": ts, "tracking_value_ids": []})
 
 
-STAGES = {1: "جديد", 2: "Qualified", 3: "Proposition", 4: "Won"}
 FIELDS = {
     "name": {"string": "Opportunity", "type": "char"}, "partner_name": {"string": "Company Name", "type": "char"},
     "contact_name": {"string": "Contact Name", "type": "char"}, "phone": {"string": "Phone", "type": "char"},
@@ -191,13 +190,15 @@ def make_app(state: FakeOdooState) -> FastAPI:
             state.created.append(dict(vals))
             result = new_id
         elif model == "crm.stage" and method == "search_read":
-            result = [{"id": i, "name": n, "sequence": i} for i, n in STAGES.items()]
+            result = [{"id": 1, "name": "جديد", "sequence": 1, "is_won": False},
+                      {"id": 2, "name": "Qualified", "sequence": 2, "is_won": False},
+                      {"id": 5, "name": "Won", "sequence": 70, "is_won": True}]
         elif model == "crm.lead" and method == "write":
             ids, vals = args[0], dict(args[1])
+            if "stage_id" in vals:
+                vals["stage_id"] = [vals["stage_id"], {1: "جديد", 2: "Qualified", 5: "Won"}[vals["stage_id"]]]
             for i in ids:
-                if "stage_id" in vals and i in state.leads:
-                    state.leads[i]["stage_id"] = [vals["stage_id"], STAGES[vals["stage_id"]]]
-                state.leads[i].update({k: v for k, v in vals.items() if k != "stage_id"})
+                state.leads[i].update(vals)
                 state.leads[i]["write_date"] = state.now()
             result = True
         elif model == "crm.lead" and method == "message_post":

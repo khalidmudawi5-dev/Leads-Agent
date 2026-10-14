@@ -15,7 +15,7 @@ from sqlalchemy import select
 from app.db import Database
 from app.models import CallResult
 from app.services.settings_service import SettingsService
-from app.utils.timeutils import localnow, start_of_local_day_utc, utcnow
+from app.utils.timeutils import localnow, start_of_local_day_utc, to_local, utcnow
 
 
 @dataclass
@@ -64,6 +64,15 @@ class FollowupService:
             streak = (prev.no_answer_streak if prev and prev.last_code == "NO_ANSWER" else 0) + 1 if code == "NO_ANSWER" else 0
             out[fp] = LeadOutcome(fp, code, created, fu_at or "", fu_note or "", streak, rid)
         return out
+
+    def results(self, fingerprint: str) -> list[tuple[datetime, str]]:
+        """This customer's real saved results: (local time, result code), oldest first."""
+        with self.db.session() as s:
+            rows = s.execute(
+                select(CallResult.created_at, CallResult.result_code)
+                .where(CallResult.fingerprint == fingerprint, CallResult.dry_run.is_(False),
+                       CallResult.status != "failed").order_by(CallResult.id)).all()
+        return [(to_local(at), code) for at, code in rows]
 
     # ------------------------------------------------------------------ queue rules
     def not_before(self, o: LeadOutcome | None) -> datetime | None:

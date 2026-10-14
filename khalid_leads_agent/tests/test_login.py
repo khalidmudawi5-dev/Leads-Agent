@@ -153,3 +153,69 @@ def test_empty_pin_never_signs_in(remote_env, sheet, odoo):
     with TestClient(app, client=PHONE, base_url="http://100.101.102.200:8765") as tc:
         tc.post("/login", data={"pin": ""}, follow_redirects=False)
         assert tc.get("/api/status").status_code == 401
+
+
+# ------------------------------------------------------------------ idle sign-out
+def _age_session(app, seconds):
+    login = app.state.login
+    for k in list(login._seen):
+        login._seen[k] -= seconds
+
+
+def test_idle_sign_out_after_10_minutes(env, sheet, odoo):
+    c = make_container(env, sheet, odoo)
+    app = create_app(c, allowed_hosts=["127.0.0.1"])
+    with TestClient(app, client=PC, base_url="http://127.0.0.1:8765") as tc:
+        _enable(tc)
+        assert tc.get("/api/auth/status").json()["idle_minutes"] == 10  # the default
+        assert 'data-idle="10"' in tc.get("/settings").text
+        _age_session(app, 9 * 60)
+        assert tc.get("/api/status").status_code == 200  # background checks still work...
+        _age_session(app, 3 * 60)  # ...but do not count: 12 minutes idle now (10 + about a minute of grace)
+        r = tc.get("/api/status")
+        assert r.status_code == 401 and r.json()["error"]["details"]["reason"] == "idle"
+        page = tc.get("/", follow_redirects=False)
+        assert page.headers["location"].startswith("/login?error=idle")
+        assert "بدون نشاط" in tc.get("/login?error=idle").text
+        assert "تذكرني" not in tc.get("/login").text  # «remember me» makes no sense with idle sign-out
+        assert _login(tc).status_code == 303 and tc.get("/api/status").status_code == 200  # sign in again
+
+
+def test_real_activity_keeps_the_session(env, sheet, odoo):
+    c = make_container(env, sheet, odoo)
+    app = create_app(c, allowed_hosts=["127.0.0.1"])
+    with TestClient(app, client=PC, base_url="http://127.0.0.1:8765") as tc:
+        _enable(tc)
+        for _ in range(3):  # 3 × 8 minutes, each time with a click in between
+            _age_session(app, 8 * 60)
+            assert tc.post("/api/auth/activity", headers=H).status_code == 200
+        assert tc.get("/api/status").status_code == 200
+        _age_session(app, 8 * 60)
+        tc.get("/history")  # opening a page counts too
+        _age_session(app, 8 * 60)
+        assert tc.get("/api/status").status_code == 200
+
+
+def test_idle_limit_can_be_changed_or_turned_off(env, sheet, odoo):
+    c = make_container(env, sheet, odoo)
+    app = create_app(c, allowed_hosts=["127.0.0.1"])
+    with TestClient(app, client=PC, base_url="http://127.0.0.1:8765") as tc:
+        _enable(tc)
+        assert tc.post("/api/auth/idle", json={"minutes": 0}, headers=H).json()["idle_minutes"] == 0
+        _age_session(app, 5 * 3600)
+        assert tc.get("/api/status").status_code == 200
+        assert tc.post("/api/auth/idle", json={"minutes": 999}, headers=H).status_code == 422
+        tc.post("/api/auth/idle", json={"minutes": 30}, headers=H)
+        # Changing the password keeps the chosen limit.
+        tc.post("/api/auth/password", json={"username": "khalid", "password": "Another-Pass-1",
+                                            "current_password": PASSWORD}, headers=H)
+        assert tc.get("/api/auth/status").json()["idle_minutes"] == 30
+
+
+def test_restart_signs_everyone_out_while_idle_is_on(env, sheet, odoo):
+    with _pc(env, sheet, odoo) as tc:
+        _enable(tc)
+        cookie = tc.cookies.get(COOKIE)
+    with _pc(env, sheet, odoo) as fresh:  # a new agent process: no activity record for that cookie
+        fresh.cookies.set(COOKIE, cookie)
+        assert fresh.get("/api/status").status_code == 401

@@ -1,5 +1,13 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 2.9.0 (2026-10-14): one line again — merged the other session's 2.7.x with 2.8.0
+
+**Result:** ✅ **229 passed, 1 skipped**.
+
+- Both sessions had built end-of-day summary, Odoo stage per result, follow-up reminders and the Odoo number on the card. One implementation of each is kept: the other session's stage change (no moving back, never out of Won), summary (open follow-ups, who needs WhatsApp, clickable names) and reminders (minutes before + at the time, sound); added on top: per-save stage opt-out and the write-summary line, «تنزيل Excel» and the automatic summary at «day_summary_time», the WhatsApp link that keeps emojis. Settings migration: `odoo_stage_mapping` → `odoo_stage_by_result`.
+- Kept from the other session: sign-out after inactivity, earlier attempts counted from the sheet's notes, stages loaded automatically in Status Mapping.
+- UI (mocks, Chromium): automatic summary opens once, «حفظ مكاني», «التالي», quick notes, stage line in the write summary, save; 0 JS errors.
+
 ## Update 2.8.0 (2026-10-14): where did I stop? — pin, per-filter resume, WhatsApp markers
 
 **Result:** ✅ **214 passed, 1 skipped**.

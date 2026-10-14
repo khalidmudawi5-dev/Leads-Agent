@@ -31,6 +31,8 @@ const STRATEGY = { phone: "رقم الهاتف", mobile: "رقم الجوال", 
 
 // ------------------------------------------------------------------ boot
 document.addEventListener("DOMContentLoaded", init);
+// A call in progress is activity: never sign out in the middle of a call (idle sign-out).
+setInterval(() => { if (S.call && S.call.startedAt && typeof IdleWatch !== "undefined" && IdleWatch.minutes) IdleWatch.mark(); }, 30000);
 document.addEventListener("agent-status", (e) => {
   $("#dry-ribbon").classList.toggle("hidden", !e.detail.dry_run);
   S.remote = !!e.detail.remote;  // opened from the phone / another device (Tailscale)
@@ -50,6 +52,7 @@ function bindPageHandlers() {
   $("#manual-form").onsubmit = (ev) => { ev.preventDefault(); manualSearch(); };
   $$("#stats .stat").forEach((b) => b.onclick = () => openCard(b.dataset.go));
   $("#btn-refresh-queue").onclick = (ev) => withBusy(ev.currentTarget, refreshQueue);
+  $("#btn-summary").onclick = () => showDaySummary();
   $("#btn-end-call").onclick = () => { stopCall(); openResultPanel(); };
   $("#btn-result-from-call").onclick = () => { stopCall(); openResultPanel(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) Live.poll(); });
@@ -64,7 +67,7 @@ async function init() {
     SheetWatch.start();
     const params = new URLSearchParams(location.search);
     const updateId = params.get("update");
-    const gotoFp = params.get("goto");  // from a follow-up reminder on another page
+    const gotoFp = params.get("goto") || params.get("lead");  // «فتح العميل» from a reminder on another page
     const sess = await api("GET", "/api/session");
     if (sess.needs_prompt && !updateId && !gotoFp) return askResume(sess.session);
     await api("POST", "/api/session/start", { resume: true });
@@ -102,6 +105,7 @@ Shortcuts.register([
     run: () => { if ($("#btn-refresh")) clickIf("#btn-refresh"); else clickIf("#btn-refresh-queue"); } },
   { code: "KeyK", label: "K", title: "📌 حفظ مكاني (علامة توقف)", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !resultOpen(), run: askPin },
   { code: "KeyS", label: "S", title: "تخطي مؤقتًا", group: "العميل الحالي", when: () => !!S.lead && !S.manual, run: () => askSkip(S.lead.fingerprint) },
+  { code: "KeyE", label: "E", title: "ملخص نهاية اليوم", group: "عام", run: () => showDaySummary() },
   { code: "KeyL", label: "L", title: "ربط العميل بعميل وجدته في Odoo (بحث بالاسم أو الرقم)", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-link"), run: () => clickIf("#btn-link") },
   { code: "KeyA", label: "A", title: "إضافة العميل غير الموجود إلى Odoo", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !!$("#btn-create"), run: () => clickIf("#btn-create") },
   { code: "KeyW", label: "W", title: "رسالة واتساب للعميل", group: "العميل الحالي", when: () => !!S.lead && !S.manual && !resultOpen(), run: () => clickIf("#btn-wa") },
@@ -135,6 +139,7 @@ function leadPhone(lead) {
 
 async function copyPhone() {
   const phone = S.manual ? (S.manual.phone || S.manual.mobile) : leadPhone(S.lead).value;
+
   if (!phone) return;
   try { await navigator.clipboard.writeText(phone); toast("تم نسخ الرقم: " + phone, "info", 2500); }
   catch (e) { toast("تعذر النسخ", "warn"); }
@@ -519,12 +524,16 @@ function outcomeAlerts(lead) {
   }
   if (o.no_answer_streak) {
     if (o.attempts_reached) {
-      out.push(`<div class="alert warn"><b>العميل لم يرد ${o.no_answer_streak} ${o.no_answer_streak <= 10 ? "مرات" : "مرة"} متتالية</b> (آخرها ${esc(o.last_at)}).
+      out.push(`<div class="alert warn"><b>العميل لم يرد ${o.no_answer_streak} ${o.no_answer_streak <= 10 ? "مرات" : "مرة"} متتالية</b>${o.last_at ? ` (آخرها ${esc(o.last_at)})` : ""}.
         <div class="actions"><button class="btn sm wa" data-oc="wa">${ICON.wa} إرسال واتساب</button>
         <button class="btn sm" data-oc="invalid">تسجيل: بيانات التواصل غير صحيحة</button></div></div>`);
     } else {
-      out.push(`<div class="alert info">لم يرد ${o.no_answer_streak === 1 ? "مرة واحدة" : `${o.no_answer_streak} مرات`} (آخرها ${esc(o.last_at)})${o.max_attempts ? ` · المحاولة ${o.no_answer_streak + 1} من ${o.max_attempts}` : ""}</div>`);
+      out.push(`<div class="alert info">لم يرد ${o.no_answer_streak === 1 ? "مرة واحدة" : `${o.no_answer_streak} مرات`} ${o.last_at ? `(آخرها ${esc(o.last_at)})` : ""}${o.max_attempts ? ` · المحاولة ${o.no_answer_streak + 1} من ${o.max_attempts}` : ""}</div>`);
     }
+  }
+  const h = o.sheet_history;
+  if (h && h.entries) {
+    out.push(`<div class="small muted sheet-hist">📝 من ملاحظات الشيت: ${h.entries} ${h.entries === 1 ? "ملاحظة سابقة" : "ملاحظات سابقة"}${h.no_answer ? ` · ${h.no_answer} منها «لم يتم الرد»` : ""}${h.last_at ? ` · آخرها <span class="ltr">${esc(h.last_at)}</span>` : ""}${o.no_answer_streak ? " (محسوبة في عدد المحاولات)" : ""}</div>`);
   }
   if ((lead.duplicates || []).length) {
     out.push(`<div class="alert warn">⚠ <b>هذا الرقم مكرر في Google Sheet:</b> ${lead.duplicates.map((d) => `صف ${d.row} — ${esc(d.company || "—")} (${esc(d.owner || "بدون مسؤول")}${d.status ? " · " + esc(d.status) : ""})`).join("، ")}</div>`);
@@ -1446,7 +1455,7 @@ async function openResultPanel(prev = null) {
       <div class="row" style="margin:6px 0 12px">
         <label class="check"><input type="checkbox" id="r-sheet" ${ctx.manual ? "disabled" : "checked"}> تحديث Google Sheet</label>
         <label class="check"><input type="checkbox" id="r-odoo" ${ctx.odooId ? "checked" : "disabled"}> إضافة Log Note في Odoo</label>
-        ${ctx.odooId && Object.keys(S.settings.odoo_stage_mapping || {}).length ? '<label class="check"><input type="checkbox" id="r-stage" checked> تغيير المرحلة في Odoo حسب الربط</label>' : ""}
+        ${ctx.odooId && Object.keys(S.settings.odoo_stage_by_result || {}).length ? '<label class="check"><input type="checkbox" id="r-stage" checked> تغيير المرحلة في Odoo حسب الربط</label>' : ""}
       </div>
       ${ctx.manual ? '<div class="alert info small">وضع يدوي: العميل غير مربوط بصف مؤكد في Google Sheet، لذلك لن يتم تحديث Sheet.</div>' : ""}
       <div id="r-summary" class="write-summary"></div>
@@ -1528,7 +1537,7 @@ function addQuickNote(text, btn) {
 function stageFor(code) {
   const box = $("#r-stage");
   if (!box || !box.checked || !code) return "";
-  return (S.settings.odoo_stage_mapping || {})[code] || "";
+  return (S.settings.odoo_stage_by_result || {})[code] || "";
 }
 
 /** Live "what will be written" box, so it is clear before saving what Odoo and the sheet receive. */
@@ -1654,7 +1663,7 @@ function showPreview(res, title, onClose, offerRealSave = false) {
     ${p.sheet_error ? `<div class="alert error">${esc(p.sheet_error)}</div>` : ""}
     ${sheet ? `<div class="table-wrap"><table class="table"><thead><tr><th>الحقل</th><th>القيمة الحالية</th><th>القيمة الجديدة</th></tr></thead><tbody>${sheet}</tbody></table></div>` : (p.sheet_error ? "" : '<div class="muted">لا تغييرات على Google Sheet.</div>')}
     <h3 style="margin-top:16px">Odoo Note</h3>${p.odoo_note ? `<div class="info note-box">${esc(p.odoo_note)}</div>` : '<div class="muted">لن تتم إضافة ملاحظة.</div>'}
-    ${p.stage ? `<h3 style="margin-top:16px">مرحلة Odoo</h3><div class="info">← <b>${esc(p.stage)}</b></div>` : ""}
+    ${p.odoo_stage ? `<h3 style="margin-top:16px">مرحلة Odoo</h3><div class="info">${esc(p.odoo_stage.message || p.odoo_stage.stage)}</div>` : ""}
     ${p.activity ? `<h3 style="margin-top:16px">Odoo Activity</h3><div class="info">${esc(p.activity.date_deadline)} — ${esc(p.activity.summary)}<div class="small muted">${esc(p.activity.note || "")}</div></div>` : ""}
     ${(res.warnings || []).map((w) => `<div class="alert warn" style="margin-top:10px">${esc(w)}</div>`).join("")}`;
   const buttons = [{ label: onClose ? "متابعة بدون حفظ" : "إغلاق", cls: offerRealSave ? "" : "primary", onClick: () => { Modal.close(); if (onClose) onClose(); } }];
@@ -1683,6 +1692,7 @@ function outcomeLine(res) {
   const errs = (res.errors || []).map((e) => `<div class="small" style="color:var(--danger)">${esc(e)}</div>`).join("");
   return `<div class="row small" style="gap:6px;margin-top:6px">${stepBadge("Odoo Log Note", res.odoo_note_status)}
     ${res.odoo_activity_status && res.odoo_activity_status !== "skipped" ? stepBadge("Activity", res.odoo_activity_status) : ""}
+    ${res.preview && res.preview.odoo_stage ? `<span title="${esc(res.preview.odoo_stage.message || "")}">${stepBadge(`المرحلة → ${esc(res.preview.odoo_stage.stage)}`, res.preview.odoo_stage.status)}</span>` : ""}
     ${stepBadge("Google Sheet", res.sheet_status)}</div>${errs}`;
 }
 

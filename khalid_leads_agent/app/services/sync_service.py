@@ -83,23 +83,53 @@ class SyncService:
             return StepResult("success")
         return StepResult("failed", "تعذر إضافة Log Note في Odoo.")
 
-    async def odoo_stage(self, lead_id: int, stage: str, *, dry_run: bool, action_id: str) -> StepResult:
+    async def odoo_stage(self, lead_id: int, stage_name: str, *, no_back: bool, dry_run: bool,
+                         action_id: str) -> StepResult:
+        """Move the lead to the stage named ``stage_name`` (exact name, case-insensitive).
+
+        Skipped (``nochange``) when it is already there, when it is in a Won stage, or, with ``no_back``,
+        when the target comes before the current stage in the pipeline.
+        """
         record = f"crm.lead {lead_id}"
-        if dry_run:
-            self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=None,
-                       after={"stage": stage}, success=True, dry_run=True)
-            return StepResult("dry_run")
+        adapter = self.odoo.adapter
         try:
-            outcome = await self.odoo.adapter.set_stage(lead_id, stage)
-        except AgentError as exc:
-            self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=None,
-                       after={"stage": stage}, success=False, error=exc.message_ar)
+            stages = await adapter.list_stages()
+            target = next((s for s in stages if s["name"].strip().casefold() == stage_name.strip().casefold()), None)
+            if target is None:
+                return StepResult("failed", f"المرحلة «{stage_name}» غير موجودة في Odoo. راجع الإعدادات ← Status Mapping.")
+            current_id = await adapter.lead_stage_id(lead_id)
+        except OdooLoginRequired as exc:
+            self.odoo.mark_logged_out()
             return StepResult("failed", exc.message_ar)
-        if outcome.already_done:
-            return StepResult("nochange")
-        self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=None,
-                   after={"stage": stage}, success=outcome.success, error="" if outcome.success else outcome.message)
-        return StepResult("success") if outcome.success else StepResult("failed", outcome.message)
+        except AgentError as exc:
+            return StepResult("failed", exc.message_ar)
+        current = next((s for s in stages if s["id"] == current_id), None)
+        if current and current["id"] == target["id"]:
+            return StepResult("nochange", f"العميل في مرحلة «{target['name']}» بالفعل.")
+        if current and current.get("is_won"):
+            return StepResult("nochange", f"العميل في مرحلة «{current['name']}» (Won)؛ لم تتغير المرحلة.")
+        if no_back and current and (target["sequence"], target["id"]) < (current["sequence"], current["id"]):
+            return StepResult("nochange", f"لم تتغير المرحلة: «{target['name']}» قبل المرحلة الحالية «{current['name']}».")
+        before = {"stage": current["name"] if current else None}
+        after = {"stage": target["name"]}
+        if dry_run:
+            self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=before,
+                       after=after, success=True, dry_run=True)
+            return StepResult("dry_run", f"Dry Run: كانت المرحلة ستتغير إلى «{target['name']}».")
+        try:
+            await adapter.set_lead_stage(lead_id, target["id"])
+        except OdooLoginRequired as exc:
+            self.odoo.mark_logged_out()
+            self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=before,
+                       after=after, success=False, error=exc.message_ar)
+            return StepResult("failed", exc.message_ar)
+        except AgentError as exc:
+            self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=before,
+                       after=after, success=False, error=exc.message_ar)
+            return StepResult("failed", exc.message_ar)
+        self.audit(action_id=action_id, system="ODOO", action="set_stage", record=record, before=before,
+                   after=after, success=True)
+        return StepResult("success", f"تم نقل العميل في Odoo إلى مرحلة «{target['name']}».")
 
     async def odoo_activity(self, lead_id: int, date_deadline: str, summary: str, note: str, *, dry_run: bool,
                             action_id: str) -> StepResult:

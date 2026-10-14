@@ -52,6 +52,12 @@ class SettingsService:
                 if stored.get("odoo_note_template") == LEGACY_NOTE_TEMPLATE:
                     srepo.set_many({"odoo_note_template": DEFAULT_NOTE_TEMPLATE})
                 srepo.set_many({"note_template_v17": True})
+            # 2.9: the Odoo stage mapping of the other 2.4 line moved to odoo_stage_by_result.
+            if "stage_map_v29" not in stored:
+                old = stored.get("odoo_stage_mapping") or {}
+                if old and not stored.get("odoo_stage_by_result"):
+                    srepo.set_many({"odoo_stage_by_result": old})
+                srepo.set_many({"stage_map_v29": True})
             # 2.3: sheet notes on one line, without the name/date stamp (the old default stamp is cleared once).
             if "sheet_note_v23" not in stored:
                 if stored.get("note_stamp_format") == "[{date} - {owner}]":

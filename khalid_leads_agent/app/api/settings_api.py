@@ -49,6 +49,12 @@ def put_settings(body: dict, c: AppContainer = Depends(container)) -> dict:
     return {"settings": s.model_dump()}
 
 
+@router.get("/odoo/stages")
+async def odoo_stages(c: AppContainer = Depends(container)) -> dict:
+    """CRM stages from Odoo (for «مرحلة Odoo حسب النتيجة»)."""
+    return {"stages": await c.odoo.adapter.list_stages()}
+
+
 @router.get("/settings/status-mapping")
 def get_status_mapping(c: AppContainer = Depends(container)) -> dict:
     return {"items": c.mappings.statuses()}
@@ -184,11 +190,6 @@ async def odoo_open_login(c: AppContainer = Depends(container)) -> dict:
 async def odoo_check_login(c: AppContainer = Depends(container)) -> dict:
     st = await c.odoo.check_login()
     return {"logged_in": st.logged_in, "user": st.user_name, "message": st.message, "url": st.url}
-
-
-@router.get("/odoo/stages")
-async def odoo_stages(c: AppContainer = Depends(container)) -> dict:
-    return {"stages": await c.odoo.adapter.list_stages()}
 
 
 @router.post("/odoo/test-search")

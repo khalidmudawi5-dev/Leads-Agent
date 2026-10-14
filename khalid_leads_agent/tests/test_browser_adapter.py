@@ -361,11 +361,12 @@ def test_render_pdf_with_headless_browser(adapter, tmp_path):
     assert adapter._context is None  # the Odoo browser window was never opened
 
 
-def test_set_stage_via_rpc(adapter, fake_odoo):
+def test_stages_via_rpc(adapter, fake_odoo):
     login(adapter, fake_odoo)
-    assert run(adapter, adapter.list_stages()) == ["جديد", "Qualified", "Proposition", "Won"]
-    out = run(adapter, adapter.set_stage(7, "qualified"))  # case-insensitive
-    assert out.success and fake_odoo.state.leads[7]["stage_id"] == [2, "Qualified"]
-    assert run(adapter, adapter.set_stage(7, "Qualified")).already_done
-    bad = run(adapter, adapter.set_stage(7, "Lost"))
-    assert not bad.success and "غير موجودة" in bad.message
+    stages = run(adapter, adapter.list_stages())
+    assert [s["name"] for s in stages] == ["جديد", "Qualified", "Won"] and stages[-1]["is_won"]
+    lead = run(adapter, adapter.create_lead({"name": "مرحلة", "partner_name": "مرحلة", "phone": "0110002222"}))
+    assert run(adapter, adapter.lead_stage_id(lead.id)) == 1
+    run(adapter, adapter.set_lead_stage(lead.id, 2))
+    assert run(adapter, adapter.lead_stage_id(lead.id)) == 2
+    assert run(adapter, adapter.get_lead(lead.id)).stage == "Qualified"

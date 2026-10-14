@@ -869,35 +869,6 @@ class BrowserOdooAdapter(OdooAdapter):
             log.info("Batch read unavailable; reading leads one by one", exc_info=True)
             return await super().read_leads(ids)
 
-    async def _w_stages(self) -> list[dict]:
-        return await self._w_call_kw("crm.stage", "search_read", [],
-                                     {"domain": [], "fields": ["name", "sequence"], "order": "sequence, id"}) or []
-
-    async def list_stages(self) -> list[str]:
-        return [str(s["name"]) for s in await self._exec(self._w_stages)]
-
-    async def _w_set_stage(self, lead_id: int, stage_name: str) -> ActionOutcome:
-        key = _norm_label(stage_name)
-        stages = await self._w_stages()
-        match = [s for s in stages if _norm_label(s["name"]) == key]
-        if not match:
-            names = "، ".join(str(s["name"]) for s in stages[:12])
-            return ActionOutcome(False, "none", f"المرحلة «{stage_name}» غير موجودة في Odoo (المتاح: {names}).")
-        current = await self._w_call_kw("crm.lead", "read", [[lead_id]], {"fields": ["stage_id"]}) or []
-        if current and isinstance(current[0].get("stage_id"), list) and current[0]["stage_id"][0] == match[0]["id"]:
-            return ActionOutcome(True, "rpc", "already in stage", already_done=True)
-        await self._w_call_kw("crm.lead", "write", [[lead_id], {"stage_id": match[0]["id"]}])
-        return ActionOutcome(True, "rpc")
-
-    async def set_stage(self, lead_id: int, stage_name: str) -> ActionOutcome:
-        try:
-            return await self._exec(self._w_set_stage, lead_id, stage_name)
-        except OdooLoginRequired:
-            raise
-        except (OdooRpcError, OdooRpcUnavailable) as exc:
-            log.warning("Stage change failed for lead %s", lead_id, exc_info=True)
-            return ActionOutcome(False, "none", f"تعذر تغيير المرحلة في Odoo: {exc}")
-
     async def _w_render_pdf(self, html: str) -> bytes:
         """A separate headless browser (the Odoo window is never touched)."""
         from playwright.async_api import async_playwright
@@ -1215,6 +1186,43 @@ class BrowserOdooAdapter(OdooAdapter):
 
     async def set_lead_phone(self, lead_id: int, field: str, value: str) -> OdooLead:
         return await self._exec(self._w_set_lead_phone, lead_id, field, value)
+
+    # ------------------------------------------------------------- stages
+    async def _w_list_stages(self) -> list[dict[str, Any]]:
+        try:
+            try:
+                rows = await self._w_call_kw("crm.stage", "search_read", [],
+                                             {"fields": ["name", "sequence", "is_won"], "order": "sequence, id"})
+            except OdooRpcError:  # very old Odoo without is_won
+                rows = await self._w_call_kw("crm.stage", "search_read", [], {"fields": ["name", "sequence"], "order": "sequence, id"})
+        except OdooLoginRequired:
+            raise
+        except (OdooRpcError, OdooRpcUnavailable) as exc:
+            raise AgentError("ODOO_STAGES_FAILED", f"تعذر قراءة مراحل Odoo: {exc}", actions=["retry"]) from exc
+        return [{"id": r["id"], "name": r.get("name") or "", "sequence": r.get("sequence") or 0,
+                 "is_won": bool(r.get("is_won"))} for r in rows or []]
+
+    async def list_stages(self) -> list[dict[str, Any]]:
+        return await self._exec(self._w_list_stages)
+
+    async def _w_lead_stage_id(self, lead_id: int) -> int | None:
+        recs = await self._w_call_kw("crm.lead", "read", [[lead_id]], {"fields": ["stage_id"]})
+        value = recs[0].get("stage_id") if recs else None
+        return value[0] if isinstance(value, list) and value else None
+
+    async def lead_stage_id(self, lead_id: int) -> int | None:
+        return await self._exec(self._w_lead_stage_id, lead_id)
+
+    async def _w_set_lead_stage(self, lead_id: int, stage_id: int) -> None:
+        try:
+            await self._w_call_kw("crm.lead", "write", [[lead_id], {"stage_id": stage_id}])
+        except OdooLoginRequired:
+            raise
+        except (OdooRpcError, OdooRpcUnavailable) as exc:
+            raise AgentError("ODOO_WRITE_FAILED", f"تعذر تغيير مرحلة العميل في Odoo: {exc}", actions=["retry"]) from exc
+
+    async def set_lead_stage(self, lead_id: int, stage_id: int) -> None:
+        await self._exec(self._w_set_lead_stage, lead_id, stage_id)
 
     # --------------------------------------------------------- diagnostics
     async def _w_diagnostics(self) -> dict[str, Any]:

@@ -35,12 +35,6 @@ def status(request: Request, c: AppContainer = Depends(container)) -> dict:
     }
 
 
-@router.get("/reminders")
-def reminders(c: AppContainer = Depends(container)) -> dict:
-    """Follow-ups due now (polled by every page every minute)."""
-    return c.workflow.reminders()
-
-
 @router.get("/session")
 def session_status(c: AppContainer = Depends(container)) -> dict:
     return c.sessions.status()
@@ -145,6 +139,12 @@ async def lead_create_odoo(fingerprint: str, body: CreateLeadIn, c: AppContainer
     """Add a customer missing from Odoo as a new opportunity/lead (after a fresh duplicate check)."""
     return await c.workflow.create_in_odoo(fingerprint, body.company, body.phone, body.contact_name, body.force,
                                            source=body.source)
+
+
+@router.get("/followups/reminders")
+def followup_reminders(c: AppContainer = Depends(container)) -> dict:
+    """Timed follow-ups (today/tomorrow) for the reminder; empty until the queue is loaded."""
+    return c.workflow.followup_reminders()
 
 
 @router.get("/lead/{fingerprint}/whatsapp")

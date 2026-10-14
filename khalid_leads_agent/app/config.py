@@ -190,23 +190,28 @@ class AppSettings(BaseModel):
     # Follow-ups: due ones first in the queue; future ones wait until their date.
     followups_first: bool = True
     hide_future_followups: bool = True
+    # Remind N minutes before a follow-up that has a time (0 = off), with a soft sound.
+    followup_reminder_minutes: int = Field(default=30, ge=0, le=240)
+    followup_reminder_sound: bool = True
+    # Move the Odoo lead to a stage when a result is saved: {result code: Odoo stage name} (empty = off).
+    # A lead is never moved back to an earlier stage (unless turned off) and never out of a Won stage.
+    odoo_stage_by_result: dict[str, str] = Field(default_factory=dict)
+    odoo_stage_no_back: bool = True
     # No answer: back in the queue after N hours (0 = off: stays done for the session); after M attempts
     # suggest WhatsApp / invalid number (0 = never).
     no_answer_retry_hours: int = Field(default=4, ge=0, le=168)
     no_answer_max_attempts: int = Field(default=3, ge=0, le=20)
+    # Count earlier attempts from the sheet's notes cell (entries with these words = no answer).
+    sheet_history_enabled: bool = True
+    no_answer_keywords: list[str] = Field(default_factory=lambda: [
+        "لم يتم الرد", "لم يرد", "لا يرد", "ما رد", "مارد", "ماترد", "لا يوجد رد", "بدون رد", "مغلق", "مقفل",
+        "خارج التغطية", "خارج الخدمة", "no answer"])
     # Daily goal (results recorded today); 0 = hidden.
     daily_call_goal: int = Field(default=40, ge=0, le=1000)
     # Check the sheet for new customers every N minutes while the dashboard is open (0 = off).
     sheet_poll_minutes: int = Field(default=5, ge=0, le=120)
     # One-click phrases under the result note.
     quick_notes: list[str] = Field(default_factory=lambda: list(DEFAULT_QUICK_NOTES))
-    # Result code → Odoo stage name to move the lead to when the result is saved (empty / missing = unchanged).
-    odoo_stage_mapping: dict[str, str] = Field(default_factory=dict)
-    # Follow-up reminders (desktop notification + in-page alert) N minutes before the time;
-    # follow-ups saved with a date only are reminded at followup_default_time.
-    followup_reminders: bool = True
-    followup_remind_minutes: int = Field(default=5, ge=0, le=120)
-    followup_default_time: str = "09:00"
     # End-of-day summary shown automatically at this local time ("" = only on demand).
     day_summary_time: str = "17:00"
     # Advanced
@@ -219,7 +224,7 @@ class AppSettings(BaseModel):
     retry_attempts: int = Field(default=2, ge=1, le=5)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
-    @field_validator("followup_default_time", "day_summary_time")
+    @field_validator("day_summary_time")
     @classmethod
     def _hhmm(cls, v: str) -> str:
         v = (v or "").strip()
@@ -237,11 +242,6 @@ class AppSettings(BaseModel):
     @classmethod
     def _notes(cls, v: list[str]) -> list[str]:
         return [x.strip()[:120] for x in v if x and x.strip()][:30]
-
-    @field_validator("odoo_stage_mapping")
-    @classmethod
-    def _stages(cls, v: dict[str, str]) -> dict[str, str]:
-        return {k.strip(): (s or "").strip() for k, s in v.items() if k and k.strip() and (s or "").strip()}
 
     @field_validator("odoo_base_url")
     @classmethod

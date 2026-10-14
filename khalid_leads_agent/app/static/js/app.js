@@ -28,7 +28,8 @@ async function api(method, url, body) {
   let data = {};
   try { data = await res.json(); } catch (e) { data = {}; }
   if (res.status === 401 && data.error && data.error.code === "LOGIN_REQUIRED") {
-    window.location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+    const idle = (data.error.details || {}).reason === "idle" ? "error=idle&" : "";
+    window.location.href = `/login?${idle}next=${encodeURIComponent(location.pathname + location.search)}`;
   }
   if (!res.ok) throw new ApiError(data.error, res.status);
   return data;
@@ -301,126 +302,198 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 });
 
-// --------------------------------------------------------- follow-up reminders (every page)
-/** Polls /api/reminders every minute: a desktop notification + an in-page card when a follow-up is due.
- *  A shown reminder comes back every 30 minutes until «تم» or the customer is opened / gets a new result. */
+// ------------------------------------------------------------ idle sign-out
+/**
+ * With sign-in on: no mouse/keyboard/touch for N minutes (any open tab of the agent) → sign out.
+ * Real activity is reported to the agent at most once a minute; background checks never count.
+ */
+const IdleWatch = {
+  KEY: "kla-last-activity",
+  minutes: 0, lastSent: 0, warned: false,
+  now() { return Date.now(); },
+  last() {
+    let v = 0;
+    try { v = Number(localStorage.getItem(IdleWatch.KEY)) || 0; } catch (e) { /* private mode */ }
+    return Math.max(v, IdleWatch._mem || 0);
+  },
+  mark() {
+    const t = IdleWatch.now();
+    IdleWatch._mem = t;
+    try { localStorage.setItem(IdleWatch.KEY, String(t)); } catch (e) { /* private mode */ }
+    if (IdleWatch.warned) { IdleWatch.warned = false; const w = $("#idle-warn"); if (w) w.remove(); }
+    if (t - IdleWatch.lastSent > 60000) {
+      IdleWatch.lastSent = t;
+      fetch("/api/auth/activity", { method: "POST", headers: { "X-KLA": "1" } }).catch(() => {});
+    }
+  },
+  async signOut() {
+    try { await fetch("/logout?reason=idle", { method: "POST" }); } catch (e) { /* already out */ }
+    window.location.href = "/login?error=idle&next=" + encodeURIComponent(location.pathname);
+  },
+  tick() {
+    const idleMs = IdleWatch.now() - IdleWatch.last();
+    const limit = IdleWatch.minutes * 60000;
+    if (idleMs >= limit) { IdleWatch.signOut(); return; }
+    if (idleMs >= limit - 60000 && !IdleWatch.warned) {
+      IdleWatch.warned = true;
+      const el = document.createElement("div");
+      el.id = "idle-warn"; el.className = "toast warn"; el.setAttribute("role", "alert");
+      el.textContent = "لا يوجد نشاط: سيتم تسجيل الخروج خلال دقيقة. حرّك الماوس أو اضغط أي زر للبقاء.";
+      ($("#toasts") || document.body).appendChild(el);
+    }
+  },
+  start() {
+    IdleWatch.minutes = Number(document.body.dataset.idle || 0);
+    if (!IdleWatch.minutes) return;
+    IdleWatch.lastSent = IdleWatch.now();  // opening the page already counted on the agent
+    IdleWatch._mem = IdleWatch.now();
+    try { localStorage.setItem(IdleWatch.KEY, String(IdleWatch._mem)); } catch (e) { /* private mode */ }
+    let throttle = 0;
+    const onAct = () => { const t = IdleWatch.now(); if (t - throttle > 5000) { throttle = t; IdleWatch.mark(); } };
+    ["mousemove", "mousedown", "keydown", "wheel", "touchstart", "scroll"].forEach((ev) =>
+      window.addEventListener(ev, onAct, { passive: true, capture: true }));
+    setInterval(IdleWatch.tick, 10000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) IdleWatch.tick(); });
+  },
+};
+document.addEventListener("DOMContentLoaded", () => IdleWatch.start());
+
+// ------------------------------------------------------------ end-of-day summary
+async function showDaySummary() {
+  let d;
+  try { d = await api("GET", "/api/reports/summary"); } catch (e) { toast(e.message, "error"); return; }
+  const t = d.totals;
+  const n = (v) => Number(v || 0).toLocaleString("en-US");
+  const canOpen = typeof render === "function" && !!document.getElementById("stats");
+  const who = (x, extra = "") => `<li><span>${canOpen && x.fingerprint ? `<button type="button" class="linklike" data-fp="${esc(x.fingerprint)}">${esc(x.company)}</button>` : `<b>${esc(x.company)}</b>`}</span>
+    <span class="muted small">${extra}</span></li>`;
+  const section = (title, list, row, empty) => `<div class="sum-sec"><h4>${title} <span class="badge">${list.length}</span></h4>
+    ${list.length ? `<ul class="sum-list">${list.map(row).join("")}</ul>` : `<div class="small muted">${empty}</div>`}</div>`;
+  const tile = (label, value, sub = "") => `<div class="rtile"><div class="rt-label">${label}</div><div class="rt-value">${value}</div>${sub ? `<div class="rt-sub">${sub}</div>` : ""}</div>`;
+  Modal.open({
+    title: `ملخص اليوم · ${d.date.split("-").reverse().join("/")}`, wide: true,
+    html: `<div class="rep-tiles sum-tiles">
+        ${tile("النتائج المسجلة", n(t.calls), d.goal ? `من هدف ${n(d.goal)} (${d.goal_pct}%)` : "")}
+        ${tile("تم الرد", n(t.answered), `${t.answer_rate}% · لم يرد ${n(t.no_answer)}`)}
+        ${tile("مهتم / اشترك", `${n(t.interested)} / ${n(t.subscribed)}`, `متابعة لاحقة ${n(t.follow_up)}`)}
+        ${tile("واتساب", n(t.whatsapp), `بانتظار التواصل ${n(d.pending)}`)}
+      </div>
+      ${d.first_at ? `<p class="small muted" style="margin:8px 0 0">أول نتيجة ${d.first_at} · آخر نتيجة ${d.last_at}</p>` : ""}
+      <div class="sum-grid">
+        ${section("⭐ المهتمون اليوم", d.hot, (h) => who(h, esc(h.label) + (h.note ? " — " + esc(h.note) : "")), "لا يوجد اليوم.")}
+        ${section("📅 متابعات بكرة", d.followups_tomorrow, (i) => who(i, `<span class="ltr">${esc(i.followup_at.slice(11, 16) || "—")}</span>${i.note ? " · " + esc(i.note) : ""}`), "لا توجد متابعات بكرة.")}
+        ${section("⏰ متابعات مفتوحة لم تُنجز", d.followups_open, (i) => who(i, `<span class="ltr">${esc(i.followup_at.slice(0, 10))}</span>`), "ممتاز، لا يوجد.")}
+        ${section(`💬 يحتاجون واتساب (لم يردوا ${d.attempts_limit}+ مرات)`, d.need_whatsapp, (w) => who(w, `<span class="ltr">${esc(w.phone)}</span> · ${w.attempts} محاولات`), "لا يوجد.")}
+      </div>`,
+    buttons: [
+      { label: "نسخ الملخص", cls: "primary", onClick: async () => {
+        try { await navigator.clipboard.writeText(d.text); toast("تم نسخ الملخص.", "success"); }
+        catch (e) { toast("تعذر النسخ تلقائيًا.", "warn"); }
+      } },
+      { label: "إرسال واتساب", onClick: () => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(d.text)}`, "_blank", "noopener") },
+      { label: "تنزيل Excel", onClick: () => { location.href = "/api/reports/export?period=today"; } },
+      { label: "إغلاق" },
+    ],
+    onOpen: (m) => $$("[data-fp]", m).forEach((b) => b.onclick = async () => {
+      Modal.close();
+      try { render(await api("POST", `/api/lead/${b.dataset.fp}/goto`)); } catch (e) { toast(e.message, "error"); }
+    }),
+  });
+}
+
+// ------------------------------------------------------------ follow-up reminders
+/** A card (+ soft sound, + desktop notification if allowed) N minutes before a timed follow-up, and at its time. */
 const Reminders = {
-  KEY: "kla-fu-seen", REPEAT_MS: 30 * 60 * 1000, timer: null,
-  seen() { try { return JSON.parse(localStorage.getItem(this.KEY) || "{}"); } catch (e) { return {}; } },
-  mark(key, untilMs) {
-    try {
-      const s = this.seen(); const now = Date.now();
-      Object.keys(s).forEach((k) => { if (s[k] < now - 3 * 864e5) delete s[k]; });  // keep it small
-      s[key] = untilMs; localStorage.setItem(this.KEY, JSON.stringify(s));
-    } catch (e) { /* private window: show again next time */ }
-  },
-  start() { setTimeout(() => this.poll(), 4000); this.timer = setInterval(() => this.poll(), 60000); },
-  async poll() {
-    let r;
-    try { r = await api("GET", "/api/reminders"); } catch (e) { return; }
-    DaySummary.maybeAuto(r);
-    if (!r.enabled) return;
-    const seen = this.seen(); const now = Date.now();
-    r.items.filter((i) => !(seen[i.key] > now)).slice(0, 3).forEach((i) => this.show(i));
-  },
-  async askPermission() {
-    if (!("Notification" in window)) { toast("المتصفح لا يدعم الإشعارات. ستظهر التنبيهات داخل الصفحة.", "warn"); return; }
-    if (!window.isSecureContext) { toast("إشعارات الويندوز تعمل على جهازك (127.0.0.1) فقط؛ على الجوال تظهر داخل الصفحة.", "info", 7000); return; }
-    const p = await Notification.requestPermission();
-    toast(p === "granted" ? "تم تفعيل إشعارات الويندوز ✓" : "لم يُسمح بالإشعارات؛ ستظهر داخل الصفحة فقط.", p === "granted" ? "success" : "warn");
-  },
-  open(item) {
-    this.mark(item.key, 9e15);
-    if (typeof window.KLA_openLead === "function") window.KLA_openLead(item.fingerprint);
-    else location.href = `/?goto=${encodeURIComponent(item.fingerprint)}`;
+  KEY: "kla-reminded",
+  seen() { try { return JSON.parse(localStorage.getItem(Reminders.KEY) || "{}"); } catch (e) { return {}; } },
+  remember(key) {
+    const s = Reminders.seen(); s[key] = Date.now();
+    for (const k of Object.keys(s)) if (Date.now() - s[k] > 3 * 86400000) delete s[k];
+    try { localStorage.setItem(Reminders.KEY, JSON.stringify(s)); } catch (e) { /* private mode */ }
   },
   beep() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      [0, 0.18].forEach((t) => {
+      [[660, 0], [880, 0.22]].forEach(([f, at]) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(ctx.destination);
-        o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.12);
+        o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + at);
+        g.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + at + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 0.2);
+        o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + at); o.stop(ctx.currentTime + at + 0.22);
       });
-    } catch (e) { /* no sound before the first click: fine */ }
-    if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate([150, 80, 150]);
+      setTimeout(() => ctx.close(), 800);
+    } catch (e) { /* no audio */ }
   },
-  show(item) {
-    this.mark(item.key, Date.now() + this.REPEAT_MS);
-    const when = item.state === "overdue" ? `متأخرة (${item.date} ${item.at})` : item.late ? `الآن (${item.at})` : `الساعة ${item.at}`;
-    if ("Notification" in window && Notification.permission === "granted") {
-      try {
-        const n = new Notification(`موعد متابعة: ${item.company}`, { body: `${when}${item.note ? " — " + item.note : ""}`, tag: item.key, requireInteraction: true });
-        n.onclick = () => { window.focus(); n.close(); this.open(item); };
-      } catch (e) { /* some browsers need a service worker */ }
+  show(item, mins, sound) {
+    let box = $("#reminders");
+    if (!box) { box = document.createElement("div"); box.id = "reminders"; box.setAttribute("aria-live", "assertive"); document.body.appendChild(box); }
+    const when = mins > 0 ? `بعد ${mins} دقيقة` : "الآن";
+    const el = document.createElement("div");
+    el.className = "reminder";
+    el.innerHTML = `<div class="rm-head">⏰ موعد متابعة ${when} · <span class="ltr">${esc(item.at.slice(11))}</span></div>
+      <div class="rm-name">${esc(item.company)}</div>
+      <div class="small muted"><span class="ltr">${esc(item.phone || "")}</span>${item.note ? " · " + esc(item.note) : ""}</div>
+      <div class="rm-actions"><button class="btn primary sm" type="button" data-open>فتح العميل</button><button class="btn sm" type="button" data-close>تمام</button></div>`;
+    $("[data-close]", el).onclick = () => el.remove();
+    $("[data-open]", el).onclick = async () => {
+      el.remove();
+      if (typeof render === "function" && document.getElementById("stats")) {
+        try { render(await api("POST", `/api/lead/${item.fingerprint}/goto`)); } catch (e) { toast(e.message, "error"); }
+      } else { window.location.href = `/?lead=${encodeURIComponent(item.fingerprint)}`; }
+    };
+    box.appendChild(el);
+    if (sound) Reminders.beep();
+    if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+      try { new Notification(`موعد متابعة ${when}: ${item.company}`, { body: `${item.at.slice(11)} ${item.note || ""}`.trim(), tag: item.fingerprint + item.at }); }
+      catch (e) { /* not supported */ }
     }
-    let stack = $("#reminder-stack");
-    if (!stack) { stack = document.createElement("div"); stack.id = "reminder-stack"; document.body.appendChild(stack); }
-    if ($(`[data-key="${CSS.escape(item.key)}"]`, stack)) return;
-    const card = document.createElement("div");
-    card.className = "reminder-card";
-    card.dataset.key = item.key;
-    card.innerHTML = `<div class="rc-head"><span class="rc-ic">⏰</span><b>موعد متابعة ${item.state === "overdue" ? "متأخرة" : ""}</b><span class="spacer"></span>
-        <button type="button" class="icon-btn rc-x" title="إغلاق">✕</button></div>
-      <div class="rc-co">${esc(item.company)}</div>
-      <div class="small muted"><span class="ltr">${esc(item.phone || "")}</span> · ${esc(when)}</div>
-      ${item.note ? `<div class="small rc-note">${esc(item.note)}</div>` : ""}
-      <div class="rc-actions"><button type="button" class="btn sm primary" data-a="open">فتح العميل</button>
-        <button type="button" class="btn sm" data-a="snooze">بعد 10 دقائق</button>
-        <button type="button" class="btn sm ghost" data-a="done">تم</button></div>`;
-    const close = () => card.remove();
-    $(".rc-x", card).onclick = close;
-    $('[data-a="open"]', card).onclick = () => { close(); this.open(item); };
-    $('[data-a="snooze"]', card).onclick = () => { this.mark(item.key, Date.now() + 10 * 60000); close(); };
-    $('[data-a="done"]', card).onclick = () => { this.mark(item.key, 9e15); close(); };
-    stack.appendChild(card);
-    this.beep();
+  },
+  async check() {
+    let r;
+    try { r = await api("GET", "/api/followups/reminders"); } catch (e) { return; }
+    if (!r.minutes) return;
+    const now = Date.now();
+    const seen = Reminders.seen();
+    for (const it of r.items || []) {
+      const at = new Date(it.at.replace(" ", "T") + ":00").getTime();
+      if (Number.isNaN(at)) continue;
+      const left = at - now;
+      const stage = left > 0 && left <= r.minutes * 60000 ? "before" : left <= 0 && left > -10 * 60000 ? "now" : "";
+      const key = `${it.fingerprint}|${it.at}|${stage}`;
+      if (!stage || seen[key]) continue;
+      Reminders.remember(key);
+      Reminders.show(it, stage === "before" ? Math.max(1, Math.round(left / 60000)) : 0, r.sound);
+    }
+  },
+  start() {
+    setTimeout(Reminders.check, 4000);
+    setInterval(Reminders.check, 60000);
   },
 };
+document.addEventListener("DOMContentLoaded", () => Reminders.start());
 
-// --------------------------------------------------------------------- day summary
-const DaySummary = {
+// ------------------------------------------- end-of-day summary shown automatically, notifications
+/** Once a day after «day_summary_time» (settings) the summary opens by itself on the first page used. */
+const AutoSummary = {
   KEY: "kla-summary-shown",
-  maybeAuto(r) {
-    if (!r || !r.day_summary_time) return;
-    const [day, hm] = (r.now || "").split(" ");
+  async check() {
+    const at = document.body.dataset.summaryTime || "";
+    if (!at) return;
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const hm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
     let shown = "";
-    try { shown = localStorage.getItem(this.KEY) || ""; } catch (e) { return; }
-    if (shown === day || !hm || hm < r.day_summary_time) return;
-    try { localStorage.setItem(this.KEY, day); } catch (e) { /* ignore */ }
-    if (!$("#modal-backdrop")) this.open(true);
+    try { shown = localStorage.getItem(AutoSummary.KEY) || ""; } catch (e) { return; }
+    if (shown === day || hm < at || $("#modal-backdrop")) return;
+    try { localStorage.setItem(AutoSummary.KEY, day); } catch (e) { return; }
+    showDaySummary();
   },
-  async open(auto = false) {
-    let d;
-    try { d = await api("GET", "/api/reports/day-summary"); } catch (e) { if (!auto) toast(e.message, "error"); return; }
-    const t = d.totals;
-    const tile = (l, v, sub = "") => `<div class="rtile"><div class="rt-label">${esc(l)}</div><div class="rt-value">${v}</div>${sub ? `<div class="rt-sub">${esc(sub)}</div>` : ""}</div>`;
-    const list = (rows, fmt) => rows.length ? `<ul class="ds-list">${rows.map(fmt).join("")}</ul>` : '<div class="muted small">لا يوجد.</div>';
-    Modal.open({
-      title: `ملخص اليوم — ${d.date}`, wide: true,
-      html: `${auto ? '<div class="alert info small">ملخص نهاية اليوم التلقائي (يمكن تغيير الوقت من الإعدادات ← واتساب والمتابعة).</div>' : ""}
-        <div class="rep-tiles ds-tiles">${tile("النتائج المسجلة", t.calls, `${t.customers} عميل`)}${tile("تم الرد", t.answered, `${t.answer_rate}%`)}
-          ${tile("مهتم", t.interested)}${tile("تم الاشتراك", t.subscribed)}${tile("متابعة لاحقة", t.follow_up)}${tile("رسائل واتساب", t.whatsapp)}</div>
-        <div class="grid-2 ds-grid"><div><h3>المهتمون اليوم (${d.interested.length})</h3>
-          ${list(d.interested, (h) => `<li><b>${esc(h.company)}</b> <span class="ltr small muted">${esc(h.phone)}</span>${h.note ? `<div class="small muted">${esc(h.note)}</div>` : ""}</li>`)}</div>
-          <div><h3>متابعات الغد (${d.tomorrow.length})${d.overdue ? ` · <span class="badge red">متأخرة: ${d.overdue}</span>` : ""}</h3>
-          ${list(d.tomorrow, (f) => `<li><span class="ltr">${esc(f.followup_at.slice(11, 16) || "—")}</span> <b>${esc(f.company)}</b>${f.note ? `<div class="small muted">${esc(f.note)}</div>` : ""}</li>`)}</div></div>
-        <label class="field" style="margin-top:12px"><span>نص الملخص (للنسخ أو الإرسال)</span><textarea id="ds-text" rows="7" readonly>${esc(d.text)}</textarea></label>`,
-      buttons: [
-        { label: "نسخ النص", cls: "primary", onClick: async () => {
-          try { await navigator.clipboard.writeText(d.text); toast("تم نسخ الملخص", "success"); }
-          catch (e) { $("#ds-text").select(); document.execCommand("copy"); toast("تم نسخ الملخص", "success"); }
-        } },
-        { label: "إرسال واتساب", cls: "wa", onClick: () => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(d.text)}`, "_blank", "noopener") },
-        { label: "تنزيل Excel", onClick: () => { location.href = "/api/reports/export?period=today"; } },
-        { label: "إغلاق" },
-      ],
-    });
-  },
+  start() { setTimeout(AutoSummary.check, 6000); setInterval(AutoSummary.check, 60000); },
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  Reminders.start();
-  const perm = $("#btn-notify-perm"); if (perm) perm.onclick = () => Reminders.askPermission();
-  $$("[data-day-summary]").forEach((b) => b.onclick = () => DaySummary.open());
+  AutoSummary.start();
+  $$("[data-day-summary]").forEach((b) => b.onclick = () => showDaySummary());
 });

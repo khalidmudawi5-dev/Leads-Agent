@@ -52,13 +52,16 @@ async def customer_report_export(fmt: str = "xlsx", statuses: list[str] = Query(
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
-@router.get("/day-summary")
-def day_summary(c: AppContainer = Depends(container)) -> dict:
-    return c.reports.day_summary(c.workflow.followup_items(), c.settings.get().agent_owner)
-
-
 @router.get("/export")
 def export(period: str = "week", start: str = "", end: str = "", c: AppContainer = Depends(container)) -> Response:
     data, name = c.reports.export_xlsx(period, start, end)
     return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
+
+
+@router.get("/summary")
+async def day_summary(c: AppContainer = Depends(container)) -> dict:
+    """End-of-day summary (today): numbers, interested customers, follow-ups, who needs WhatsApp."""
+    from app.services.summary_service import SummaryService
+
+    return await SummaryService(c.workflow, c.reports, c.settings).today()

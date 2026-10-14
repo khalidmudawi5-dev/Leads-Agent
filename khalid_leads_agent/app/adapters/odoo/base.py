@@ -117,14 +117,6 @@ class OdooAdapter(ABC):
                     raise
         return out
 
-    async def list_stages(self) -> list[str]:
-        """CRM stage names in pipeline order."""
-        return []
-
-    async def set_stage(self, lead_id: int, stage_name: str) -> ActionOutcome:
-        """Move the lead to the stage named ``stage_name`` (exact name, case-insensitive)."""
-        return ActionOutcome(False, "none", "تغيير المرحلة غير مدعوم.")
-
     async def render_pdf(self, html: str) -> bytes:
         """Print an HTML page to PDF (A4) with a headless browser."""
         raise AgentError("PDF_UNAVAILABLE", "تصدير PDF غير متاح؛ استخدم «طباعة / حفظ PDF».")
@@ -172,6 +164,17 @@ class OdooAdapter(ABC):
         """Write ``phone`` or ``mobile`` on a ``crm.lead`` (only called for an empty field, after the
         user linked the customer and asked for it). Returns the lead as read back from Odoo."""
         raise AgentError("ODOO_WRITE_UNSUPPORTED", "تعديل رقم العميل في Odoo غير مدعوم في هذا الوضع.")
+
+    async def list_stages(self) -> list[dict[str, Any]]:
+        """CRM stages in pipeline order: ``[{"id", "name", "sequence", "is_won"}]``."""
+        raise AgentError("ODOO_STAGES_UNSUPPORTED", "قراءة مراحل Odoo غير مدعومة في هذا الوضع.")
+
+    async def lead_stage_id(self, lead_id: int) -> int | None:
+        """The lead's current stage id (fresh from Odoo)."""
+        raise AgentError("ODOO_STAGES_UNSUPPORTED", "قراءة مراحل Odoo غير مدعومة في هذا الوضع.")
+
+    async def set_lead_stage(self, lead_id: int, stage_id: int) -> None:
+        raise AgentError("ODOO_STAGES_UNSUPPORTED", "تغيير مرحلة العميل في Odoo غير مدعوم في هذا الوضع.")
 
     @property
     def browser_started(self) -> bool:

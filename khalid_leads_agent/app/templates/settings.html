@@ -96,11 +96,17 @@
   </section>
 
   <section class="tab-panel" data-panel="status">
-    <p class="muted">اربط كل نتيجة داخلية بقيمة Dropdown الفعلية في عمود «حالة المتابعة»، واختياريًا بمرحلة في Odoo ينتقل لها العميل عند الحفظ.</p>
-    <div id="stage-msg"></div>
-    <table class="table"><thead><tr><th>الرمز الداخلي</th><th>الزر</th><th>قيمة Google Sheet</th><th>مرحلة Odoo (اختياري)</th></tr></thead><tbody id="status-rows"></tbody></table>
-    <datalist id="status-options"></datalist><datalist id="stage-options"></datalist>
+    <p class="muted">اربط كل نتيجة داخلية بقيمة Dropdown الفعلية في عمود «حالة المتابعة».</p>
+    <table class="table"><thead><tr><th>الرمز الداخلي</th><th>الزر</th><th>قيمة Google Sheet</th></tr></thead><tbody id="status-rows"></tbody></table>
+    <datalist id="status-options"></datalist>
     <div class="actions" style="margin-top:12px"><button class="btn primary" id="btn-save-status">حفظ Status Mapping</button></div>
+
+    <h3 style="margin-top:22px">مرحلة Odoo حسب النتيجة</h3>
+    <p class="muted small">اختياري: عند حفظ نتيجة ينتقل العميل في Odoo (Pipeline) إلى المرحلة المختارة. «— بدون تغيير —» يعني لا شيء. لا يُنقل عميل من مرحلة Won أبدًا. Dry Run لا يغيّر شيئًا.</p>
+    <div class="actions"><button class="btn sm" type="button" id="btn-load-stages">تحميل المراحل من Odoo</button><span class="small muted" id="stages-state"></span></div>
+    <table class="table" style="margin-top:8px"><thead><tr><th>النتيجة</th><th>مرحلة Odoo</th></tr></thead><tbody id="stage-rows"></tbody></table>
+    <label class="check" style="margin-top:8px"><input type="checkbox" id="stage-no-back"> لا ترجع العميل لمرحلة سابقة (مثلًا من Proposition إلى Qualified)</label>
+    <div class="actions" style="margin-top:12px"><button class="btn primary" type="button" id="btn-save-stages">حفظ مراحل Odoo</button></div>
   </section>
 
   <section class="tab-panel" data-panel="source">
@@ -156,23 +162,25 @@
     <div class="form-grid">
       <label class="field full"><span>عبارة في كل سطر — تُضاف للملاحظة بضغطة</span><textarea data-key="quick_notes" data-type="lines" rows="6"></textarea></label>
     </div>
-    <h3 style="margin-top:18px">تنبيه موعد المتابعة وملخص اليوم</h3>
+    <h3 style="margin-top:18px">ملخص اليوم</h3>
     <div class="form-grid">
-      <label class="check"><input type="checkbox" data-key="followup_reminders"> تنبيه عند حلول موعد المتابعة (إشعار ويندوز + تنبيه في الصفحة)</label>
-      <label class="field"><span>التنبيه قبل الموعد بـ (دقائق)</span><input type="number" min="0" max="120" data-key="followup_remind_minutes"></label>
-      <label class="field"><span>وقت التنبيه للمتابعات بدون وقت</span><input type="time" data-key="followup_default_time"></label>
       <label class="field"><span>عرض «ملخص اليوم» تلقائيًا الساعة (فارغ = إيقاف)</span><input type="time" data-key="day_summary_time"></label>
-      <div class="field"><span>&nbsp;</span><button type="button" class="btn" id="btn-notify-perm">السماح بإشعارات الويندوز</button></div>
     </div>
     <h3 style="margin-top:18px">المتابعات</h3>
     <div class="form-grid">
       <label class="check"><input type="checkbox" data-key="followups_first"> متابعات اليوم والمتأخرة تظهر أولًا في القائمة</label>
       <label class="check"><input type="checkbox" data-key="hide_future_followups"> إخفاء العميل حتى يحين موعد متابعته</label>
+      <label class="field"><span>تذكير قبل موعد المتابعة بـ (دقائق) — 0 = إيقاف</span><input type="number" min="0" max="240" data-key="followup_reminder_minutes"></label>
+      <label class="check"><input type="checkbox" data-key="followup_reminder_sound"> صوت خفيف مع التذكير</label>
+      <div class="actions"><button class="btn sm" type="button" id="btn-notify-perm">🔔 تفعيل إشعارات سطح المكتب</button>
+        <span class="small muted" id="notify-state"></span></div>
     </div>
     <h3 style="margin-top:18px">لم يتم الرد</h3>
     <div class="form-grid">
       <label class="field"><span>يرجع العميل للقائمة بعد (ساعات) — 0 = لا يرجع في نفس الجلسة</span><input type="number" min="0" max="168" data-key="no_answer_retry_hours"></label>
       <label class="field"><span>بعد كم محاولة بدون رد أقترح واتساب / رقم غير صحيح (0 = أبدًا)</span><input type="number" min="0" max="20" data-key="no_answer_max_attempts"></label>
+      <label class="check"><input type="checkbox" data-key="sheet_history_enabled"> احسب المحاولات القديمة من عمود «الملاحظات» في Google Sheet</label>
+      <label class="field"><span>كلمات تعني «لم يتم الرد» في الملاحظات (كلمة في كل سطر)</span><textarea rows="4" data-key="no_answer_keywords" data-type="lines"></textarea></label>
     </div>
     <h3 style="margin-top:18px">الهدف اليومي والعملاء الجدد</h3>
     <div class="form-grid">
@@ -193,6 +201,13 @@
       <label class="field"><span>تأكيد كلمة المرور</span><input type="password" id="auth-pass2" autocomplete="new-password" minlength="8" required></label>
       <div class="actions" style="grid-column:1/-1"><button class="btn primary" type="submit" id="auth-save">تفعيل تسجيل الدخول</button></div>
     </form>
+    <div class="auth-on" style="margin-top:14px">
+      <h3>تسجيل الخروج التلقائي</h3>
+      <div class="row" style="gap:8px;align-items:end;flex-wrap:wrap">
+        <label class="field" style="margin:0"><span>بعد كم دقيقة بدون نشاط؟ (0 = إيقاف)</span><input type="number" id="auth-idle" min="0" max="240" style="max-width:140px"></label>
+        <button class="btn" type="button" id="auth-idle-save">حفظ</button></div>
+      <p class="muted small">النشاط = تحريك الماوس أو الكتابة أو اللمس في أي صفحة من الـAgent. التحديثات التلقائية في الخلفية لا تُحسب. قبل الخروج بدقيقة يظهر تنبيه.</p>
+    </div>
     <div class="actions auth-on" style="margin-top:6px">
       <button class="btn" type="button" id="auth-signout-all">تسجيل الخروج من كل الأجهزة الأخرى</button>
       <button class="btn danger" type="button" id="auth-disable">إيقاف تسجيل الدخول</button>

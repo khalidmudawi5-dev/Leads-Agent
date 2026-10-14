@@ -292,22 +292,11 @@ def test_sheet_status_outside_dropdown_is_refused(container, sheet):
     assert res["sheet_status"] == "failed" and sheet.write_calls == []
 
 
-def test_result_moves_odoo_stage(container, odoo):
-    container.settings.update({"odoo_stage_mapping": {"INTERESTED": "Qualified", "NO_ANSWER": "Lost"}})
+def test_stage_change_can_be_turned_off_for_one_save(container, odoo):
+    container.settings.update({"odoo_stage_by_result": {"INTERESTED": "Qualified"}, "duplicate_window_seconds": 0})
     lead = prepare(container)
-    res = save(container, idempotency_key="key-stage-01", fingerprint=lead["fingerprint"], result_code="INTERESTED")
-    assert res["preview"]["stage"] == "Qualified" and res["preview"]["stage_status"] == "success"
-    assert odoo.leads[1].stage == "Qualified" and odoo.stage_changes == [(1, "Qualified")]
-    bad = save(container, idempotency_key="key-stage-02", fingerprint=lead["fingerprint"], result_code="NO_ANSWER")
-    assert bad["preview"]["stage_status"] == "failed" and any("Lost" in w for w in bad["warnings"])
-    assert bad["odoo_note_status"] == "success"  # the note is still added
-    off = save(container, idempotency_key="key-stage-03", fingerprint=lead["fingerprint"], result_code="FOLLOW_UP",
-               followup_date="2026-12-01", update_stage=False)
-    assert off["preview"]["stage"] == ""
-
-
-def test_stage_not_changed_in_dry_run(container, odoo):
-    container.settings.update({"odoo_stage_mapping": {"INTERESTED": "Qualified"}, "dry_run": True})
-    lead = prepare(container)
-    res = save(container, idempotency_key="key-stage-dry", fingerprint=lead["fingerprint"], result_code="INTERESTED")
-    assert res["preview"]["stage"] == "Qualified" and not getattr(odoo, "stage_changes", [])
+    save(container, idempotency_key="key-stage-off", fingerprint=lead["fingerprint"], result_code="INTERESTED",
+         update_stage=False)
+    assert odoo.stage_writes == []
+    save(container, idempotency_key="key-stage-on", fingerprint=lead["fingerprint"], result_code="INTERESTED")
+    assert len(odoo.stage_writes) == 1

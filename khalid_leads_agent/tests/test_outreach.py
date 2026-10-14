@@ -316,3 +316,23 @@ def test_whatsapp_link_keeps_emojis():
     assert url.startswith("https://api.whatsapp.com/send?phone=966561234567&text=")
     assert parse_qs(urlsplit(url).query)["text"] == [text]  # exact round trip, 4-byte emojis included
     assert "%F0%9F%8C%B7" in url  # 🌷 as UTF-8 bytes
+
+# ------------------------------------------------- follow-up reminders
+def test_reminders_list_timed_followups_today_and_tomorrow(container):
+    lead = prepare(container)
+    soon = localnow() + timedelta(minutes=20)
+    save(container, idempotency_key="key-rem-001", fingerprint=lead["fingerprint"], result_code="FOLLOW_UP",
+         followup_date=soon.date().isoformat(), followup_time=soon.strftime("%H:%M"), followup_note="عرض السعر")
+    r = container.workflow.followup_reminders()
+    assert r["minutes"] == 30 and r["sound"] is True
+    assert r["items"] == [{"fingerprint": lead["fingerprint"], "company": FIRST, "phone": "+966 56 123 4567",
+                           "at": f"{soon.date().isoformat()} {soon.strftime('%H:%M')}", "note": "عرض السعر"}]
+    container.settings.update({"followup_reminder_minutes": 0})
+    assert container.workflow.followup_reminders()["items"] == []
+
+
+def test_reminders_skip_followups_without_a_time(container):
+    lead = prepare(container)
+    save(container, idempotency_key="key-rem-002", fingerprint=lead["fingerprint"], result_code="FOLLOW_UP",
+         followup_date=(localnow().date() + timedelta(days=1)).isoformat())
+    assert container.workflow.followup_reminders()["items"] == []

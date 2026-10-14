@@ -25,6 +25,11 @@ class MockOdooAdapter(OdooAdapter):
         self.versions: dict[int, int] = {}
         self.created: list[dict[str, Any]] = []
         self.phone_writes: list[dict[str, Any]] = []
+        self.stages = [{"id": 1, "name": "جديد", "sequence": 1, "is_won": False},
+                       {"id": 2, "name": "Qualified", "sequence": 2, "is_won": False},
+                       {"id": 3, "name": "Proposition", "sequence": 3, "is_won": False},
+                       {"id": 4, "name": "Won", "sequence": 70, "is_won": True}]
+        self.stage_writes: list[dict[str, Any]] = []
         self.fail_create = False
         self.utm_sources = {"meta", "google", "twajd", "power bi"}
         self.utm_mediums = {"leads", "cpc"}
@@ -133,24 +138,6 @@ class MockOdooAdapter(OdooAdapter):
         self.phone_writes.append({"id": lead_id, field: value})
         return self._with_history(self.leads[lead_id])
 
-    stages = ["جديد", "Qualified", "Proposition", "Won"]
-
-    async def list_stages(self) -> list[str]:
-        self._check()
-        return list(self.stages)
-
-    async def set_stage(self, lead_id: int, stage_name: str) -> ActionOutcome:
-        self._check()
-        found = next((s for s in self.stages if s.lower() == stage_name.strip().lower()), None)
-        if found is None or lead_id not in self.leads:
-            return ActionOutcome(False, "none", f"المرحلة «{stage_name}» غير موجودة في Odoo.")
-        if self.leads[lead_id].stage == found:
-            return ActionOutcome(True, "mock", already_done=True)
-        self.leads[lead_id].stage = found
-        self.stage_changes = getattr(self, "stage_changes", []) + [(lead_id, found)]
-        self.touch(lead_id)
-        return ActionOutcome(True, "mock")
-
     async def read_leads(self, ids: list[int]) -> list[OdooLead]:
         self._check()
         return [self.leads[i] for i in ids if i in self.leads]
@@ -158,6 +145,20 @@ class MockOdooAdapter(OdooAdapter):
     async def render_pdf(self, html: str) -> bytes:
         self.pdf_html = html
         return b"%PDF-1.4 mock"
+
+    async def list_stages(self) -> list[dict[str, Any]]:
+        self._check()
+        return [dict(s) for s in self.stages]
+
+    async def lead_stage_id(self, lead_id: int) -> int | None:
+        self._check()
+        name = self.leads[lead_id].stage
+        return next((s["id"] for s in self.stages if s["name"] == name), None)
+
+    async def set_lead_stage(self, lead_id: int, stage_id: int) -> None:
+        self._check()
+        self.leads[lead_id].stage = next(s["name"] for s in self.stages if s["id"] == stage_id)
+        self.stage_writes.append({"id": lead_id, "stage_id": stage_id})
 
     async def lead_signature(self, lead_id: int) -> str | None:
         self._check()

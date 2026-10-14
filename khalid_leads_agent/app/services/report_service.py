@@ -124,31 +124,6 @@ class ReportService:
             "_results": results, "_caches": caches, "_messages": messages, "_labels": labels,
         }
 
-    def day_summary(self, followups: list[dict], owner: str) -> dict:
-        """End-of-day summary: today's numbers, interested customers, tomorrow's follow-ups, ready-to-copy text."""
-        rep = self.build("today")
-        t, labels = rep["totals"], rep["_labels"]
-        hot = [{"company": r.company_name, "phone": r.phone, "result": labels.get(r.result_code, r.result_code),
-                "note": " ".join((r.note or "").split())[:160]}
-               for r in rep["_results"] if r.result_code in POSITIVE]
-        tomorrow = (localnow().date() + timedelta(days=1)).isoformat()
-        nxt = [f for f in followups if f["followup_at"][:10] == tomorrow]
-        overdue = [f for f in followups if f["state"] == "overdue"]
-        lines = [f"ملخص يوم {localnow().strftime('%d/%m/%Y')} — {owner}",
-                 f"المكالمات المسجلة: {t['calls']} (عملاء: {t['customers']})",
-                 f"تم الرد: {t['answered']} ({t['answer_rate']}%)",
-                 f"مهتم: {t['interested']} · تم الاشتراك: {t['subscribed']} · متابعة لاحقة: {t['follow_up']} · لم يتم الرد: {t['no_answer']}",
-                 f"رسائل واتساب: {t['whatsapp']}"]
-        if hot:
-            lines += ["", "المهتمون اليوم:"] + [f"- {h['company']} ({h['phone']}){' — ' + h['note'] if h['note'] else ''}" for h in hot]
-        if nxt:
-            lines += ["", f"متابعات الغد ({len(nxt)}):"] + [
-                f"- {f['followup_at'][11:16] or '—'} {f['company']}{' — ' + f['note'] if f['note'] else ''}" for f in nxt]
-        if overdue:
-            lines += ["", f"متابعات متأخرة: {len(overdue)}"]
-        return {"date": rep["start"], "totals": t, "by_result": [r for r in rep["by_result"] if r["count"]],
-                "interested": hot, "tomorrow": nxt, "overdue": len(overdue), "text": "\n".join(lines)}
-
     def public(self, report: dict) -> dict:
         return {k: v for k, v in report.items() if not k.startswith("_")}
 

@@ -257,22 +257,6 @@ async function loadStatus() {
   const r = await api("GET", "/api/settings/status-mapping");
   let options = null;
   try { options = (await api("GET", "/api/sheet/options/followup_status")).options; } catch (e) { /* sheet not connected yet */ }
-  const stageMap = (CFG && CFG.settings.odoo_stage_mapping) || {};
-  let stages = null;
-  try { stages = (await api("GET", "/api/odoo/stages")).stages; } catch (e) {
-    $("#stage-msg").innerHTML = `<div class="alert info small">لم تُقرأ مراحل Odoo (${esc(e.message)}). سجّل الدخول إلى Odoo ثم افتح هذا التبويب مرة أخرى، أو اكتب اسم المرحلة كما هو في Odoo.</div>`;
-  }
-  if (stages) $("#stage-msg").innerHTML = "";
-  const stageCtl = (code) => {
-    const cur = stageMap[code] || "";
-    if (stages && stages.length) {
-      const lost = cur && !stages.includes(cur);
-      return `<select data-stage="${code}"><option value="">— بدون تغيير —</option>
-        ${lost ? `<option value="${esc(cur)}" selected>⚠ ${esc(cur)} (غير موجودة)</option>` : ""}
-        ${stages.map((n) => `<option value="${esc(n)}" ${n === cur ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
-    }
-    return `<input type="text" data-stage="${code}" value="${esc(cur)}" placeholder="بدون تغيير">`;
-  };
   $("#status-rows").innerHTML = r.items.map((i) => {
     let ctl;
     if (options && options.length) {
@@ -283,19 +267,12 @@ async function loadStatus() {
     } else {
       ctl = `<input type="text" data-sv="${i.code}" value="${esc(i.sheet_value)}">`;
     }
-    return `<tr><td class="ltr">${esc(i.code)}</td><td><input type="text" data-label="${i.code}" value="${esc(i.label)}"></td><td>${ctl}</td><td>${stageCtl(i.code)}</td></tr>`;
+    return `<tr><td class="ltr">${esc(i.code)}</td><td><input type="text" data-label="${i.code}" value="${esc(i.label)}"></td><td>${ctl}</td></tr>`;
   }).join("");
 }
 async function saveStatus() {
   const items = $$("[data-sv]").map((el, i) => ({ code: el.dataset.sv, sheet_value: el.value, label: $(`[data-label="${el.dataset.sv}"]`).value, sort_order: i }));
-  const stageMap = {};
-  $$("[data-stage]").forEach((el) => { if (el.value.trim()) stageMap[el.dataset.stage] = el.value.trim(); });
-  try {
-    await api("PUT", "/api/settings/status-mapping", { items });
-    await api("PUT", "/api/settings", { odoo_stage_mapping: stageMap });
-    CFG.settings.odoo_stage_mapping = stageMap;
-    toast("تم حفظ Status Mapping ومراحل Odoo", "success");
-  }
+  try { await api("PUT", "/api/settings/status-mapping", { items }); toast("تم حفظ Status Mapping", "success"); }
   catch (e) { toast(e.message, "error"); }
 }
 
@@ -435,6 +412,7 @@ async function loadAuth() {
     : `<div class="alert warn">تسجيل الدخول <b>غير مفعّل</b>: أي شخص يستخدم هذا الكمبيوتر يقدر يفتح الـAgent${st.remote ? "، ومن الجوال يُطلب رمز PIN فقط" : ""}.</div>`;
   $$(".auth-on").forEach((el) => el.classList.toggle("hidden", !st.enabled));
   $("#auth-user").value = st.username || $("#auth-user").value || "";
+  $("#auth-idle").value = st.idle_minutes ?? 10;
   $("#auth-new-label").textContent = st.enabled ? "كلمة المرور الجديدة (8 أحرف على الأقل)" : "كلمة المرور (8 أحرف على الأقل)";
   $("#auth-save").textContent = st.enabled ? "حفظ التغيير" : "تفعيل تسجيل الدخول";
   ["#auth-current", "#auth-pass", "#auth-pass2"].forEach((s) => { $(s).value = ""; });
@@ -467,9 +445,98 @@ document.addEventListener("DOMContentLoaded", () => {
       catch (e) { toast(e.message, "error", 7000); }
     }) }, { label: "إلغاء" }],
   });
+  $("#auth-idle-save").onclick = async () => {
+    const minutes = Number($("#auth-idle").value);
+    try {
+      await api("POST", "/api/auth/idle", { minutes });
+      toast(minutes ? `سيتم تسجيل الخروج تلقائيًا بعد ${minutes} دقيقة بدون نشاط.` : "تم إيقاف تسجيل الخروج التلقائي.", "success");
+      setTimeout(() => location.reload(), 1000);  // apply the new limit to this page
+    } catch (e) { toast(e.message, "error"); }
+  };
   $("#auth-signout-all").onclick = async () => {
     try { await api("POST", "/api/auth/sign-out-all"); toast("تم تسجيل الخروج من كل الأجهزة الأخرى.", "success"); }
     catch (e) { toast(e.message, "error"); }
   };
   loadAuth();
+});
+
+// ------------------------------------------------------------------ desktop notifications (follow-up reminders)
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = $("#btn-notify-perm"), state = $("#notify-state");
+  if (!btn) return;
+  const show = () => {
+    if (!("Notification" in window)) { btn.disabled = true; state.textContent = "المتصفح لا يدعم الإشعارات."; return; }
+    const p = Notification.permission;
+    state.textContent = p === "granted" ? "مفعّلة ✔ (تظهر عندما تكون صفحة الـAgent في الخلفية)" : p === "denied" ? "مرفوضة من المتصفح؛ فعّلها من إعدادات الموقع 🔒 بجانب العنوان." : "";
+    btn.classList.toggle("hidden", p === "granted");
+  };
+  btn.onclick = async () => { try { await Notification.requestPermission(); } catch (e) { /* ignore */ } show(); };
+  show();
+});
+
+// ------------------------------------------------------------------ Odoo stage by result
+const StageMap = {
+  stages: [], results: [],
+  async load() {
+    const body = $("#stage-rows");
+    if (!body) return;
+    try {
+      const [st, cfg] = await Promise.all([api("GET", "/api/settings/status-mapping"), api("GET", "/api/settings")]);
+      StageMap.results = st.items || [];
+      StageMap.map = cfg.settings.odoo_stage_by_result || {};
+      $("#stage-no-back").checked = cfg.settings.odoo_stage_no_back !== false;
+    } catch (e) { body.innerHTML = `<tr><td colspan="2"><div class="alert error">${esc(e.message)}</div></td></tr>`; return; }
+    StageMap.draw();
+  },
+  draw() {
+    const names = [...new Set([...StageMap.stages.map((s) => s.name), ...Object.values(StageMap.map || {}).filter(Boolean)])];
+    const hint = names.length ? "" : `<option value="" disabled>${StageMap.loading ? "جاري تحميل المراحل من Odoo…" : "لا توجد مراحل: اضغط «تحميل المراحل من Odoo»"}</option>`;
+    $("#stage-rows").innerHTML = StageMap.results.map((r) => {
+      const cur = (StageMap.map || {})[r.code] || "";
+      return `<tr><td><b>${esc(r.label || r.code)}</b> <span class="small muted ltr">${esc(r.code)}</span></td>
+        <td><select data-code="${esc(r.code)}"><option value="">— بدون تغيير —</option>${hint}
+          ${names.map((n) => `<option value="${esc(n)}" ${n === cur ? "selected" : ""}>${esc(n)}${StageMap.stages.length && !StageMap.stages.some((s) => s.name === n) ? " (غير موجودة في Odoo)" : ""}</option>`).join("")}</select></td></tr>`;
+    }).join("");
+  },
+  async fetchStages(btn) {
+    const state = $("#stages-state");
+    const run = async () => {
+      StageMap.loading = true;
+      state.innerHTML = '<span class="spinner"></span> جاري تحميل المراحل من Odoo…';
+      try {
+        StageMap.stages = (await api("GET", "/api/odoo/stages")).stages || [];
+        state.innerHTML = StageMap.stages.length
+          ? `<span class="badge green">${StageMap.stages.length} مرحلة</span> ${StageMap.stages.map((s) => esc(s.name)).join(" · ")}`
+          : '<span class="badge amber">Odoo لم يرجع أي مرحلة</span> تأكد أن تطبيق CRM مثبت وأن لديك صلاحية عليه.';
+      } catch (e) {
+        state.innerHTML = `<span class="badge red">تعذر تحميل المراحل</span> ${esc(e.message)}${e.code === "ODOO_LOGIN_REQUIRED" ? " — سجّل الدخول إلى Odoo من الرئيسية ثم اضغط «تحميل المراحل من Odoo»." : ""}`;
+      } finally {
+        StageMap.loading = false;
+        StageMap.draw();
+      }
+    };
+    if (btn) await withBusy(btn, run); else await run();
+  },
+  async save(btn) {
+    const map = {};
+    $$("#stage-rows select").forEach((sel) => { if (sel.value) map[sel.dataset.code] = sel.value; });
+    await withBusy(btn, async () => {
+      try {
+        await api("PUT", "/api/settings", { odoo_stage_by_result: map, odoo_stage_no_back: $("#stage-no-back").checked });
+        StageMap.map = map;
+        toast(Object.keys(map).length ? "تم حفظ مراحل Odoo." : "تم الحفظ: لن تتغير مرحلة أي عميل.", "success");
+      } catch (e) { toast(e.message, "error"); }
+    });
+  },
+};
+document.addEventListener("DOMContentLoaded", () => {
+  if (!$("#stage-rows")) return;
+  $("#btn-load-stages").onclick = (ev) => StageMap.fetchStages(ev.currentTarget);
+  $("#btn-save-stages").onclick = (ev) => StageMap.save(ev.currentTarget);
+  StageMap.load();
+  // Load the stages from Odoo the first time the Status Mapping tab is opened.
+  const tab = $('[data-tab="status"]');
+  const auto = () => { if (!StageMap.stages.length && !StageMap.loading) StageMap.fetchStages(); };
+  if (tab) tab.addEventListener("click", auto);
+  if ($('[data-panel="status"]').classList.contains("active")) auto();
 });
