@@ -1,5 +1,9 @@
 # Test Report — Khalid Leads Agent 1.2.0
 
+## Update 2.7.2 (2026-10-14): customer card shows the Odoo number when the sheet cell is empty
+
+- Field report: the card showed no number for a customer whose «رقم الجوال» cell is empty in the sheet although Odoo has a valid Mobile. The card (and «نسخ الرقم») now falls back to the number the call uses (phone check target, else Odoo mobile/phone) with a «من Odoo · فارغ في الـSheet» tag; nothing is written to the sheet. Checked the fallback order with node; 211 tests still pass.
+
 ## Update 2.7.1 (2026-10-14): rows no longer grow in Google Sheets
 
 **Result:** ✅ **211 passed, 1 skipped**.

@@ -121,8 +121,19 @@ Shortcuts.register([
     when: () => resultOpen() || !!$("#btn-cancel-next"), run: () => { if ($("#btn-cancel-next")) $("#btn-cancel-next").click(); else $("#r-cancel").click(); } },
 ]);
 
+/** The number to show / copy: the sheet's, else the Odoo number the call would use. */
+function leadPhone(lead) {
+  if (!lead) return { value: "", from: "" };
+  if ((lead.phone || "").trim()) return { value: lead.phone, from: "sheet" };
+  const t = lead.phone_check && lead.phone_check.target;
+  if (t && t.raw) return { value: t.raw, from: "odoo", field: t.field };
+  const o = lead.odoo || {};
+  const v = o.mobile || o.phone || "";
+  return { value: v, from: v ? "odoo" : "" };
+}
+
 async function copyPhone() {
-  const phone = S.manual ? (S.manual.phone || S.manual.mobile) : (S.lead && S.lead.phone);
+  const phone = S.manual ? (S.manual.phone || S.manual.mobile) : leadPhone(S.lead).value;
   if (!phone) return;
   try { await navigator.clipboard.writeText(phone); toast("تم نسخ الرقم: " + phone, "info", 2500); }
   catch (e) { toast("تعذر النسخ", "warn"); }
@@ -704,7 +715,11 @@ function renderLead(lead) {
         <div class="row small" style="gap:6px">${posBadge()}<span class="badge blue">صف ${lead.sheet_row} (مرجع فقط)</span>${statusBadge(lead.followup_status)}
           ${o.stage ? `<span class="badge indigo">${esc(o.stage)}</span>` : ""}</div>
         <h2 class="lead-name">${esc(lead.company_name || "(بدون اسم)")}</h2>
-        <div class="lead-phone"><span class="ltr">${esc(lead.phone)}</span>
+        <div class="lead-phone">${(() => {
+          const ph = leadPhone(lead);
+          if (!ph.value) return '<span class="badge red">لا يوجد رقم جوال</span>';
+          return `<span class="ltr">${esc(ph.value)}</span>${ph.from === "odoo" ? '<span class="badge amber" title="خلية «رقم الجوال» فارغة في Google Sheet؛ الرقم من Odoo">من Odoo · فارغ في الـSheet</span>' : ""}`;
+        })()}
           <button class="icon-btn" id="btn-copy" title="نسخ الرقم (P)">${ICON.copy}</button>${phoneBadge(lead.phone_check)}</div></div></div>
     </div></div>
     <div class="lead-body">
